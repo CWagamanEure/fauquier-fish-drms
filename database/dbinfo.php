@@ -20,9 +20,9 @@ date_default_timezone_set('America/New_York');
 
 function connect() {
 	$host = "localhost"; 
-	$database = "casadb";
-	$user = "casadb";
-	$pass = "casadb";
+	$database = "fishdb";
+	$user = "fishdb";
+	$pass = "fishdb";
 	if ($_SERVER['SERVER_NAME'] == '') {
 		$user = '';
 		$database = '';
