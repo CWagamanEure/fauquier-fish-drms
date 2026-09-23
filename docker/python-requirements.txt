@@ -1,0 +1,9 @@
+# Dependencies actually imported by the app; excludes host OS packages.
+mysql-connector-python==9.5.0
+pandas==2.3.3
+numpy==2.3.4
+matplotlib==3.10.7
+seaborn==0.13.2
+reportlab==4.4.4
+openpyxl==3.1.5
+python-dotenv==1.2.1

@@ -1,0 +1,12 @@
+.git
+.env
+.env.*
+.local
+.idea
+**/.DS_Store
+**/__pycache__
+**/*.pyc
+node_modules
+ai-email-gen/ollama-data
+output
+.playwright-cli
