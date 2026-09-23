@@ -4,14 +4,24 @@
 
 ## Local development with Docker
 
-Install and start Docker Desktop. Clone this repository anywhere on your computer;
-XAMPP and `htdocs` are not required. From the project folder:
+Install and start Docker Desktop. Clone this repository into a Docker-shared
+folder, such as `~/Projects/fauquier-fish-drms` on macOS. XAMPP and `htdocs`
+are not required. From the project folder:
 
 ```bash
-cp .env.example .env
-# Edit .env and choose a local database root password.
-docker compose up -d --build
+make dev
 ```
+
+`make dev` creates `.env` from `.env.example` only if it is missing, builds the
+containers, and starts the services in the background. Existing `.env` settings
+are preserved. Run `make` to list commands; use `make stop`, `make status`, and
+`make logs` to stop services, inspect them, or follow logs. No host PHP, Python,
+Poetry, or npm install is needed. The Makefile in `ai-email-gen/` is only for the
+optional AI integration, not for starting this application.
+
+Without Make, copy `.env.example` to `.env` once, then run
+`docker compose up -d --build --wait --wait-timeout 180`. You can edit `.env`
+before the first start to choose local database passwords or change ports.
 
 - Website: http://localhost:8080/
 - phpMyAdmin: http://localhost:8081/ (use DB_USER and DB_PASSWORD from .env)
