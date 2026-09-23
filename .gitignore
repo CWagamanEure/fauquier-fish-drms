@@ -4,4 +4,9 @@ __pycache__/
 *.pyc
 ai-email-gen/ollama-data/
 .env
-
+.env.*
+!.env.example
+node_modules/
+.local/
+output/
+.playwright-cli/
