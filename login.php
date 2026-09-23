@@ -100,7 +100,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
   <!-- Left: Image Section (Hidden on small screens) -->
   <div class="hidden md:block md:w-1/2 bg-center rounded-r-[50px]"
-       style="background-image: url(images/xavier-mouton-photographie-ry_sD0P1ZL0-unsplash-scaled.jpg); background-size: 150%; background-repeat: no-repeat; ">
+       style="background-image: url(images/placeholder.jpg); background-size: 150%; background-repeat: no-repeat; ">
   </div>
 
   <!-- Right: Form Section -->
@@ -111,16 +111,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <div class="w-2/3 max-w-md flex flex-col items-center">
 
       <!-- Logo Placeholder (Now the same width as inputs and centered) -->
+	   <p class="text-sm text-gray-400 text-center mb-4">Neighbors helping neighbors with kindness and respect just as we would want to be treated in a time of need.</p>
       <div class="w-full flex justify-center mb-6">
-	<img src="images/RAPPAHANNOCK_v_RedBlue2.png"
+	<img src="images/placeholder.jpg"
 	     alt="Logo"
 	     class="w-full max-w-xs">
       </div>
-
+	  	<p class="text-center text-gray-500 mb-2">Welcome back to the FISH DRMS.</p>
       <h2 class="text-3xl font-bold mb-6 text-gray-800 text-center">
-	<span class="wave">👋</span> Nice to see you again.
+	<span class="wave">👋</span> Nice to see you again. Please Sign in!
       </h2>
-
       <form class="w-full" method="post">
 <?php
 if ($badLogin) {
@@ -145,7 +145,7 @@ if (isset($_GET['registerSuccess'])) {
       <!--<a href="#" class="text-blue-500 text-sm hover:underline">Forgot password?</a> -->
 	  <a href="https://rappahannockcasa.com/" target="_blank" class="text-blue-500 text-sm hover:underline">Rappahannock CASA Website</a>
 	</div>
-	<button class="cursor-pointer w-full bg-[#345284] hover:bg-blue-600 text-white font-semibold py-3 rounded-lg transition duration-300">Login</button>
+		<button class="cursor-pointer w-full bg-[#345284] hover:bg-blue-600 text-white font-semibold py-3 rounded-lg transition duration-300">Sign In</button>
       </form>
 
     </div>
