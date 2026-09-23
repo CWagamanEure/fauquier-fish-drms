@@ -45,10 +45,10 @@ try:
     def connect():
         try:
             conn = mysql.connector.connect(
-                    user = "ueowkedxfqqge",
-                    password = "7zygsg3zaypd",
-                    host = "localhost",
-                    database = "dbt9ozuchwr5nz"
+                    user = os.getenv("DB_USER", "fishdb"),
+                    password = os.getenv("DB_PASSWORD", "fishdb"),
+                    host = os.getenv("DB_HOST", "127.0.0.1"),
+                    database = os.getenv("DB_NAME", "fishdb")
                     )
             return conn
         except Exception as e:

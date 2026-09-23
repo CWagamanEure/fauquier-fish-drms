@@ -19,15 +19,10 @@ date_default_timezone_set('America/New_York');
 date_default_timezone_set('America/New_York');
 
 function connect() {
-	$host = "localhost"; 
-	$database = "fishdb";
-	$user = "fishdb";
-	$pass = "fishdb";
-	if ($_SERVER['SERVER_NAME'] == '') {
-		$user = '';
-		$database = '';
-		$pass = '';
-	} 
+	$host = getenv('DB_HOST') ?: 'localhost';
+	$database = getenv('DB_NAME') ?: 'fishdb';
+	$user = getenv('DB_USER') ?: 'fishdb';
+	$pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : 'fishdb';
 	$con = mysqli_connect($host,$user,$pass,$database);
 	if (!$con) { echo "not connected to server"; return mysqli_error($con);}
 	$selected = mysqli_select_db($con,$database);
