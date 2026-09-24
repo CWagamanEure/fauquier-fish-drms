@@ -92,6 +92,7 @@
 <footer class="footer">
     <div class="footer-left">
         <img src="images/RAPPAHANNOCK_v_White-300x300.png" alt="Logo" class="footer-logo">
+        <p>Rappahannock CASA<br>Supporting Children, Strengthening Community.</p>
     </div>
 
     <div class="footer-right">
