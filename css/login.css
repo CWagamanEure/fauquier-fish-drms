@@ -1,0 +1,137 @@
+/*  Created by TCD */
+/* Base  */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+/* changed the background color to match the style of FISH */
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  background-color: #1d2e44;   /* dark navy */
+  color: #ffffff;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/*  Header  */
+.site-header {
+  background-color: #efefef;   /* light gray band */
+  padding: 20px;
+  border-bottom: 1px solid #cccccc;
+}
+/* Centers Text */
+.brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+/* size of the logo at the top of the page */
+.logo {
+  width: 90px;
+  height: auto;
+}
+/* Size & color of "Fauquier FISH */
+.brand-text h1 {
+  font-size: 2.75rem;
+  font-weight: normal;
+  color: #3a3a3a;
+}
+/* Size and color of "Feed. Inspire. Support. Health */
+.tagline {
+  font-size: 1.5rem;
+  color: #3a3a3a;
+  margin-top: 4px;
+}
+
+/*  Login area  */
+.login-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 50px 16px;
+}
+/* Size and color of the Welcome message  */
+.welcome {
+  font-size: 3.25rem;
+  font-weight: normal;
+  text-align: center;
+  line-height: 1.2;
+  margin-bottom: 30px;
+}
+/* the area where the login button and username and password can go */
+.login-form {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+}
+
+.login-form label {
+  font-size: 1.25rem;
+  margin: 16px 0 8px 10px;
+}
+/* the boxes for username and password can be enterd */
+.login-form input {
+  padding: 8px 18px;
+  font-size: 0.9rem;
+  background-color: #eeeeee;
+  border: 1px solid #cccccc;
+  border-radius: 4px;
+  color: #333333;
+}
+/* login button outline */
+.login-form input:focus {
+  outline: 2px solid #6e9a75;
+}
+
+.login-btn {
+  align-self: center;
+  margin-top: 45px;
+  padding: 6px 50px;
+  font-size: 1.75rem;
+  color: #ffffff;
+  background-color: #6e9a75;   /* sage green */
+  border: 1px solid #5a8261;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.login-btn:hover {
+  background-color: #5a8261;
+}
+
+/*  Small screens  */
+@media (max-width: 600px) {
+  .brand { flex-direction: column; text-align: center; }
+  .brand-text h1 { font-size: 2rem; }
+  .tagline { font-size: 1.1rem; }
+  .welcome { font-size: 2.25rem; }
+}
+
+/* Login messages  */
+.login-msg {
+  padding: 10px 14px;
+  border-radius: 4px;
+  text-align: center;
+  margin-bottom: 8px;
+}
+.login-msg.error   { background-color: #b42318; }
+.login-msg.success { background-color: #5a8261; }
+
+/* (NEW) Step 2: username shown, can't be edited  */
+.user-locked {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 18px;
+  background-color: #2a3d57;
+  border: 1px solid #3d5878;
+  border-radius: 4px;
+  font-size: 0.95rem;
+}
+.user-locked a { color: #f2c744; font-size: 0.85rem; font-weight: bold; text-decoration: none; }
+.user-locked a:hover { text-decoration: underline; }
