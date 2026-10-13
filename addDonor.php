@@ -1,242 +1,195 @@
-<?php session_cache_expire(30);
-    session_start();
+<?php
+// css and php to keep the pages consistant
+require_once 'include/fishnet-layout.php';
+require_once 'include/donorDataStopgap.php';
 
-    ini_set("display_errors",1);
-    error_reporting(E_ALL);
+//commenting out since I'm not using access lvl, not sure if we will keep it the same as well
+   //if (($_SESSION['access_level'] ?? 0) < 2) { header('Location: login.php'); exit; }
 
-    $loggedIn = false;
-    $accessLevel = 0;
-    $userID = null;
-    if (isset($_SESSION['_id'])) {
-        $loggedIn = true;
-        // 0 = not logged in, 1 = standard user, 2 = manager (Admin), 3 super admin (TBI)
-        $accessLevel = $_SESSION['access_level'];
-        $userID = $_SESSION['_id'];
-    } 
-    // Require admin privileges
-    if ($accessLevel < 2) {
-        header('Location: login.php');
-        echo 'bad access level';
-        die();
+$states = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'];
+$preferredOptions = ['Email', 'Phone', 'Mail'];
+$errors = [];
+
+// create form with empty fields
+$form = [
+  'type'=>'Individual', 'first'=>'', 'middle'=>'', 'last'=>'', 'org_name'=>'',
+  'email'=>'', 'phone'=>'', 'preferred'=>'',
+  'street'=>'', 'city'=>'', 'state'=>'VA', 'zip'=>'',
+  'volunteer'=>0, 'email_updates'=>1, 'mail_receipts'=>0, 'do_not_contact'=>0,
+  'code'=>'', 'created'=>'',
+];
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  $in = fn($k) => trim((string)($_POST[$k] ?? ''));
+  $form = array_merge($form, [
+    'type'           => $in('type'),
+    'first'          => $in('first'),
+    'middle'         => $in('middle'),
+    'last'           => $in('last'),
+    'org_name'       => $in('org_name'),
+    'email'          => $in('email'),
+    'phone'          => $in('phone'),
+    'preferred'      => $in('preferred'),
+    'street'         => $in('street'),
+    'city'           => $in('city'),
+    'state'          => $in('state'),
+    'zip'            => $in('zip'),
+    'volunteer'      => isset($_POST['volunteer'])      ? 1 : 0,
+    'email_updates'  => isset($_POST['email_updates'])  ? 1 : 0,
+    'mail_receipts'  => isset($_POST['mail_receipts'])  ? 1 : 0,
+    'do_not_contact' => isset($_POST['do_not_contact']) ? 1 : 0,
+  ]);
+
+  if (!in_array($form['type'], ['Individual', 'Organization'], true)) $form['type'] = 'Individual';
+  if ($form['type'] === 'Individual') {
+    if ($form['first'] === '') $errors[] = 'First name is required.';
+    if ($form['last']  === '') $errors[] = 'Last name is required.';
+  } elseif ($form['org_name'] === '') {
+    $errors[] = 'Organization name is required.';
+  }
+  if ($form['email'] !== '' && !filter_var($form['email'], FILTER_VALIDATE_EMAIL)) {
+    $errors[] = 'Enter a valid email address.';
+  }
+  if ($form['phone'] !== '') {
+    $digits = preg_replace('/\D/', '', $form['phone']);
+    if (strlen($digits) === 11 && $digits[0] === '1') $digits = substr($digits, 1);
+    if (strlen($digits) !== 10) {
+      $errors[] = 'Phone number must have 10 digits.';
+    } else {
+      $form['phone'] = sprintf('(%s) %s-%s', substr($digits, 0, 3), substr($digits, 3, 3), substr($digits, 6));
     }
-    if ($_SERVER["REQUEST_METHOD"] == "POST") {
-        require_once('include/input-validation.php');
-        require_once('database/dbDonors.php');
+  }
+  if ($form['zip'] !== '' && !preg_match('/^\d{5}(-\d{4})?$/', $form['zip'])) {
+    $errors[] = 'ZIP code must be 5 digits.';
+  }
+  if ($form['state'] !== '' && !in_array($form['state'], $states, true)) $errors[] = 'Choose a valid state.';
+  if ($form['preferred'] !== '' && !in_array($form['preferred'], $preferredOptions, true)) $form['preferred'] = '';
 
-        $args = sanitize($_POST, null);
+  if (!$errors) {
+    //update later onces schema set
+    $existingIds = array_merge(array_column(stopgap_donors_base(), 'id'), array_keys($_SESSION['stopgap_new'] ?? []));
+    $newId = max($existingIds) + 1;
+    $form['created'] = date('Y-m-d');
+    $_SESSION['stopgap_new'][$newId] = $form;
+    //endupdatesegmentremind
 
-        $required = array("first","last");
+    $go = (($_POST['action'] ?? '') === 'save_add')
+      ? 'addDonation.php?donor_id=' . $newId
+      : 'donorProfile.php?id=' . $newId;
+    header('Location: ' . $go);
+    exit;
+  }
+}
 
-        if (!wereRequiredFieldsSubmitted($args, $required)) {
-            echo 'bad form data';
-            die();
-        } else {
-            $validStates = ['AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'];
+fishnet_open('Add donor', 'donor', 'forms.css');
+?>
 
-            $email = $args['email'] = validateEmail($args['email']);
-            $zip = $args['zip'] = validateZipcode($args['zip']);
-            $phone = $args['phone'] = validateAndFilterPhoneNumber($args["phone"]);
-
-            $state = valueConstrainedTo(strtoupper($args['state']),$validStates);
-            if ($state == 1){
-                $args['state'] = strtoupper($args['state']);
-            }
-            else{
-                $args['state'] = null;
-            }
-
-
-            $id = create_donor($args);
-            if(!$id){
-                die();
-            } else {
-                header('Location: donorSuccess.php');
-                exit();
-            }
-            
-        }
-    }
-    $date = null;
-    if (isset($_GET['date'])) {
-        $date = $_GET['date'];
-        $datePattern = '/[0-9]{4}-[0-9]{2}-[0-9]{2}/';
-        $timeStamp = strtotime($date);
-        if (!preg_match($datePattern, $date) || !$timeStamp) {
-            header('Location: calendar.php');
-            die();
-        }
-    }
-
-    include_once('database/dbinfo.php'); 
-    $con=connect();  
-
-?><!DOCTYPE html>
-<html>
-    <head>
-        <title>Rappahannock CASA | Add Donor</title>
-        <link rel="icon" type="image/png" href="images/RAPPAHANNOCK_v_RedBlue2.png">
-        <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;700&display=swap" rel="stylesheet">
-        <script src="https://kit.fontawesome.com/yourkit.js" crossorigin="anonymous"></script>
-
-        <style>
-        /* --- GLOBAL RESET & FONTS --- */
-        html, body {
-            height: 100%;
-            margin: 0;
-            padding: 0;
-        }
-        body {
-            font-family: 'Quicksand', sans-serif;
-            background-color: #f9f9f9;
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-        }
-
-        h1 {
-            text-align: center;
-            color: #333;
-            font-weight: 700;
-            margin-top: 30px;
-        }
-
-        /* --- CARD CONTAINER --- */
-        .content-card {
-            background: #ffffff;
-            border-radius: 12px;
-            padding: 30px;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.15);
-            width: 100%;
-            max-width: 900px;
-            margin: 30px auto;
-        }
-
-        /* ---- Headings ---- */
-        h3 {
-            margin-top: 0;
-            color: #00447b;
-            border-bottom: 2px solid #eee;
-            padding-bottom: 10px;
-            margin-bottom: 15px;
-            font-weight: bold;
-        }
-
-        /* ---- Required indicator note ---- */
-        .required-note {
-            font-size: 14px;
-            color: #d9534f;
-            margin: -8px 0 14px 0;
-            font-style: italic;
-        }
-
-        /* ---- Labels ---- */
-        label {
-            display: block;
-            font-weight: bold;
-            color: #444;
-            margin-bottom: 8px;
-            font-size: 14px;
-            margin-top: 15px;
-        }
-
-        /* ---- Inputs + textarea ---- */
-        input[type="text"], textarea {
-            width: 100%;
-            padding: 12px;
-            font-size: 16px;
-            border-radius: 8px;
-            border: 1px solid #aaa;
-            font-family: 'Quicksand', sans-serif;
-            box-sizing: border-box;
-        }
-
-        textarea {
-            min-height: 120px;
-            resize: vertical;
-        }
-
-        /* ---- Focus states ---- */
-        input:focus, textarea:focus {
-            border-color: #00447b;
-            outline: 2px solid #00447b;
-        }
-
-        /* ---- Submit Button ---- */
-        input[type="submit"] {
-            margin-top: 25px;
-            padding: 12px 24px;
-            background: #00447b;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            width: 100%;
-            transition: background 0.2s, transform 0.15s;
-        }
-
-        input[type="submit"]:hover {
-            background: #003366;
-            transform: translateY(-2px);
-        }
-        </style>
-
-    </head>
-    <body>
-        <?php require_once('header.php') ?>
-
-        <div class="content-card">
-            <h3>Add Donor</h3>
-            <p class="required-note">
-                <em>* indicates required fields</em>
-            </p>
-            <form id="new-event-form" method="POST">
-                <label for="name">* First name</label>
-                <input type="text" id="first" name="first" required placeholder="Enter name">
-
-                <label for="name">* Last name</label>
-                <input type="text" id="last" name="last" required placeholder="Enter name">
-
-                <label for="name"> Email</label>
-                <input type="text" id="email" name="email" placeholder="somebody@gmail.com">
-
-                <label for="name"> Zip code</label>
-                <input type="text" id="zip" name="zip" placeholder="11234">
-
-                <label for="name"> City</label>
-                <input type="text" id="city" name="city" placeholder="">
-
-                <label for="name"> State</label>
-                <input type="text" id="state" name="state" placeholder="VA, WA, OR, etc">
-
-                <label for="name"> Street</label>
-                <input type="text" id="street" name="street" placeholder="">
-
-                <label for="name"> Phone #</label>
-                <input type="text" id="phone" name="phone" placeholder="">
-
-                <label for="notes">Notes</label>
-                <textarea id="notes" name="notes" placeholder=""></textarea>
-
-                <input type="submit" value="Add Donor">
-
-            </form>
-
-                <script type="text/javascript">
-                    $(document).ready(function(){
-                        var checkboxes = $('.checkboxes');
-                        checkboxes.change(function(){
-                            if($('.checkboxes:checked').length>0) {
-                                checkboxes.removeAttr('required');
-                            } else {
-                                checkboxes.attr('required', 'required');
-                            }
-                        });
-                    });
-                </script>
+      <section class="page-head">
+        <div>
+          <p class="crumbs"><a href="donor.php">Donor</a> &rsaquo; Add donor</p>
+          <h1>Add donor</h1>
         </div>
+      </section>
 
-        <?php require_once('footer.php'); ?>
-    </body>
-</html>
+      <div class="split">
+        <form class="card form-card" method="post" action="addDonor.php" novalidate>
+          <!-- Hidden default button: pressing Enter in a field saves normally instead of triggering "Save & add donation" -->
+          <button type="submit" name="action" value="save" hidden></button>
+
+          <?php if ($errors): ?>
+          <div class="form-errors" role="alert">
+            <strong>Please fix the following:</strong>
+            <ul><?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul>
+          </div>
+          <?php endif; ?>
+
+          <div class="form-field">
+            <span class="lbl">Donor type</span>
+            <div class="seg">
+              <input type="radio" name="type" id="typeInd" value="Individual" <?= $form['type'] === 'Individual' ? 'checked' : '' ?>>
+              <label for="typeInd">Individual</label>
+              <input type="radio" name="type" id="typeOrg" value="Organization" <?= $form['type'] === 'Organization' ? 'checked' : '' ?>>
+              <label for="typeOrg">Organization</label>
+            </div>
+          </div>
+
+          <div>
+            <div class="group-title">Name</div>
+            <div class="grid g-name only-ind">
+              <div class="form-field"><label for="first">First name *</label><input type="text" id="first" name="first" value="<?= h($form['first']) ?>" placeholder="First name" autofocus></div>
+              <div class="form-field"><label for="middle">Middle</label><input type="text" id="middle" name="middle" value="<?= h($form['middle']) ?>" placeholder="Middle"></div>
+              <div class="form-field"><label for="last">Last name *</label><input type="text" id="last" name="last" value="<?= h($form['last']) ?>" placeholder="Last name"></div>
+            </div>
+            <div class="only-org">
+              <div class="form-field"><label for="org_name">Organization name *</label><input type="text" id="org_name" name="org_name" value="<?= h($form['org_name']) ?>" placeholder="Organization name"></div>
+            </div>
+          </div>
+
+          <div>
+            <div class="group-title">Contact</div>
+            <div class="grid g-contact">
+              <div class="form-field"><label for="email">Email</label><input type="email" id="email" name="email" value="<?= h($form['email']) ?>" placeholder="name@email.com"></div>
+              <div class="form-field"><label for="phone">Phone</label><input type="tel" id="phone" name="phone" value="<?= h($form['phone']) ?>" placeholder="(540) 555-0000"></div>
+              <div class="form-field">
+                <label for="preferred">Preferred contact</label>
+                <select id="preferred" name="preferred">
+                  <option value="">Choose&hellip;</option>
+                  <?php foreach ($preferredOptions as $o): ?>
+                    <option value="<?= h($o) ?>" <?= $form['preferred'] === $o ? 'selected' : '' ?>><?= h($o) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div class="group-title">Address</div>
+            <div class="grid g-addr">
+              <div class="form-field"><label for="street">Street</label><input type="text" id="street" name="street" value="<?= h($form['street']) ?>" placeholder="Street address"></div>
+              <div class="form-field"><label for="city">City</label><input type="text" id="city" name="city" value="<?= h($form['city']) ?>" placeholder="City"></div>
+              <div class="form-field">
+                <label for="state">State</label>
+                <select id="state" name="state">
+                  <option value="">&mdash;</option>
+                  <?php foreach ($states as $s): ?>
+                    <option value="<?= $s ?>" <?= $form['state'] === $s ? 'selected' : '' ?>><?= $s ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="form-field"><label for="zip">ZIP</label><input type="text" id="zip" name="zip" value="<?= h($form['zip']) ?>" placeholder="ZIP"></div>
+            </div>
+          </div>
+
+          <div>
+            <div class="group-title">Preferences &amp; tags</div>
+            <div class="checks">
+              <label><input type="checkbox" name="volunteer"      <?= $form['volunteer']      ? 'checked' : '' ?>> Also a volunteer</label>
+              <label><input type="checkbox" name="email_updates"  <?= $form['email_updates']  ? 'checked' : '' ?>> Send email updates</label>
+              <label><input type="checkbox" name="mail_receipts"  <?= $form['mail_receipts']  ? 'checked' : '' ?>> Mail tax receipts</label>
+              <label><input type="checkbox" name="do_not_contact" <?= $form['do_not_contact'] ? 'checked' : '' ?>> Do not contact</label>
+            </div>
+          </div>
+
+          <p class="req">* Required</p>
+          <div class="spacer"></div>
+
+          <div class="form-foot right">
+            <div class="foot-btns">
+              <a href="donor.php" class="btn btn-outline small">Cancel</a>
+              <button type="submit" name="action" value="save_add" class="btn btn-outline small">Save &amp; add donation</button>
+              <button type="submit" name="action" value="save" class="btn btn-yellow small">Save donor</button>
+            </div>
+          </div>
+        </form>
+
+        <aside class="side">
+          <section class="card panel">
+            <h3>Tips</h3>
+            <p>Only first and last name are required.</p>
+            <p>Pick Organization for churches, schools and businesses.</p>
+            <p>Use &ldquo;Save &amp; add donation&rdquo; to record a first gift right away.</p>
+          </section>
+        </aside>
+      </div>
+
+<?php fishnet_close(); ?>
