@@ -1,5 +1,5 @@
 -- UF2-7 / UF2-15 / UF2-83..86: user accounts with names, email, role, status and per-area permissions.
--- MariaDB 10.11 only (ADD COLUMN IF NOT EXISTS, CREATE OR REPLACE VIEW).
+-- MariaDB 10.11 only (ADD COLUMN IF NOT EXISTS, CREATE OR REPLACE VIEW/TRIGGER).
 -- Idempotent: safe to re-run against a database that already has it applied.
 SET NAMES utf8mb4;
 
@@ -32,11 +32,42 @@ SET role = CASE WHEN id = 'vmsroot' OR accessLevel >= 3 THEN 'admin'
                 ELSE 'staff' END
 WHERE role = 'staff' AND (id = 'vmsroot' OR accessLevel >= 2);
 
--- role is now the source of truth; normalize the legacy 0/NULL levels so the existing
--- require_authentication() gate works without a login-time migration.
+-- Legacy level 0 / NULL accounts never had working access (the old login forced level 3 for
+-- everyone, which masked this). Keep them, but inactive, so an admin enables them deliberately.
+UPDATE dbpersons
+SET status = 'inactive'
+WHERE id <> 'vmsroot' AND (accessLevel IS NULL OR accessLevel < 1);
+
+-- role is the source of truth; accessLevel is derived from it for the legacy page gate.
 UPDATE dbpersons
 SET accessLevel = CASE role WHEN 'admin' THEN 3 WHEN 'manager' THEN 2 ELSE 1 END
-WHERE accessLevel IS NULL OR accessLevel < 1;
+WHERE NOT (accessLevel <=> CASE role WHEN 'admin' THEN 3 WHEN 'manager' THEN 2 ELSE 1 END);
+
+-- Keep role and accessLevel in step no matter which one a writer sets. Legacy writers
+-- (registration, fixtures) only know accessLevel; new code only sets role.
+DELIMITER $$
+CREATE OR REPLACE TRIGGER trg_dbpersons_role_level_bi
+BEFORE INSERT ON dbpersons FOR EACH ROW
+BEGIN
+  IF NEW.role = 'staff' AND NEW.accessLevel IN (2, 3) THEN
+    SET NEW.role = IF(NEW.accessLevel = 3, 'admin', 'manager');
+  END IF;
+  SET NEW.accessLevel = CASE NEW.role WHEN 'admin' THEN 3 WHEN 'manager' THEN 2 ELSE 1 END;
+END$$
+CREATE OR REPLACE TRIGGER trg_dbpersons_role_level_bu
+BEFORE UPDATE ON dbpersons FOR EACH ROW
+BEGIN
+  IF NEW.role <> OLD.role THEN
+    SET NEW.accessLevel = CASE NEW.role WHEN 'admin' THEN 3 WHEN 'manager' THEN 2 ELSE 1 END;
+  ELSEIF NOT (NEW.accessLevel <=> OLD.accessLevel) THEN
+    SET NEW.role = CASE WHEN NEW.accessLevel = 3 THEN 'admin'
+                        WHEN NEW.accessLevel = 2 THEN 'manager'
+                        WHEN NEW.role IN ('staff', 'viewer') THEN NEW.role
+                        ELSE 'staff' END;
+    SET NEW.accessLevel = CASE NEW.role WHEN 'admin' THEN 3 WHEN 'manager' THEN 2 ELSE 1 END;
+  END IF;
+END$$
+DELIMITER ;
 
 CREATE TABLE IF NOT EXISTS user_permissions (
   id         INT NOT NULL AUTO_INCREMENT,

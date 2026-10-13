@@ -34,20 +34,30 @@ SET @sql := IF(@fk_exists = 0,
   'SELECT ''fk_donations_recorded_by already present'' AS note');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
--- Backfill from well-formed MM/DD/YYYY values only; anything else stays NULL.
+-- Backfill from M/D/YYYY (padded or not) and ISO YYYY-MM-DD text; anything else stays NULL.
 UPDATE donations
-SET donation_date = STR_TO_DATE(`date`, '%m/%d/%Y')
+SET donation_date = STR_TO_DATE(`date`, '%c/%e/%Y')
 WHERE donation_date IS NULL
-  AND `date` REGEXP '^[0-9]{2}/[0-9]{2}/[0-9]{4}$'
-  AND STR_TO_DATE(`date`, '%m/%d/%Y') BETWEEN '1900-01-01' AND '2100-12-31';
+  AND `date` REGEXP '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}$'
+  AND STR_TO_DATE(`date`, '%c/%e/%Y') BETWEEN '1900-01-01' AND '2100-12-31';
+UPDATE donations
+SET donation_date = STR_TO_DATE(`date`, '%Y-%m-%d'),
+    `date` = DATE_FORMAT(STR_TO_DATE(`date`, '%Y-%m-%d'), '%m/%d/%Y')
+WHERE donation_date IS NULL
+  AND `date` REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+  AND STR_TO_DATE(`date`, '%Y-%m-%d') BETWEEN '1900-01-01' AND '2100-12-31';
 
 DELIMITER $$
 CREATE OR REPLACE TRIGGER trg_donations_date_sync_bi
 BEFORE INSERT ON donations FOR EACH ROW
 BEGIN
-  IF NEW.donation_date IS NULL AND NEW.`date` REGEXP '^[0-9]{2}/[0-9]{2}/[0-9]{4}$' THEN
-    SET NEW.donation_date = STR_TO_DATE(NEW.`date`, '%m/%d/%Y');
-  ELSEIF NEW.donation_date IS NOT NULL AND (NEW.`date` IS NULL OR NEW.`date` = '') THEN
+  IF NEW.donation_date IS NULL AND NEW.`date` REGEXP '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}$' THEN
+    SET NEW.donation_date = STR_TO_DATE(NEW.`date`, '%c/%e/%Y');
+  ELSEIF NEW.donation_date IS NULL AND NEW.`date` REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN
+    SET NEW.donation_date = STR_TO_DATE(NEW.`date`, '%Y-%m-%d');
+  END IF;
+  IF NEW.donation_date IS NOT NULL THEN
+    -- legacy readers parse `date` as %m/%d/%Y, so always store that representation
     SET NEW.`date` = DATE_FORMAT(NEW.donation_date, '%m/%d/%Y');
   END IF;
 END$$
@@ -55,9 +65,14 @@ CREATE OR REPLACE TRIGGER trg_donations_date_sync_bu
 BEFORE UPDATE ON donations FOR EACH ROW
 BEGIN
   IF NOT (NEW.`date` <=> OLD.`date`) THEN
-    -- legacy editor changed the char column
-    SET NEW.donation_date = IF(NEW.`date` REGEXP '^[0-9]{2}/[0-9]{2}/[0-9]{4}$',
-                               STR_TO_DATE(NEW.`date`, '%m/%d/%Y'), NULL);
+    -- legacy editor changed the text column
+    SET NEW.donation_date = CASE
+      WHEN NEW.`date` REGEXP '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}$' THEN STR_TO_DATE(NEW.`date`, '%c/%e/%Y')
+      WHEN NEW.`date` REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN STR_TO_DATE(NEW.`date`, '%Y-%m-%d')
+      ELSE NULL END;
+    IF NEW.donation_date IS NOT NULL THEN
+      SET NEW.`date` = DATE_FORMAT(NEW.donation_date, '%m/%d/%Y');
+    END IF;
   ELSEIF NOT (NEW.donation_date <=> OLD.donation_date) THEN
     -- new pages changed the DATE column
     SET NEW.`date` = IF(NEW.donation_date IS NULL, NULL, DATE_FORMAT(NEW.donation_date, '%m/%d/%Y'));

@@ -26,10 +26,13 @@ count=0
 for f in "$MIGRATIONS_DIR"/[0-9][0-9][0-9]_*.sql; do
   name=$(basename "$f")
   sum=$(checksum "$f")
-  if printf '%s\n' "$applied" | grep -q "^$name "; then
-    if ! printf '%s\n' "$applied" | grep -q "^$name $sum\$"; then
-      echo "WARNING: $name changed since it was applied; add a new migration instead of editing it." >&2
-    fi
+  seen=0; same=0
+  while IFS= read -r line; do
+    [[ $line == "$name "* ]] && seen=1
+    [[ $line == "$name $sum" ]] && same=1
+  done <<< "$applied"
+  if (( seen )); then
+    (( same )) || echo "WARNING: $name changed since it was applied; add a new migration instead of editing it." >&2
     continue
   fi
   echo "Applying $name"

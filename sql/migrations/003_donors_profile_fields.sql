@@ -15,7 +15,7 @@ ALTER TABLE donors
   ADD COLUMN IF NOT EXISTS email_updates     TINYINT(1) NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS mail_receipts     TINYINT(1) NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS do_not_contact    TINYINT(1) NOT NULL DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS donor_since       DATE NULL DEFAULT (CURRENT_DATE),  -- new donors count as 'new' from today
+  ADD COLUMN IF NOT EXISTS donor_since       DATE NULL,   -- default is set below, AFTER the backfill
   ADD COLUMN IF NOT EXISTS created_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   ADD COLUMN IF NOT EXISTS updated_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
 
@@ -25,13 +25,15 @@ ALTER TABLE donors
   ADD INDEX IF NOT EXISTS idx_donors_org_name   (org_name),
   ADD INDEX IF NOT EXISTS idx_donors_type       (donor_type);
 
--- Make sure the default applies even when the column pre-dates this file's default.
-ALTER TABLE donors ALTER COLUMN donor_since SET DEFAULT (CURRENT_DATE);
-
 -- donor_since: earliest dated cash gift (requires 002's donation_date). Only fills blanks.
 -- Legacy donors with no dated gift keep NULL (unknown), which donor_summary reports as lapsed.
+-- The column is added WITHOUT a default on purpose: ADD COLUMN ... DEFAULT (CURRENT_DATE)
+-- would stamp every existing row with the migration date and make this backfill a no-op.
 UPDATE donors d
 JOIN (SELECT donorID, MIN(donation_date) AS first_gift
       FROM donations WHERE donation_date IS NOT NULL GROUP BY donorID) x ON x.donorID = d.id
 SET d.donor_since = x.first_gift
 WHERE d.donor_since IS NULL;
+
+-- Only now give new rows a default, so donors added through any form count as 'new' from today.
+ALTER TABLE donors ALTER COLUMN donor_since SET DEFAULT (CURRENT_DATE);

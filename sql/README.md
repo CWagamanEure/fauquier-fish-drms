@@ -29,6 +29,12 @@ files already listed and warns if an applied file was edited afterwards.
 
 Files are run through the `mariadb` client, so `DELIMITER` works for triggers.
 
+**MariaDB only.** The migrations use MariaDB 10.11 syntax (`ADD COLUMN IF NOT EXISTS`,
+`CREATE OR REPLACE TRIGGER`), matching the Docker database in `compose.yaml`. The inherited
+`casadb.sql` dump came from a MySQL 8.4 server; if the app is ever deployed against MySQL, the
+`IF NOT EXISTS` guards need rewriting with `information_schema` checks like the foreign-key
+guard in `002_donations_cash_fields.sql`.
+
 ## Sprint 1 schema (migrations 001-007)
 
 | Table / view | Purpose | Ticket |
@@ -44,5 +50,5 @@ Files are run through the `mariadb` client, so `DELIMITER` works for triggers.
 | `donor_summary` (view) | One row per donor with lifetime totals, last gift, derived status (new / active / lapsed) and last contact, for donor.php and donorProfile.php | UF2-26, UF2-27 |
 
 `dbevents` doubles as the campaigns table: `donations.eventID` and every `campaign_id` column
-point at it. Anonymous gifts use donor id 999. Deleting a donor with gifts, hours or
+point at it. Anonymous gifts use donor id 999. Demo rows from `make seed-demo` use ids from 900001 so they never collide with real rows. Deleting a donor with gifts, hours or
 communications is blocked by foreign keys; mark them inactive or reassign first.
