@@ -1,0 +1,138 @@
+/* Donor list page. Shared layout lives in fishnet.css */
+
+.table-card { padding: 24px 26px; border-width: 0; border-radius: 10px; }
+
+.toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.pills { display: flex; flex-wrap: wrap; gap: 10px; }
+.pill {
+  padding: 8px 20px;
+  border-radius: 999px;
+  border: none;
+  background: #e8ebe4;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.pill:hover { background: #dce0d6; }
+.pill.on { background: var(--navy); color: #fff; font-weight: bold; }
+
+.tools { display: flex; gap: 12px; }
+.tools input, .tools select {
+  padding: 8px 16px;
+  border: 1px solid #b9bec5;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.9rem;
+  background: #fff;
+}
+.tools input { width: 280px; }
+
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+thead th {
+  background: #eef0ea;
+  text-align: left;
+  font-weight: bold;
+  padding: 10px 12px;
+  white-space: nowrap;
+}
+tbody td { padding: 12px; border-bottom: 1px solid #e5e7e2; white-space: nowrap; }
+tbody tr:hover { background: #f7f8f5; }
+td.empty { text-align: center; color: var(--muted); padding: 30px; }
+
+.initials {
+  display: inline-grid;
+  place-items: center;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  font-size: 0.7rem;
+  font-weight: bold;
+  color: #fff;
+  margin-right: 10px;
+  vertical-align: middle;
+}
+.initials.teal   { background: var(--teal); }
+.initials.navy   { background: #3d5878; }
+.initials.sage   { background: #6e9a75; }
+.initials.yellow { background: var(--yellow); color: var(--navy); }
+
+.status {
+  display: inline-block;
+  padding: 3px 14px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+.status.active { background: #d5ece6; color: #1f6b5c; }
+.status.new    { background: #dbe6f3; color: #2c4f7a; }
+.status.lapsed { background: #f6d6d2; color: #9b2c22; }
+
+.select { color: #2c4f9a; font-weight: bold; }
+.select:hover { text-decoration: underline; }
+
+.pager { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-top: 18px; font-size: 0.9rem; }
+.pages { display: flex; align-items: center; gap: 8px; }
+.pg {
+  min-width: 32px; height: 32px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid #b9bec5;
+  border-radius: 999px;
+  padding: 0 10px;
+}
+.pg.wide { padding: 0 16px; font-weight: bold; }
+.pg.on { background: var(--navy); color: #fff; border-color: var(--navy); }
+.pg:hover:not(.on) { background: #f1f1ec; }
+
+@media (max-width: 700px) {
+  .tools { width: 100%; flex-direction: column; }
+  .tools input { width: 100%; }
+}
+
+/* ===== Donations list (shares the table styles above) ===== */
+.tiles.three { grid-template-columns: repeat(3, 1fr); }
+
+.donations > input { position: absolute; opacity: 0; pointer-events: none; }
+#fAll:checked   ~ .toolbar label[for="fAll"],
+#fCash:checked  ~ .toolbar label[for="fCash"],
+#fItems:checked ~ .toolbar label[for="fItems"] { background: var(--navy); color: #fff; font-weight: bold; }
+#fCash:checked  ~ .table-wrap .row-noncash,
+#fItems:checked ~ .table-wrap .row-cash { display: none; }
+.pill { display: inline-block; }
+
+.kind {
+  display: inline-block;
+  min-width: 80px;
+  text-align: center;
+  padding: 3px 12px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+.kind.cash    { background: #cfe6ea; color: #1f5f6b; }
+.kind.noncash { background: #fbe9a6; color: #7a5a00; }
+
+.edit { display: inline-block; padding: 4px 16px; border: 1.5px solid var(--navy); border-radius: 999px; font-size: 0.85rem; font-weight: bold; }
+.edit:hover { background: #f1f1ec; }
+
+@media (max-width: 1000px) { .tiles.three { grid-template-columns: 1fr; } }
+
+/* ===== Manage Users ===== */
+.users-card { flex: 1; display: flex; flex-direction: column; }
+.users-card .pager { margin-top: auto; padding-top: 18px; border-top: 1px solid #e5e7e2; }
+.initials.grey { background: #7d8590; }
+.chip {
+  display: inline-block;
+  background: #dfe6ee;
+  color: #2c4566;
+  font-size: 0.75rem;
+  font-weight: bold;
+  padding: 3px 12px;
+  border-radius: 999px;
+  margin: 2px 6px 2px 0;
+}
+.status.off { background: #e4e5e7; color: #333; }
+td.actions { text-align: center; }
+td.actions .edit { display: block; width: fit-content; margin: 0 auto 4px; }
+.pw-link { font-size: 0.8rem; font-weight: bold; color: #1f6b7a; }
+.pw-link:hover { text-decoration: underline; }

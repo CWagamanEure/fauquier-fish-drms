@@ -1,0 +1,102 @@
+/* Dashboard-only styles. Shared layout lives in fishnet.css */
+
+/*  Welcome row  */
+.welcome-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px 48px;
+  padding-bottom: 8px;
+}
+.role { font-size: 1.1rem; color: var(--muted); }
+.role { margin-bottom: 6px; }
+.welcome-row h1 { font-size: 2.4rem; line-height: 1.1; }
+.actions { display: flex; flex-wrap: wrap; gap: 16px; }
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 28px;
+}
+/* font size and color for the stat cards */
+.stat .label { font-size: 0.9rem; color: var(--muted); }
+.stat .big   { font-size: 2.8rem; font-weight: bold; margin: 10px 0 8px; }
+.stat .sub   { font-size: 0.85rem; color: var(--muted); }
+.stat .sub.up { color: #2c7a5b; }
+/* the dublicate stat card */
+.stat.alert { background: var(--navy); color: var(--yellow); }
+.stat.alert .label,
+.stat.alert .sub { color: var(--yellow); }
+
+/*  Chart + activity */
+.lower {
+  display: grid;
+  grid-template-columns: 2.4fr 1fr;
+  gap: 28px;
+  flex: 1;
+  min-height: 420px;
+}
+.chart-card { display: flex; flex-direction: column; }
+
+
+.legend {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  font-size: 0.85rem;
+  margin: 12px 0 20px;
+}
+.sw { display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: -1px; }
+.noncash { background: var(--yellow); }
+.cash    { background: var(--teal); }
+
+.chart { display: flex; flex: 1; min-height: 280px; }
+
+.y-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  padding: 0 10px 22px 0;
+  text-align: right;
+}
+
+.bars {
+  flex: 1;
+  display: flex;
+  justify-content: space-around;
+  border-left: 1px solid #ccc;
+  background-image: linear-gradient(#e5e5e5 1px, transparent 1px);
+  background-size: 100% 20%;
+}
+
+.bar-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 12%;
+}
+.bar {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  border-bottom: 1px solid #999;
+}
+.x-label { font-size: 0.8rem; margin-top: 6px; white-space: nowrap; }
+.x-title { text-align: center; font-size: 0.85rem; margin-top: 10px; }
+
+.activity ul { list-style: none; margin-top: 18px; }
+.activity li { padding: 8px 0; border-bottom: 1px solid #eee; }
+.activity li.empty { color: var(--muted); border: none; }
+
+/*  */
+@media (max-width: 1000px) {
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .lower { grid-template-columns: 1fr; }
+}
+@media (max-width: 700px) {
+  .stats { grid-template-columns: 1fr; }
+}

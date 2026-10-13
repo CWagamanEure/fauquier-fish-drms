@@ -1,0 +1,152 @@
+/* Form + profile pages: Add donor, Donor profile, Change password, Edit user, Add user.
+   Shared layout lives in fishnet.css */
+
+.muted { color: var(--muted); }
+.small-text { font-size: 0.85rem; }
+
+/* ===== Two-column page (form + side panel) ===== */
+.split {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 2.6fr) minmax(260px, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+.single { flex: 1; display: flex; }
+.single .form-card { flex: 1; }
+
+.form-card {
+  border-width: 0;
+  border-radius: 10px;
+  padding: 28px 30px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+.form-card.narrow { gap: 20px; }
+
+.group-title { font-weight: bold; font-size: 1.05rem; color: #1f5f7a; margin-bottom: 10px; }
+
+.grid { display: grid; gap: 16px 20px; }
+.g-2       { grid-template-columns: 1fr 1fr; }
+.g-name    { grid-template-columns: 1fr 0.7fr 1.2fr; }
+.g-contact { grid-template-columns: 1.4fr 1fr 1fr; }
+.g-addr    { grid-template-columns: 2.2fr 1.3fr 0.7fr 0.9fr; }
+
+.req { font-size: 0.85rem; color: var(--muted); }
+.spacer { flex: 1; }
+
+/* ===== Individual / Organization switch (no JavaScript) ===== */
+.seg {
+  display: inline-flex;
+  background: #eef0ea;
+  border-radius: 999px;
+  padding: 4px;
+}
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label { padding: 8px 34px; border-radius: 999px; cursor: pointer; font-size: 0.95rem; }
+.seg input:checked + label { background: var(--navy); color: #fff; font-weight: bold; }
+.seg input:focus-visible + label { outline: 2px solid var(--teal); }
+
+.only-org { display: none; }
+.form-card:has(#typeOrg:checked) .only-org { display: block; }
+.form-card:has(#typeOrg:checked) .only-ind { display: none; }
+
+/* ===== Checkboxes ===== */
+.checks { display: flex; flex-wrap: wrap; gap: 14px 40px; }
+.checks label { display: flex; align-items: center; gap: 8px; font-size: 0.95rem; cursor: pointer; }
+input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--teal); cursor: pointer; }
+
+/* ===== Footer buttons ===== */
+.form-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  border-top: 1px solid #dcdfe3;
+  padding-top: 18px;
+}
+.form-foot.right { justify-content: flex-end; }
+.foot-btns { display: flex; gap: 10px; }
+.btn.small { font-size: 0.95rem; padding: 10px 20px; cursor: pointer; font-family: inherit; }
+.btn.wide { min-width: 200px; text-align: center; }
+.pill-btn { font-size: 0.9rem; padding: 8px 18px; border-radius: 999px; display: inline-block; cursor: pointer; font-family: inherit; }
+.btn-danger { background: #fff; color: #b42318; border: 2px solid #b42318; }
+.btn-danger:hover { background: #fdecea; }
+.link { color: #1f6b7a; font-weight: bold; background: none; border: none; font: inherit; font-weight: bold; cursor: pointer; }
+
+/* ===== Side panels ===== */
+.side { display: flex; flex-direction: column; gap: 22px; }
+.panel { border-width: 0; border-radius: 10px; padding: 22px 24px; }
+.panel h3 { font-size: 1.1rem; margin-bottom: 12px; }
+.panel p { font-size: 0.92rem; color: #2d4f6a; margin-bottom: 10px; line-height: 1.4; }
+.panel.danger { border: 2px solid #e3a49c; }
+.facts { display: grid; grid-template-columns: 1fr auto; gap: 12px 10px; font-size: 0.9rem; }
+.facts dt { color: var(--muted); }
+.facts dd { font-weight: bold; text-align: right; }
+
+/* ===== Change password ===== */
+.user-chip { display: flex; align-items: center; gap: 14px; background: #f1f1ec; border-radius: 8px; padding: 16px 18px; }
+.user-chip p { font-size: 0.9rem; margin-top: 2px; }
+.initials { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-weight: bold; font-size: 0.85rem; flex-shrink: 0; }
+.initials.yellow { background: var(--yellow); color: var(--navy); }
+.pw-wrap { position: relative; }
+.pw-wrap input { width: 100%; padding-right: 70px; }
+.show-pw { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 0.9rem; }
+.match { text-align: right; font-size: 0.9rem; font-weight: bold; min-height: 1.2em; }
+.match.ok { color: #2c7a5b; }
+.match.bad { color: #b42318; }
+
+/* ===== Permissions table ===== */
+.perms { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.perms th { background: #eef0ea; padding: 10px 14px; text-align: center; }
+.perms th:first-child, .perms td:first-child { text-align: left; }
+.perms td { padding: 10px 14px; border-bottom: 1px solid #eceee9; text-align: center; }
+
+/* ===== Donor profile ===== */
+.profile-head { display: flex; align-items: center; gap: 22px; border-width: 0; border-radius: 10px; padding: 24px 28px; }
+.big-initials { width: 72px; height: 72px; border-radius: 50%; background: #3d5878; color: #fff; display: grid; place-items: center; font-size: 1.6rem; font-weight: bold; flex-shrink: 0; }
+.who { flex: 1; }
+.who h1 { font-size: 2.2rem; margin-bottom: 6px; }
+.who p { color: var(--muted); font-size: 0.95rem; margin-top: 2px; }
+
+.tabs-card { border-width: 0; border-radius: 10px; padding: 18px 26px 24px; flex: 1; display: flex; flex-direction: column; }
+.tabs-card > input { position: absolute; opacity: 0; pointer-events: none; }
+.tab-bar { display: flex; flex-wrap: wrap; gap: 6px 30px; border-bottom: 1px solid #dcdfe3; }
+.tab-bar label { padding: 10px 2px; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -1px; font-size: 1.02rem; }
+.count { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: #eef0ea; font-size: 0.75rem; font-weight: bold; margin-left: 6px; }
+
+#tCash:checked  ~ .tab-bar label[for="tCash"],
+#tItems:checked ~ .tab-bar label[for="tItems"],
+#tVol:checked   ~ .tab-bar label[for="tVol"],
+#tComm:checked  ~ .tab-bar label[for="tComm"] { border-bottom-color: var(--teal); font-weight: bold; }
+#tCash:checked  ~ .tab-bar label[for="tCash"] .count,
+#tItems:checked ~ .tab-bar label[for="tItems"] .count,
+#tVol:checked   ~ .tab-bar label[for="tVol"] .count,
+#tComm:checked  ~ .tab-bar label[for="tComm"] .count { background: var(--navy); color: #fff; }
+
+.panel-tab { display: none; flex: 1; flex-direction: column; }
+#tCash:checked  ~ .p-cash,
+#tItems:checked ~ .p-items,
+#tVol:checked   ~ .p-vol,
+#tComm:checked  ~ .p-comm { display: flex; }
+
+.tab-actions { display: flex; justify-content: flex-end; margin: 14px 0; }
+.tabs-card tfoot td { background: #f4f5f1; font-weight: bold; padding: 12px; }
+.tabs-card tfoot td.muted { font-weight: normal; }
+.tabs-card .pager { margin-top: auto; padding-top: 18px; border-top: 1px solid #e5e7e2; }
+.edit { display: inline-block; padding: 4px 16px; border: 1.5px solid var(--navy); border-radius: 999px; font-size: 0.85rem; font-weight: bold; }
+.edit:hover { background: #f1f1ec; }
+.status.pending { background: #fbe9a6; color: #7a5a00; }
+
+/* ===== Smaller screens ===== */
+@media (max-width: 1100px) {
+  .split { grid-template-columns: 1fr; }
+}
+@media (max-width: 800px) {
+  .g-2, .g-name, .g-contact, .g-addr { grid-template-columns: 1fr; }
+  .profile-head { flex-wrap: wrap; }
+  .form-card { padding: 20px; }
+}

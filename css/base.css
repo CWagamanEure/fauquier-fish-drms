@@ -61,11 +61,11 @@ table, td, tr, th, form, fieldset, em, button, a {
 
     --shadow-and-border-color: #e8e8e8;
 
-    --main-color: #00447b; /* Changed to Fred CASA Blue */
+    --main-color: #1b6b5a; /* CHANGE 1 (Chavez-Duran): primary color scheme changed from blue to FISH teal */
 
     --accent-color: #ffffff;
 
-    --secondary-accent-color: #a3e0f7;
+    --secondary-accent-color: #f2b632; /* CHANGE 1: gold accent */
 
     --calendar-event-color: #808080;
     --calendar-event-color-hover: var(--main-color);
@@ -284,8 +284,22 @@ cursor: pointer;
 text-align: center;
 }*/
 
+/* CHANGE 3 (Chavez-Duran): button colors - teal buttons that turn gold on hover */
+input[type=submit], button, .button {
+    color: #ffffff;
+    background-color: var(--main-color);
+    padding: var(--button-padding);
+    border: none;
+    border-radius: var(--button-border-radius);
+    font-weight: 600;
+    transition: background-color .3s;
+    cursor: pointer;
+    text-align: center;
+}
+
 input[type=submit]:hover, button:hover, .button:hover {
-    background-color: var(--accent-color);
+    background-color: var(--secondary-accent-color);
+    color: #1f1f1f;
 }
 
 /* input.visited:invalid {
@@ -293,7 +307,7 @@ outline: 2px solid var(--secondary-accent-color);
 } */
 
 label {
-    color: #0066cc;
+    color: var(--main-color); /* CHANGE 1: labels follow the primary color */
     font-weight: 600;
     width: 100%;
     text-align: left;
@@ -331,9 +345,12 @@ main {
 
 h1 {
     font-size: 1.5rem;
-    font-weight: 500;
+    font-weight: 700; /* CHANGE 2 (Chavez-Duran): bolder, uppercase headings with a gold underline */
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    border-bottom: 4px solid var(--secondary-accent-color);
     margin-bottom: 2rem;
-    background-color: #00447b /* var(--main-color) */;
+    background-color: var(--main-color);
     color: var(--page-background-color);
     width: 100%;
     text-align: center;
@@ -342,7 +359,8 @@ h1 {
 
 h2 {
     font-size: 1.5rem;
-    font-weight: 500;
+    font-weight: 600; /* CHANGE 2: h2 uses the primary color */
+    color: var(--main-color);
 }
 
 h3 {
@@ -598,11 +616,12 @@ main.dashboard > p {
     gap: 1rem;
     width: 14rem;
     height: 14rem;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); /* CHANGE 4 (Chavez-Duran): dashboard tiles get a shadow */
 }
 
 .dashboard-item:hover {
-    text-shadow: #7fff00;
-    background-color: var(--accent-color);
+    background-color: var(--secondary-accent-color); /* CHANGE 4: gold hover instead of white */
+    color: #1f1f1f;
     cursor: pointer;
     /* text-shadow: 0px 0px .25rem black; */
 }
@@ -965,7 +984,7 @@ img.profile-pic {
     font-size: 1.5rem;
     font-weight: 500;
     margin-bottom: 2rem;
-    background-color: #00447b; /* var(--main-color) */
+    background-color: var(--main-color);
     color: var(--page-background-color);
     width: 100%;
     text-align: center;
@@ -973,7 +992,7 @@ img.profile-pic {
 }
 
 .footer {
-    background-color: #00447b;
+    background-color: var(--main-color);
     color: var(--accent-color);
     padding: 3rem 2rem;
     display: flex;

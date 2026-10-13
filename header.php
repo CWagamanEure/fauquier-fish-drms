@@ -307,7 +307,7 @@ if (isset($_SESSION['access_level'])) {
 
     <?php elseif ($_SESSION['logged_in']): ?>
 
-        <a href="index.php">Home / Dashboard</a>
+        <a href="index.php">Dashboard</a>
         <a href="calendar.php">Calendar</a>
         <a href="viewAllEvents.php">Event Management</a>
 
@@ -360,7 +360,7 @@ if (isset($_SESSION['access_level'])) {
         <?php endif; ?>
 
         <div style="margin-top: 30px; border-top: 1px solid rgba(255,255,255,0.2);">
-            <a href="logout.php" style="color: #ffcccc;">Log Out</a>
+            <a href="logout.php" style="color: #ffcccc;">Sign Out</a>
         </div>
 
     <?php endif; ?>
