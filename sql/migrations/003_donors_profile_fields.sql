@@ -1,0 +1,37 @@
+-- UF2-60 / UF2-9: donor fields for the FISH "Add donor" form and donor list/profile pages.
+-- Legacy first/last stay the name columns (widened); organizations use org_name/org_contact.
+-- MariaDB 10.11 only. Idempotent.
+SET NAMES utf8mb4;
+
+ALTER TABLE donors
+  MODIFY `first` VARCHAR(100) NULL,
+  MODIFY `last`  VARCHAR(100) NULL,
+  ADD COLUMN IF NOT EXISTS donor_type        ENUM('individual','organization') NOT NULL DEFAULT 'individual',
+  ADD COLUMN IF NOT EXISTS middle_name       VARCHAR(100) NULL,
+  ADD COLUMN IF NOT EXISTS org_name          VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS org_contact       VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS preferred_contact ENUM('email','phone','mail','text') NULL,
+  ADD COLUMN IF NOT EXISTS is_volunteer      TINYINT(1) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS email_updates     TINYINT(1) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS mail_receipts     TINYINT(1) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS do_not_contact    TINYINT(1) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS donor_since       DATE NULL DEFAULT (CURRENT_DATE),  -- new donors count as 'new' from today
+  ADD COLUMN IF NOT EXISTS created_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  ADD COLUMN IF NOT EXISTS updated_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+
+ALTER TABLE donors
+  ADD INDEX IF NOT EXISTS idx_donors_email      (email),
+  ADD INDEX IF NOT EXISTS idx_donors_last_first (`last`, `first`),
+  ADD INDEX IF NOT EXISTS idx_donors_org_name   (org_name),
+  ADD INDEX IF NOT EXISTS idx_donors_type       (donor_type);
+
+-- Make sure the default applies even when the column pre-dates this file's default.
+ALTER TABLE donors ALTER COLUMN donor_since SET DEFAULT (CURRENT_DATE);
+
+-- donor_since: earliest dated cash gift (requires 002's donation_date). Only fills blanks.
+-- Legacy donors with no dated gift keep NULL (unknown), which donor_summary reports as lapsed.
+UPDATE donors d
+JOIN (SELECT donorID, MIN(donation_date) AS first_gift
+      FROM donations WHERE donation_date IS NOT NULL GROUP BY donorID) x ON x.donorID = d.id
+SET d.donor_since = x.first_gift
+WHERE d.donor_since IS NULL;

@@ -54,6 +54,15 @@ no Ollama model server or external account is provisioned by this stack.
 
 This Compose setup is for local development; services bind to localhost only.
 
+## Database migrations
+
+Schema changes are versioned in `sql/migrations/` and applied by `make migrate`, which
+`make dev` runs after the containers are healthy. The compose seed file only runs when the
+database volume is first created, so existing local databases get new tables and columns
+from migrations, not from re-importing a dump. `make seed-demo` loads optional FISH demo
+donors, donations, hours and communications for local page work. See `sql/README.md` for how
+to add a migration.
+
 ## Purpose
 This project is the result of a semester's worth of collaboration among UMW students. The goal of the project was to create a web application that better suits the needs of Rappahannock CASA, specifically as a system to manage their donors. 
 
