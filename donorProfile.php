@@ -20,7 +20,7 @@ $p = [
   'last_contact' => $detail['last_contact'] ?? '',
 ];
 
-// Donors without detail data get one summary gift so the page matches the list's lifetime total
+//detail fields
 $cash  = $detail['cash'] ?? ($donor['lifetime'] > 0
   ? [['date'=>$donor['last_gift'],'amount'=>$donor['lifetime'],'payment'=>'&mdash;','campaign'=>'','receipt'=>'sent']]
   : []);

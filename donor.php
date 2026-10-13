@@ -1,7 +1,7 @@
 <?php
-// opens the css and php that keep the pages consistan
 require_once 'include/fishnet-layout.php';
 function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
+
 //fake data, replace once schema is complete
 require_once 'include/donorDataStopgap.php';
 if (isset($_GET['reset_demo'])) { unset($_SESSION['stopgap_edits'], $_SESSION['stopgap_inactive']); header('Location: donor.php'); exit; }
@@ -21,7 +21,7 @@ $tiles = [
   'total'     => count($allDonors),
   'new_month' => count(array_filter($allDonors, fn($d) => $d['status'] === 'new')),
   'lapsed'    => count(array_filter($allDonors, fn($d) => $d['status'] === 'lapsed')),
-  'dupes'     => 5,   // STOPGAP: hardcoded; later count the 'resolution required' records
+  'dupes'     => 5,
 ];
 
 $filtered = array_filter($allDonors, function ($d) use ($filter, $q) {
@@ -40,7 +40,7 @@ usort($filtered, function ($a, $b) use ($sort) {
 
 $totalFiltered = count($filtered);
 $donors = array_slice($filtered, ($page - 1) * $perPage, $perPage);
-//end of stopgap
+//endofstopgapsegment
 
 $totalPages = max(1, (int)ceil($totalFiltered / $perPage));
 $page   = min($page, $totalPages);

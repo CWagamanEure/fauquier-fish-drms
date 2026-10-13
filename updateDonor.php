@@ -1,29 +1,26 @@
 <?php
-// css and php to keep the pages consistant
+
 require_once 'include/fishnet-layout.php';
 require_once 'include/donorDataStopgap.php';
 
-/* STOPGAP: access check disabled until sessions/login are wired up. Re-enable later (same rule addDonor.php used):
-   if (($_SESSION['access_level'] ?? 0) < 2) { header('Location: login.php'); exit; } */
+//commenting out since I'm not using access lvl, not sure if we will keep it the same as well
+   //if (($_SESSION['access_level'] ?? 0) < 2) { header('Location: login.php'); exit; } */
 
 $id = (int)($_GET['id'] ?? 0);
-$p  = stopgap_profile($id);              // STOPGAP: REPLACE with a SELECT of this donor by id
+$p  = stopgap_profile($id);
 if (!$p) { header('Location: donor.php'); exit; }
 $displayName = stopgap_display_name($p);
 
 $states = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'];
 $preferredOptions = ['Email', 'Phone', 'Mail'];
 $errors = [];
-$form = $p;                               // values shown in the form (replaced by posted values on errors)
+$form = $p;                              
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $action = $_POST['action'] ?? 'save';
 
   if ($action === 'deactivate') {
-    /* STOPGAP START: remembers "inactive" in the session.
-       REPLACE with something like UPDATE donors SET active = 0 WHERE id = ? */
-    $_SESSION['stopgap_inactive'][$id] = true;
-    /* STOPGAP END */
+    $_SESSION['stopgap_inactive'][$id] = true; //replace later, here for demo reasons
     header('Location: donor.php');
     exit;
   }
@@ -49,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     'do_not_contact' => isset($_POST['do_not_contact']) ? 1 : 0,
   ]);
 
-  // ---- Validation (self-contained for now) ----
+  // ---- Validation (localized) ----
   if (!in_array($form['type'], ['Individual', 'Organization'], true)) $form['type'] = 'Individual';
   if ($form['type'] === 'Individual') {
     if ($form['first'] === '') $errors[] = 'First name is required.';
@@ -76,10 +73,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   if ($form['preferred'] !== '' && !in_array($form['preferred'], $preferredOptions, true)) $form['preferred'] = '';
 
   if (!$errors) {
-    /* STOPGAP START: saves the edits to the session so they show on donor.php / donorProfile.php.
-       REPLACE with an UPDATE on the real donors table. */
+    //saves changes locally in session, replace with SQL later
     $_SESSION['stopgap_edits'][$id] = $form;
-    /* STOPGAP END */
     header('Location: donorProfile.php?id=' . $id);
     exit;
   }

@@ -3,14 +3,14 @@
 require_once 'include/fishnet-layout.php';
 require_once 'include/donorDataStopgap.php';
 
-/* STOPGAP: access check disabled until sessions/login are wired up. Re-enable later (same rule the old addDonor.php used):
-   if (($_SESSION['access_level'] ?? 0) < 2) { header('Location: login.php'); exit; } */
+//commenting out since I'm not using access lvl, not sure if we will keep it the same as well
+   //if (($_SESSION['access_level'] ?? 0) < 2) { header('Location: login.php'); exit; }
 
 $states = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'];
 $preferredOptions = ['Email', 'Phone', 'Mail'];
 $errors = [];
 
-// Blank form. VA and "Send email updates" start selected, as in the mockup.
+// create form with empty fields
 $form = [
   'type'=>'Individual', 'first'=>'', 'middle'=>'', 'last'=>'', 'org_name'=>'',
   'email'=>'', 'phone'=>'', 'preferred'=>'',
@@ -40,7 +40,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     'do_not_contact' => isset($_POST['do_not_contact']) ? 1 : 0,
   ]);
 
-  // ---- Validation (same rules as updateDonor.php) ----
   if (!in_array($form['type'], ['Individual', 'Organization'], true)) $form['type'] = 'Individual';
   if ($form['type'] === 'Individual') {
     if ($form['first'] === '') $errors[] = 'First name is required.';
@@ -67,17 +66,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   if ($form['preferred'] !== '' && !in_array($form['preferred'], $preferredOptions, true)) $form['preferred'] = '';
 
   if (!$errors) {
-    /* STOPGAP START: keeps the new donor in the session so they appear in the donor list for this demo.
-       REPLACE with an INSERT on the real donors table that returns the new donor's id.
-       (The old addDonor.php called create_donor($args) from database/dbDonors.php; that function
-       expected the old fields and will need updating to match the new form.) */
+    //update later onces schema set
     $existingIds = array_merge(array_column(stopgap_donors_base(), 'id'), array_keys($_SESSION['stopgap_new'] ?? []));
     $newId = max($existingIds) + 1;
     $form['created'] = date('Y-m-d');
     $_SESSION['stopgap_new'][$newId] = $form;
-    /* STOPGAP END */
+    //endupdatesegmentremind
 
-    // "Save & add donation" goes straight to the donation form for the new donor; "Save donor" opens their profile.
     $go = (($_POST['action'] ?? '') === 'save_add')
       ? 'addDonation.php?donor_id=' . $newId
       : 'donorProfile.php?id=' . $newId;
