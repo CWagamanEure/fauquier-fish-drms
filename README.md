@@ -68,9 +68,8 @@ Log in at `login.php` (username first, then password) and sign out with **Log Ou
 FISH NET top bar. Staff accounts live in `dbpersons`: `role` (admin / manager / staff /
 viewer) and `status` (active / inactive) come from migration 001, and `accessLevel`
 (1 standard, 2 manager, 3 super-admin) is kept in step with the role for the legacy page gate.
-Inactive accounts and accounts with an unsupported level cannot log in. Accounts still at
-the pre-migration level 0 are moved to level 1 (level 3 for the `vmsroot` bootstrap account)
-only after their password verifies.
+Inactive accounts cannot log in, and every protected request re-reads the account, so
+deactivating a user or changing their role takes effect on their next request.
 
 Login matches the HTML-encoded username representation used by registration, so users
 enter their original username, including punctuation. The first login step accepts any
@@ -78,7 +77,9 @@ username without checking the database, so the page never confirms which account
 
 Protected PHP entry points call `require_authentication()` from `include/auth.php` before
 producing output or touching data; `include/fishnet-layout.php` does this for every FISH
-page. Handlers enforce the same access level as their forms. Login rotates the session ID;
+page. Handlers enforce the same access level as their forms, and handlers that change data
+(account creation, password reset, user and document deletion, donations) accept only a
+POST carrying the form token from `auth_csrf_field()`. Login rotates the session ID;
 sign-out requires a form token, destroys the session and expires its cookie, and visiting
 `logout.php` directly shows a confirmation form. Authentication responses are not cached.
 Report, export, import and email handlers release their session locks during long

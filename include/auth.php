@@ -1,6 +1,10 @@
 <?php
+// Shared by login, logout, and every protected application entry point.
 
-// Shared by login, logout, and protected application entry points.
+// bcrypt hash of a random secret; verified against when a username does not exist so
+// response time does not reveal which accounts are real.
+const AUTH_DUMMY_HASH = '$2y$10$.YmlgMPa0vsmeYNxb9re4eIbx7DX3dkLIEv/rRvpj6v2BHts9E5cG';
+
 function auth_start_session() {
     if (session_status() !== PHP_SESSION_ACTIVE) {
         ini_set('session.use_strict_mode', '1');
@@ -40,21 +44,60 @@ function auth_valid_username($username) {
     return preg_match('/\A.{1,256}\z/us', $stored) === 1;
 }
 
+// The representation registration stores in dbpersons.id: trimmed, lower-cased, HTML-encoded.
+function auth_canonical_username($username) {
+    return htmlspecialchars(strtolower(trim((string) $username)), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+
+// role (migration 001) is the source of truth; the numeric level only feeds the legacy page gate.
+function auth_access_level_for_role($role) {
+    return $role === 'admin' ? 3 : ($role === 'manager' ? 2 : 1);
+}
+
 // Resolve links from the application root, including installations in a subfolder.
 function auth_url($page) {
-    $root = str_replace('\\', '/', dirname(__DIR__));
-    $script = str_replace('\\', '/', $_SERVER['SCRIPT_FILENAME'] ?? '');
-    $scriptName = $_SERVER['SCRIPT_NAME'] ?? '/index.php';
-    $relative = substr($script, strlen($root));
-    $base = $relative !== '' && str_ends_with($scriptName, $relative)
-        ? substr($scriptName, 0, -strlen($relative))
-        : rtrim(dirname($scriptName), '/.');
+    $root = realpath(dirname(__DIR__));
+    $script = realpath($_SERVER['SCRIPT_FILENAME'] ?? '');
+    $scriptName = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '/index.php');
+    $base = '';
+    if ($root !== false && $script !== false && str_starts_with($script, $root . DIRECTORY_SEPARATOR)) {
+        // Walk up one URL directory for every filesystem directory between the root and the script.
+        $depth = substr_count(substr($script, strlen($root) + 1), DIRECTORY_SEPARATOR);
+        $base = dirname($scriptName);
+        for ($i = 0; $i < $depth; $i++) {
+            $base = dirname($base);
+        }
+    }
+    $base = rtrim(str_replace('\\', '/', $base), '/');
     return $base . '/' . $page;
+}
+
+// Re-read the account behind the session so changes made since login take effect on the next
+// request: deactivated accounts are signed out and role changes update the access level.
+function auth_refresh_account() {
+    require_once __DIR__ . '/../database/dbPersons.php';
+    try {
+        $user = retrieve_person($_SESSION['_id']);
+    } catch (Throwable $error) {
+        error_log('Session account lookup failed: ' . $error->getMessage());
+        return true; // the page reports database trouble itself; do not sign everyone out
+    }
+    if (!$user || $user->get_status() !== 'active') {
+        return false;
+    }
+    $_SESSION['role'] = $user->get_role();
+    $_SESSION['access_level'] = auth_access_level_for_role($user->get_role());
+    return true;
 }
 
 function require_authentication($minimumLevel = 1, $json = false) {
     auth_start_session();
-    if (!auth_is_logged_in()) {
+    $loggedIn = auth_is_logged_in();
+    if ($loggedIn && !auth_refresh_account()) {
+        auth_logout();
+        $loggedIn = false;
+    }
+    if (!$loggedIn) {
         if ($json) {
             http_response_code(401);
             header('Content-Type: application/json');
@@ -86,6 +129,26 @@ function auth_csrf_token() {
 function auth_valid_csrf_token($token) {
     return is_string($token) && isset($_SESSION['auth_csrf_token'])
         && hash_equals($_SESSION['auth_csrf_token'], $token);
+}
+
+// Hidden input for forms that post to a protected handler.
+function auth_csrf_field() {
+    return '<input type="hidden" name="csrf_token" value="'
+        . htmlspecialchars(auth_csrf_token(), ENT_QUOTES, 'UTF-8') . '">';
+}
+
+// For handlers that change data: only accept a POST carrying a valid form token.
+function auth_require_csrf($json = false) {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !auth_valid_csrf_token($_POST['csrf_token'] ?? null)) {
+        http_response_code(403);
+        if ($json) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'error' => 'Your form has expired. Reload the page and try again.']);
+        } else {
+            echo 'Your form has expired. Go back, reload the page and try again.';
+        }
+        exit;
+    }
 }
 
 function auth_logout() {

@@ -287,6 +287,7 @@ if (isset($_GET["editAttempt"]) and isset($_SESSION["editComplete"])){
     <p class="note">Note: If first name, last name, and email fields are left unfilled, the donation is filed to the 'anonymous' donor.</p>
 
     <form id="addDonation" action="addDonationHandler.php" method="post">
+        <?php echo auth_csrf_field(); ?>
 
         <div class="mb-3">
             <label>First Name of Donor</label>
@@ -352,6 +353,7 @@ if (isset($_GET["editAttempt"]) and isset($_SESSION["editComplete"])){
     <h3>Find and Edit Donations</h3>
 
     <form id="editDonation" action="editDonationHandler.php" method="post">
+        <?php echo auth_csrf_field(); ?>
 
         <div class="mb-3">
             <label>First Name of Donor</label>
@@ -423,6 +425,7 @@ if (isset($_GET["searchAttempt"]) and isset($_SESSION["searchComplete"]) and iss
        foreach($reason as $row){
           echo '<tr>';
           echo '<form action="./editDonationHandler.php" method="post">';
+          echo auth_csrf_field();
           echo '<input type="hidden" name="goal" value="edit">';
 
           echo '<td><input type="number" name="amount" min="0" max="999999" step="0.1" value="'.$row[0].'" placeholder="'.$row[0].'"></td>';

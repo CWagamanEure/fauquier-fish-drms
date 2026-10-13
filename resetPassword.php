@@ -41,6 +41,9 @@ require_authentication(2);
         $errors = "You do not have permission to modify this user's password";
     }
     $passwordReset = false;
+    if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+        auth_require_csrf();
+    }
     if (!$errors && $_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['change'])) {
         $password = '';
         // generate random 8-digit, temporary PIN
@@ -72,6 +75,7 @@ require_authentication(2);
                 <h2>Password Reset Form</h2>
                 <p>Use the button below to reset <?php echo $targetUser->get_first_name() . ' ' . $targetUser->get_last_name()?>'s password</p>
                 <form method="post">
+                    <?php echo auth_csrf_field(); ?>
                     <input type="hidden" name="change">
                     <input type="submit" value="Reset Password">
                 </form>

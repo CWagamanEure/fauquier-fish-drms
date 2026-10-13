@@ -96,11 +96,12 @@ require_once('header.php');
                         </a>
                     </td>
                     <td class="text-right">
-                        <a href="deleteResources.php?file=<?php echo urlencode($pdf); ?>"
-                           class="delete-button"
-                           onclick="return confirm('Are you sure you want to delete <?php echo addslashes($pdf); ?>?')">
-                            Delete
-                        </a>
+                        <form method="post" action="deleteResources.php" style="display:inline"
+                              onsubmit="return confirm('Are you sure you want to delete <?php echo htmlspecialchars(addslashes($pdf), ENT_QUOTES, 'UTF-8'); ?>?')">
+                            <?php echo auth_csrf_field(); ?>
+                            <input type="hidden" name="file" value="<?php echo htmlspecialchars($pdf, ENT_QUOTES, 'UTF-8'); ?>">
+                            <button type="submit" class="delete-button">Delete</button>
+                        </form>
                     </td>
                 </tr>
             <?php endforeach ?>

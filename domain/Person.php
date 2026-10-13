@@ -33,7 +33,7 @@ class Person {
 	private $last_name;
 	private $email;
 
-	function __construct($id, $password, $name, $accessLevel, $role = 'staff', $status = 'active',
+	function __construct($id, $password, $name, $accessLevel, $role = null, $status = null,
 						 $first_name = null, $last_name = null, $email = null) {
 		$this->id = $id;
 		$this->password = $password;

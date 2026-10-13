@@ -29,7 +29,7 @@ PROTECTED_PAGES = """
 dashboard.php donor.php donorProfile.php
 ReportGeneration.php VolunteerRegister.php addDonationHandler.php addDonor.php
 addEvent.php adminViewingEvents.php calendar.php cancelEvent.php changePassword.php
-completeEvent.php create_dummy_dbpersonhours.php date.php deleteEvent.php
+completeEvent.php date.php deleteEvent.php
 deleteMultipleEvents.php deletePerson.php deleteResources.php deleteTimes.php
 donationAddEdit.php donorSuccess.php download.php editDonationHandler.php editEvent.php
 editProfile.php editTimes.php emailgen.php eventFailure.php
@@ -60,8 +60,11 @@ foreach ($request['users'] as $user) {
         $hash = password_hash($user['password'], PASSWORD_BCRYPT);
         $stmt->bind_param('sssi', $user['id'], $user['name'], $hash, $user['level']);
     } elseif ($request['action'] === 'read') {
-        $stmt = $con->prepare('SELECT id, accessLevel FROM dbpersons WHERE id = ?');
+        $stmt = $con->prepare('SELECT id, accessLevel, role, status FROM dbpersons WHERE id = ?');
         $stmt->bind_param('s', $user['id']);
+    } elseif ($request['action'] === 'status') {
+        $stmt = $con->prepare('UPDATE dbpersons SET status = ? WHERE id = ?');
+        $stmt->bind_param('ss', $user['status'], $user['id']);
     } else {
         $stmt = $con->prepare('DELETE FROM dbpersons WHERE id = ?');
         $stmt->bind_param('s', $user['id']);
@@ -319,37 +322,42 @@ class AuthenticationTests(unittest.TestCase):
                 self.assert_no_php_errors(body)
                 self.assertEqual(self.browser.request("index.php")[0], 303)
 
-    def test_null_and_unsupported_access_levels_cannot_log_in(self):
+    def test_access_level_derives_from_role(self):
+        # Fixtures only set accessLevel; migration 001's trigger derives role from it and
+        # normalizes unsupported values (-1, 4, NULL) to the staff level.
         for level in (-1, 4, None):
             with self.subTest(level=level):
-                status, _, body = self.login(level)
-                self.assertEqual(status, 200)
-                self.assertIn("Unable to log in", body)
-                self.assertEqual(self.browser.request("index.php")[0], 303)
+                row = self.run_fixtures("read", [self.users[level]])[0]
+                self.assertEqual((row["role"], row["accessLevel"]), ("staff", 1))
+                browser = Browser()
+                self.assertEqual(self.login(level, browser)[0], 303)
+                self.assertEqual(browser.request("index.php")[0], 200)
+                self.assertEqual(browser.request("VolunteerRegister.php")[0], 403)
+        self.assertEqual(self.run_fixtures("read", [self.users[2]])[0]["role"], "manager")
+        self.assertEqual(self.run_fixtures("read", [self.users[3]])[0]["role"], "admin")
 
-    def test_legacy_account_migrates_only_after_valid_login(self):
+    def test_inactive_accounts_cannot_log_in_and_lose_live_sessions(self):
         user = self.users[0]
-        status, _, body = self.browser.request("login.php", {
-            "csrf_token": self.browser.token(), "username": user["username"],
-            "password": "incorrect",
-        })
-        self.assertEqual(status, 200)
-        self.assertIn("Unable to log in", body)
-        self.assertEqual(self.run_fixtures("read", [user])[0]["accessLevel"], 0)
-
         self.assertEqual(self.login(0)[0], 303)
-        self.assertEqual(self.run_fixtures("read", [user])[0]["accessLevel"], 1)
         status, _, body = self.browser.request("index.php")
         self.assertEqual(status, 200)
         self.assertIn(user["name"], body)
         self.assertNotIn("volunteerReport.php", body)
         self.assert_no_php_errors(body)
         self.assertEqual(self.browser.request("VolunteerRegister.php")[0], 403)
-        # A second login keeps the migrated role and still cannot create users.
-        second = Browser()
-        self.assertEqual(self.login(0, second)[0], 303)
-        self.assertEqual(second.request("VolunteerRegister.php")[0], 403)
-        self.assertEqual(self.run_fixtures("read", [user])[0]["accessLevel"], 1)
+
+        # Deactivation takes effect on the next request, not only at the next login.
+        self.run_fixtures("status", [{"id": user["id"], "status": "inactive"}])
+        self.addCleanup(self.run_fixtures, "status", [{"id": user["id"], "status": "active"}])
+        status, headers, _ = self.browser.request("index.php")
+        self.assertEqual((status, headers["Location"]), (303, "/login.php"))
+        status, _, body = self.login(0)
+        self.assertEqual(status, 200)
+        self.assertIn("Unable to log in", body)
+
+        self.run_fixtures("status", [{"id": user["id"], "status": "active"}])
+        self.assertEqual(self.login(0)[0], 303)
+        self.assertEqual(self.browser.request("index.php")[0], 200)
 
     def test_registration_to_login_and_standard_user_navigation(self):
         self.assertEqual(self.login()[0], 303)
@@ -360,6 +368,7 @@ class AuthenticationTests(unittest.TestCase):
                 self.addCleanup(self.run_fixtures, "delete", [account])
                 password = "Registration9!" + secrets.token_hex(10)
                 status, _, body = self.browser.request("VolunteerRegister.php", {
+                    "csrf_token": self.browser.token("VolunteerRegister.php"),
                     "first_name": "Temporary", "last_name": "Registration",
                     "username": username, "password": password,
                     "password-reenter": password,
@@ -410,6 +419,7 @@ class AuthenticationTests(unittest.TestCase):
                 self.addCleanup(self.run_fixtures, "delete", [account])
                 password = "Unicode9!" + secrets.token_hex(10)
                 status, _, body = self.browser.request("VolunteerRegister.php", {
+                    "csrf_token": self.browser.token("VolunteerRegister.php"),
                     "first_name": "Temporary", "last_name": "Unicode",
                     "username": username, "password": password, "password-reenter": password,
                 })

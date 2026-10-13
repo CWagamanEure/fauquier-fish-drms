@@ -44,24 +44,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$step = 'password';
 		require_once __DIR__ . '/database/dbPersons.php';
 		try {
-			// Registration stores HTML entities in usernames; match that representation.
-			$id   = htmlspecialchars(strtolower($username), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-			$user = retrieve_person($id);
-			$passwordMatches = $user && password_verify($password, (string) $user->get_password());
-			if ($passwordMatches && $user->get_access_level() !== null
-				&& (int) $user->get_access_level() === 0) {
-				// Accounts created before migration 001 may still carry the old level 0.
-				$user = migrate_legacy_person_access($user->get_id());
-			}
-			$level  = $user ? (int) $user->get_access_level() : 0;
-			$active = $user && $user->get_status() !== 'inactive';
-			if ($passwordMatches && $user && $active && in_array($level, [1, 2, 3], true)) {
+			$user = retrieve_person(auth_canonical_username($username));
+			// Always run the hash check so timing does not reveal whether the account exists.
+			$hash = $user ? (string) $user->get_password() : AUTH_DUMMY_HASH;
+			$passwordMatches = password_verify($password, $hash) && $user;
+			if ($passwordMatches && $user->get_status() === 'active') {
 				session_regenerate_id(true);
 				$_SESSION = [
 					'auth_version' => 1,
 					'logged_in'    => true,
 					'_id'          => $user->get_id(),
-					'access_level' => $level,
+					'access_level' => auth_access_level_for_role($user->get_role()),
 					'role'         => $user->get_role(),
 					'locked'       => false,
 				];
@@ -102,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <h2 class="welcome">Welcome to the<br>FISH NET</h2>
 
     <form class="login-form" method="post" action="login.php">
-      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(auth_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
+      <?= auth_csrf_field() ?>
 <?php if ($error !== ''): ?>
       <p class="login-msg error" role="alert"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p>
 <?php endif; ?>

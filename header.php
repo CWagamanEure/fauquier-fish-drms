@@ -228,10 +228,7 @@ date_default_timezone_set('America/New_York');
 
 <div id="mySideMenu" class="side-menu">
 
-    <?php if (!isset($_SESSION['logged_in'])): ?>
-
-
-    <?php elseif ($_SESSION['logged_in']): ?>
+    <?php if (!empty($_SESSION['logged_in'])): ?>
 
         <a href="index.php">Dashboard</a>
         <a href="viewResources.php">Documents</a>
@@ -279,7 +276,7 @@ date_default_timezone_set('America/New_York');
 
         <div style="margin-top: 30px; border-top: 1px solid rgba(255,255,255,0.2);">
             <form method="post" action="logout.php">
-                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(auth_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
+                <?php echo auth_csrf_field(); ?>
                 <button type="submit" class="sign-out-button" style="color: #ffcccc;">Sign Out</button>
             </form>
         </div>

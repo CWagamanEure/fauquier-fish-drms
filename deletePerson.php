@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/include/auth.php';
 require_authentication(2);
+auth_require_csrf();
 /*
  * Copyright 2013 by Jerrick Hoang, Ivy Xing, Sam Roberts, James Cook,
  * Johnny Coster, Judy Yang, Jackson Moniaga, Oliver Radwan,
@@ -38,16 +39,16 @@ $loggedIn = false;
         header('Location: login.php');
         die();
     }
-    if ($isAdmin && isset($_GET['id'])) {
+    if ($isAdmin && isset($_POST['id'])) {
         require_once('include/input-validation.php');
-        $args = sanitize($_GET);
+        $args = sanitize($_POST);
         $id = strtolower($args['id']);
     } else {
         $id = $userID;
     }
     require_once('database/dbPersons.php');
-    if (isset($_GET['removePic'])) {
-      if ($_GET['removePic'] === 'true') {
+    if (isset($_POST['removePic'])) {
+      if ($_POST['removePic'] === 'true') {
       }
     }
 

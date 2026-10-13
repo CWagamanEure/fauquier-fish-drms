@@ -7,11 +7,15 @@ require_authentication(1);
 
     date_default_timezone_set("America/New_York");
     
-    require 'database/dbPersons.php';
-    require 'domain/Person.php';
+    // require_once: include/auth.php already loads these for the per-request account check
+    require_once 'database/dbPersons.php';
+    require_once 'domain/Person.php';
 
-    if (isset($_SESSION['_id'])) {
-        $person = retrieve_person($_SESSION['_id']);
+    $person = retrieve_person($_SESSION['_id']);
+    if (!$person) {
+        auth_logout();
+        header('Location: login.php', true, 303);
+        exit;
     }
 
     $isStandardUser = ($_SESSION['access_level'] === 1);

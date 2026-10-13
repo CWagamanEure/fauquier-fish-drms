@@ -71,18 +71,6 @@ function retrieve_person($id) { // (username! not id)
 	return $thePerson;
 }
 
-// Called only after successful password verification during login.
-function migrate_legacy_person_access($id) {
-	$con = connect();
-	$level = $id === 'vmsroot' ? 3 : 1;
-	$stmt = $con->prepare('UPDATE dbpersons SET accessLevel = ? WHERE id = ? AND accessLevel = 0');
-	$stmt->bind_param('is', $level, $id);
-	$stmt->execute();
-	$stmt->close();
-	$con->close();
-	return retrieve_person($id);
-}
-
 // Name is first concat with last name. Example 'James Jones'
 // return array of Persons.
 function retrieve_persons_by_name ($name) {
@@ -111,7 +99,7 @@ function change_password($id, $newPass) {
 
 function reset_password($id, $newPass) {
 	$con=connect();
-	$query = 'UPDATE dbpersons SET password = "' . $newPass . '", force_password_change="1" WHERE id = "' . $id . '"';
+	$query = 'UPDATE dbpersons SET password = "' . $newPass . '" WHERE id = "' . $id . '"';
 	$result = mysqli_query($con,$query);
 	mysqli_close($con);
 	return $result;
@@ -189,8 +177,8 @@ function make_a_person($result_row) {
 		$result_row['password'],
 		$result_row['name'],
 		$result_row['accessLevel'],
-		$result_row['role'] ?? 'staff',
-		$result_row['status'] ?? 'active',
+		$result_row['role'] ?? null,
+		$result_row['status'] ?? null,   // unknown status is treated as not active
 		$result_row['first_name'] ?? null,
 		$result_row['last_name'] ?? null,
 		$result_row['email'] ?? null

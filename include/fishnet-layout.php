@@ -61,7 +61,7 @@ function fishnet_open($pageTitle, $activePage, $pageCss = []) {
     </form>
 
     <form method="post" action="logout.php" class="logout-form">
-      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(auth_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
+      <?= auth_csrf_field() ?>
       <button type="submit" class="logout">Log Out</button>
     </form>
     
