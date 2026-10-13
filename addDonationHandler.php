@@ -1,8 +1,9 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(3);
 
 include_once 'database/dbinfo.php';
 
-session_start();
 
 //Read in donation info
 $first = trim($_POST["firstName"]);

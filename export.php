@@ -1,9 +1,9 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(3);
 // Template for new VMS pages. Base your new page on this one
 
 // Make session information accessible
-session_cache_expire(30);
-session_start();
 
 $loggedIn = false;
 $accessLevel = 0;
@@ -202,7 +202,9 @@ if (isset($_SESSION['_id'])) {
 
                 echo '<div class="message-box message-success">';
                 echo '<i class="fas fa-check-circle"></i> The file was exported successfully! <br>';
-                echo 'Your download should begin shortly, or <a href="'.$_GET["file"].'" download="'.$_GET["file"].'">Click Here</a>.';
+                $file = is_string($_GET['file'] ?? null) ? basename($_GET['file']) : '';
+                $downloadUrl = 'download.php?type=exports&file=' . rawurlencode($file);
+                echo '<a href="' . htmlspecialchars($downloadUrl, ENT_QUOTES, 'UTF-8') . '">Download exported file</a>.';
                 echo '</div>';
             }
         }

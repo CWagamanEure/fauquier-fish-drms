@@ -55,16 +55,32 @@ function remove_person($id) {
 
 function retrieve_person($id) { // (username! not id)
 	$con=connect();
-	$query = "SELECT * FROM dbpersons WHERE id = '" . $id . "'";
-	$result = mysqli_query($con,$query);
+	$stmt = $con->prepare('SELECT id, name, password, accessLevel, role, status, first_name, last_name, email FROM dbpersons WHERE id = ?');
+	$stmt->bind_param('s', $id);
+	$stmt->execute();
+	$result = $stmt->get_result();
 	if (mysqli_num_rows($result) !== 1) {
+		$stmt->close();
 		mysqli_close($con);
 		return false;
 	}
 	$result_row = mysqli_fetch_assoc($result);
+	$stmt->close();
+	mysqli_close($con);
 	$thePerson = make_a_person($result_row);
-	//    mysqli_close($con);
 	return $thePerson;
+}
+
+// Called only after successful password verification during login.
+function migrate_legacy_person_access($id) {
+	$con = connect();
+	$level = $id === 'vmsroot' ? 3 : 1;
+	$stmt = $con->prepare('UPDATE dbpersons SET accessLevel = ? WHERE id = ? AND accessLevel = 0');
+	$stmt->bind_param('is', $level, $id);
+	$stmt->execute();
+	$stmt->close();
+	$con->close();
+	return retrieve_person($id);
 }
 
 // Name is first concat with last name. Example 'James Jones'
@@ -167,12 +183,17 @@ function get_new_volunteers_count($dateFrom, $dateTo) {
 
 
 function make_a_person($result_row) {
-	require_once './domain/Person.php';
+	require_once __DIR__ . '/../domain/Person.php';
 	$thePerson = new Person(
 		$result_row['id'],
 		$result_row['password'],
 		$result_row['name'],
-		$result_row['accessLevel']
+		$result_row['accessLevel'],
+		$result_row['role'] ?? 'staff',
+		$result_row['status'] ?? 'active',
+		$result_row['first_name'] ?? null,
+		$result_row['last_name'] ?? null,
+		$result_row['email'] ?? null
 	);
 
 	return $thePerson;

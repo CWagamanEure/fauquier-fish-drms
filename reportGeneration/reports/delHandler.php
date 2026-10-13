@@ -1,4 +1,7 @@
 <?php
+require_once __DIR__ . '/../../include/auth.php';
+require_authentication(3);
+session_write_close();
 echo "
 <!DOCTYPE html>
 <html lang='en'>

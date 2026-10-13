@@ -1,6 +1,6 @@
 <?php
-session_cache_expire(30);
-session_start();
+require_once __DIR__ . '/include/auth.php';
+require_authentication(2);
 
 $loggedin = false;
 $accesslevel = 0;
@@ -91,7 +91,7 @@ require_once('header.php');
             <?php foreach ($pdfFiles as $pdf): ?>
                 <tr>
                     <td>
-                        <a href="<?php echo $target_dir . $pdf; ?>" target="_blank" class="text-blue-700 hover:underline">
+                        <a href="download.php?type=resources&amp;file=<?php echo rawurlencode($pdf); ?>" target="_blank" class="text-blue-700 hover:underline">
                             <?php echo htmlspecialchars($pdf); ?>
                         </a>
                     </td>

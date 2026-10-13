@@ -1,8 +1,9 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(2);
 
 // create dummy dbpersonhours entry
 
-session_start();
 
 ini_set("display_errors", 1);
 error_reporting(E_ALL);

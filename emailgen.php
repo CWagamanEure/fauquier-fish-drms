@@ -1,10 +1,10 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(3);
 set_time_limit(120);
 ini_set('max_execution_time', 120);
 ini_set('display_errors', 0);
 
-session_start();
-$_SESSION['logged_in'] = "true";
 
 
 // === GLOBAL CONFIG ===

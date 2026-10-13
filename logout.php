@@ -1,30 +1,55 @@
 <?php
-session_cache_expire(30);
-session_start();
+// Sign out. A POST with a valid form token ends the session; a plain GET (old bookmarks,
+// typed URLs) shows a confirmation form so a link alone can never terminate a session.
+require_once __DIR__ . '/include/auth.php';
+auth_start_session();
 
-// Clear and destroy session
-session_unset();
-session_destroy();
-session_write_close();
+if (!auth_is_logged_in()) {
+    auth_logout();
+    header('Location: login.php?loggedOut=1', true, 303);
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!auth_valid_csrf_token($_POST['csrf_token'] ?? null)) {
+        http_response_code(403);
+        exit('Your sign-out form has expired. Return to the application and try again.');
+    }
+    auth_logout();
+    header('Location: login.php?loggedOut=1', true, 303);
+    exit;
+}
 ?>
-<html>
-    <head>
-        <meta HTTP-EQUIV="REFRESH" content="2; url=index.php">
-        <?php require('universal.inc') ?>
-    </head>
-    <body>
-        <nav>
-            <span id="nav-top">
-                <span class="logo">
-                    <img src="images/RAPPAHANNOCK_v_RedBlue2.png">
-                        <span id="vms-logo"> CASA Donation Management Web Application </span>
-                        </span>
-                    <img id="menu-toggle" src="images/menu.png">
-                </span>
-            </span>
-        </nav>
-        <main>
-            <p class="happy-toast centered">You have been logged out.</p>
-        </main>
-    </body>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FISH NET | Sign Out</title>
+  <link rel="icon" type="image/png" href="images/fish-logo.png">
+  <link rel="stylesheet" href="css/login.css">
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="brand">
+      <img src="images/fish-logo.png" alt="Fauquier FISH logo" class="logo">
+      <div class="brand-text">
+        <h1>Fauquier FISH</h1>
+        <p class="tagline">Feed. Inspire. Support. Health.</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="login-area">
+    <h2 class="welcome">Sign out of<br>the FISH NET?</h2>
+
+    <form class="login-form" method="post" action="logout.php">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(auth_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
+      <button type="submit" class="login-btn">Sign Out</button>
+      <p class="login-msg"><a href="dashboard.php">Return to dashboard</a></p>
+    </form>
+  </main>
+
+</body>
 </html>

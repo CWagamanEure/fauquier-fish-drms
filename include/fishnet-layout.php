@@ -18,19 +18,11 @@ const FISHNET_LINKS = [
 	'users'          => ['manageUsers.php',    'Manage Users'],
 ];
 
-// (took from casa)Login check: runs as soon as a page includes this file 
-session_cache_expire(30);
-session_start();
+// Login check: runs as soon as a page includes this file. include/auth.php owns the session
+// settings, the CSRF token and the redirect to login.php for anonymous visitors.
+require_once __DIR__ . '/auth.php';
+require_authentication(1);
 date_default_timezone_set('America/New_York');
-
-if (!isset($_SESSION['access_level']) || $_SESSION['access_level'] < 1) {
-	if (isset($_SESSION['change-password'])) {
-		header('Location: changePassword.php');
-	} else {
-		header('Location: login.php');
-	}
-	die();
-}
 
 // The signed-in person (pages can use $fishnetUser too)
 require_once 'database/dbPersons.php';
@@ -68,7 +60,10 @@ function fishnet_open($pageTitle, $activePage, $pageCss = []) {
       <input type="search" name="q" placeholder="Search Donors...">
     </form>
 
-    <a href="logout.php" class="logout">Log Out</a>
+    <form method="post" action="logout.php" class="logout-form">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(auth_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
+      <button type="submit" class="logout">Log Out</button>
+    </form>
     
     <a href="viewProfile.php" class="avatar" title="Your profile"><?= htmlspecialchars($initial) ?></a>
   </header>

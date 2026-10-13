@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(2);
 /*
  * Copyright 2013 by Jerrick Hoang, Ivy Xing, Sam Roberts, James Cook,
  * Johnny Coster, Judy Yang, Jackson Moniaga, Oliver Radwan,
@@ -17,8 +19,6 @@
  */
 ?>
 <?PHP
-session_cache_expire(30);
-session_start();
 
 $loggedIn = false;
     $accessLevel = 0;

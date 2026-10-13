@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(3);
 header('Cache-Control: no-cache, no-store, must-revalidate');
 header('Pragma: no-cache');
 header('Expires: 0');
@@ -26,8 +28,6 @@ header('Expires: 0');
 
     // Make session information accessible, allowing us to associate
     // data with the logged-in user.
-    session_cache_expire(30);
-    session_start();
 
     $loggedIn = false;
     $accessLevel = 0;
@@ -269,7 +269,8 @@ header('Expires: 0');
 				foreach ($output as $value){
 					if (str_contains($value,".pdf")){
 						echo "<tr>";
-						echo "<td><a target='_blank' href=./reportGeneration/reports/".$value.">".$value."</a></td>";
+						$downloadUrl = 'download.php?type=reports&file=' . rawurlencode($value);
+						echo '<td><a target="_blank" href="' . htmlspecialchars($downloadUrl, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars($value, ENT_QUOTES, 'UTF-8') . '</a></td>';
 						echo "<td style='text-align: center;'><input type='checkbox' id =".$value." name=".$value."></td>";
 						echo "</tr>";
 					flush();

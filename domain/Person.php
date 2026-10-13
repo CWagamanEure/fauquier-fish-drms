@@ -26,15 +26,25 @@ class Person {
 	private $name;
 	private $accessLevel;
 
-	/*
-	 * This is a temporary mini constructor for testing purposes. It will be expanded later.
-	 */
-	function __construct($id, $password,$name,$accessLevel){
+	// Added by migration 001 (sql/migrations). Optional so legacy callers keep working.
+	private $role;
+	private $status;
+	private $first_name;
+	private $last_name;
+	private $email;
+
+	function __construct($id, $password, $name, $accessLevel, $role = 'staff', $status = 'active',
+						 $first_name = null, $last_name = null, $email = null) {
 		$this->id = $id;
 		$this->password = $password;
 		$this->name = $name;
 		// Access level
 		$this->access_level = $accessLevel;
+		$this->role = $role;
+		$this->status = $status;
+		$this->first_name = $first_name;
+		$this->last_name = $last_name;
+		$this->email = $email;
 	}
 
 
@@ -54,6 +64,26 @@ class Person {
 
 	function get_access_level() {
 		return $this->access_level;
+	}
+
+	function get_role() {
+		return $this->role;
+	}
+
+	function get_status() {
+		return $this->status;
+	}
+
+	function get_first_name() {
+		return $this->first_name;
+	}
+
+	function get_last_name() {
+		return $this->last_name;
+	}
+
+	function get_email() {
+		return $this->email;
 	}
 
 

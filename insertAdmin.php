@@ -1,4 +1,8 @@
 <?php
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
     ini_set("display_errors",1);
     error_reporting(E_ALL);
     include_once('domain/Person.php');

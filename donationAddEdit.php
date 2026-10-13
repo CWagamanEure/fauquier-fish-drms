@@ -1,11 +1,11 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(3);
 // --- PHP LOGIC ---
 header('Cache-Control: no-cache, no-store, must-revalidate');
 header('Pragma: no-cache');
 header('Expires: 0');
 
-session_cache_expire(30);
-session_start();
 
 $loggedIn = false;
 $accessLevel = 0;

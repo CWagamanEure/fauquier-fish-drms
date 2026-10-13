@@ -1,5 +1,6 @@
 <?php
-session_start();
+require_once __DIR__ . '/include/auth.php';
+require_authentication(2);
 require_once('database/dbEvents.php');
 
 if (!isset($_POST['selectedEvents'])) {

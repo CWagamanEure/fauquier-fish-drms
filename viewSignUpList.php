@@ -1,6 +1,6 @@
 <?php
-session_cache_expire(30);
-session_start();
+require_once __DIR__ . '/include/auth.php';
+require_authentication(2);
 
 if (!isset($_SESSION['access_level']) || $_SESSION['access_level'] < 1) {
     header('Location: login.php');

@@ -1,4 +1,8 @@
 <?php
+require_once __DIR__ . '/../include/auth.php';
+require_authentication(3);
+// Release the session lock so sign-out can complete while Python is working.
+session_write_close();
 #yes I know this is silly just don't question it
 echo "
 <!DOCTYPE html>
@@ -69,7 +73,8 @@ try{
 		throw new Exception("Bad output");
 	}
 	#this line is really fucking sick
-	echo '<script type="text/javascript"> window.open("reports/'.$output[0].'","_blank");window.location.href="../ReportGeneration.php";</script>';
+	$downloadUrl = '../download.php?type=reports&file=' . rawurlencode(basename($output[0]));
+	echo '<script type="text/javascript">window.open(' . json_encode($downloadUrl) . ',"_blank");window.location.href="../ReportGeneration.php";</script>';
 }
 catch (Throwable $e){
 	foreach ($output as $value){
