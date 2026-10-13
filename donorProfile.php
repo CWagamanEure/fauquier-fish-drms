@@ -9,18 +9,21 @@ $donor = null;
 foreach (stopgap_donors() as $d) { if ($d['id'] === $id) { $donor = $d; break; } }
 if (!$donor) { header('Location: donor.php'); exit; }   // unknown/missing id: back to the list
 
-$detail  = stopgap_donor_details()[$id] ?? [];
-$isEmail = strpos($donor['contact'], '@') !== false;
+$detail = stopgap_donor_details()[$id] ?? [];
+$prof   = stopgap_profile($id);
 $p = [
-  'email'        => $detail['email']        ?? ($isEmail ? $donor['contact'] : ''),
-  'phone'        => $detail['phone']        ?? ($isEmail ? '' : $donor['contact']),
-  'location'     => $detail['location']     ?? '',
-  'since'        => $detail['since']        ?? '',
-  'prefers'      => $detail['prefers']      ?? '',
+  'email'        => $prof['email'],
+  'phone'        => $prof['phone'],
+  'location'     => implode(', ', array_filter([$prof['city'], $prof['state']])),
+  'since'        => date('Y', strtotime($prof['created'])),
+  'prefers'      => $prof['preferred'],
   'last_contact' => $detail['last_contact'] ?? '',
 ];
+
 // Donors without detail data get one summary gift so the page matches the list's lifetime total
-$cash  = $detail['cash'] ?? [['date'=>$donor['last_gift'],'amount'=>$donor['lifetime'],'payment'=>'&mdash;','campaign'=>'','receipt'=>'sent']];
+$cash  = $detail['cash'] ?? ($donor['lifetime'] > 0
+  ? [['date'=>$donor['last_gift'],'amount'=>$donor['lifetime'],'payment'=>'&mdash;','campaign'=>'','receipt'=>'sent']]
+  : []);
 $items = $detail['items'] ?? [];
 $vol   = $detail['vol']   ?? [];
 $comms = $detail['comms'] ?? [];
@@ -63,7 +66,7 @@ fishnet_open('Donor profile', 'donor', ['donor.css', 'forms.css']);
           <p><?= $contactLine ? h(implode(' · ', $contactLine)) : '&mdash;' ?></p>
           <p><?= $metaLine ? h(implode(' · ', $metaLine)) : '&nbsp;' ?></p>
         </div>
-        <a href="newDonor.php" class="btn btn-yellow">&#9998; Update profile</a>
+        <a href="updateDonor.php?id=<?= (int)$donor['id'] ?>" class="btn btn-yellow">&#9998; Update profile</a>
       </section>
 <!-- cards and titles for the card NEED A CONNECTION (FAKE DATA HERE) -->
       <section class="tiles">

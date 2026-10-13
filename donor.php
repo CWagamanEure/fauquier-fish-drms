@@ -4,7 +4,8 @@ require_once 'include/fishnet-layout.php';
 function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 //fake data, replace once schema is complete
 require_once 'include/donorDataStopgap.php';
-$allDonors = stopgap_donors();
+if (isset($_GET['reset_demo'])) { unset($_SESSION['stopgap_edits'], $_SESSION['stopgap_inactive']); header('Location: donor.php'); exit; }
+$allDonors = array_values(array_filter(stopgap_donors(), fn($d) => empty($d['inactive'])));
 
 $filter = $_GET['filter'] ?? 'all';
 if (!in_array($filter, ['all','individuals','organizations','lapsed'], true)) $filter = 'all';

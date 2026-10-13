@@ -11,7 +11,9 @@ if (!function_exists('initials')) {
   }
 }
 
-function stopgap_donors() {
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
+
+function stopgap_donors_base() {
   return [
     ['id'=>1,  'name'=>'Main St. Church',       'type'=>'Organization', 'contact'=>'office@mainstchurch.org', 'lifetime'=>4250,     'last_gift'=>'2026-10-03', 'status'=>'active'],
     ['id'=>2,  'name'=>'Jhon D. Rangel Duran',  'type'=>'Individual',   'contact'=>'(540) 555-0173',          'lifetime'=>11250.74, 'last_gift'=>'2026-10-03', 'status'=>'active'],
@@ -28,7 +30,28 @@ function stopgap_donors() {
   ];
 }
 
-//sample details for some donors with default
+function stopgap_profiles_base() {
+  $blank = ['first'=>'','middle'=>'','last'=>'','org_name'=>'','email'=>'','phone'=>'','preferred'=>'',
+            'street'=>'','city'=>'','state'=>'VA','zip'=>'','volunteer'=>0,'email_updates'=>1,
+            'mail_receipts'=>0,'do_not_contact'=>0,'code'=>'','created'=>''];
+  $rows = [
+    1  => ['org_name'=>'Main St. Church',      'email'=>'office@mainstchurch.org', 'phone'=>'(540) 555-0100', 'preferred'=>'Email', 'street'=>'100 Main St',      'city'=>'Warrenton',    'zip'=>'20186', 'mail_receipts'=>1, 'created'=>'2019-03-14'],
+    2  => ['first'=>'Jhon', 'middle'=>'D.', 'last'=>'Rangel Duran', 'email'=>'jrangel@email.com', 'phone'=>'(540) 555-0173', 'preferred'=>'Email', 'street'=>'123 Germanna Hwy', 'city'=>'Locust Grove', 'zip'=>'22508', 'volunteer'=>1, 'mail_receipts'=>1, 'code'=>'D-01842', 'created'=>'2021-03-04'],
+    3  => ['org_name'=>'Oak Ridge Elementary', 'email'=>'pta@oakridge.edu',         'phone'=>'(540) 555-0120', 'preferred'=>'Email', 'street'=>'45 School Rd',      'city'=>'Bealeton',     'zip'=>'22712', 'created'=>'2022-09-12'],
+    4  => ['first'=>'Ravi', 'last'=>'Patel',   'email'=>'rpatel@email.com',   'phone'=>'(540) 555-0147', 'preferred'=>'Email', 'street'=>'8 Orchard Ln',      'city'=>'Warrenton',    'zip'=>'20186', 'volunteer'=>1, 'created'=>'2024-02-10'],
+    5  => ['org_name'=>'Warrenton Rotary',     'phone'=>'(540) 555-0110', 'preferred'=>'Phone', 'street'=>'300 Lee Hwy',       'city'=>'Warrenton',    'zip'=>'20186', 'created'=>'2020-06-01'],
+    6  => ['first'=>'Lin',  'last'=>'Chen',    'email'=>'lchen@email.com',    'preferred'=>'Email', 'street'=>'27 Fairfax St',      'city'=>'Remington',    'zip'=>'22734', 'created'=>'2026-09-30'],
+    7  => ['org_name'=>'Fauquier Thrift',      'phone'=>'(540) 555-0164', 'preferred'=>'Phone', 'street'=>'12 Commerce Dr',     'city'=>'Warrenton',    'zip'=>'20186', 'created'=>'2023-11-05'],
+    8  => ['first'=>'Dana', 'last'=>'Brooks',  'phone'=>'(540) 555-0129', 'preferred'=>'Phone', 'street'=>'60 Ridge Rd',        'city'=>'Midland',      'zip'=>'22728', 'created'=>'2022-05-20'],
+    9  => ['first'=>'Maria','last'=>'Gonzalez','email'=>'mgonzalez@email.com','phone'=>'(540) 555-0155', 'preferred'=>'Email', 'street'=>'91 Elm St',          'city'=>'Catlett',      'zip'=>'20119', 'created'=>'2025-01-15'],
+    10 => ['org_name'=>'Bealeton Hardware',    'phone'=>'(540) 555-0188', 'preferred'=>'Phone', 'street'=>'5 Marsh Rd',         'city'=>'Bealeton',     'zip'=>'22712', 'created'=>'2023-04-18'],
+    11 => ['first'=>'Tom',  'last'=>'Whitaker','email'=>'twhitaker@email.com','preferred'=>'Email', 'street'=>'14 Oak Ct',          'city'=>'Warrenton',    'zip'=>'20186', 'created'=>'2026-09-28'],
+    12 => ['first'=>'Carol','last'=>'Nguyen',  'phone'=>'(540) 555-0142', 'preferred'=>'Phone', 'street'=>'73 River Rd',        'city'=>'The Plains',   'zip'=>'20198', 'created'=>'2023-03-14'],
+  ];
+  foreach ($rows as $id => $r) { $rows[$id] = array_merge($blank, $r); }
+  return $rows;
+}
+
 function stopgap_donor_details() {
   return [
     1 => [
@@ -77,4 +100,43 @@ function stopgap_donor_details() {
       ],
     ],
   ];
+}
+
+function stopgap_profile($id) {
+  $base = stopgap_profiles_base()[$id] ?? ($_SESSION['stopgap_new'][$id] ?? null);
+  if (!$base) return null;
+  foreach (stopgap_donors_base() as $d) {
+    if ($d['id'] === $id) { $base['type'] = $d['type']; break; }
+  }
+  if ($base['code'] === '') $base['code'] = sprintf('D-%05d', 1000 + $id);
+  return array_merge($base, $_SESSION['stopgap_edits'][$id] ?? []);
+}
+
+function stopgap_display_name($p) {
+  if ($p['type'] === 'Organization') return $p['org_name'];
+  return trim(implode(' ', array_filter([$p['first'], $p['middle'], $p['last']])));
+}
+
+function stopgap_donors() {
+  $edits    = $_SESSION['stopgap_edits']    ?? [];
+  $inactive = $_SESSION['stopgap_inactive'] ?? [];
+  $rows = [];
+  foreach (stopgap_donors_base() as $d) {
+    if (isset($edits[$d['id']])) {
+      $p = stopgap_profile($d['id']);
+      $d['type']    = $p['type'];
+      $d['name']    = stopgap_display_name($p);
+      $d['contact'] = $p['email'] ?: $p['phone'];
+    }
+    if (isset($inactive[$d['id']])) $d['inactive'] = true;
+    $rows[] = $d;
+  }
+  foreach (array_keys($_SESSION['stopgap_new'] ?? []) as $nid) {
+    $p = stopgap_profile($nid);
+    $d = ['id'=>$nid, 'name'=>stopgap_display_name($p), 'type'=>$p['type'], 'contact'=>$p['email'] ?: $p['phone'],
+          'lifetime'=>0, 'last_gift'=>'', 'status'=>'new'];
+    if (isset($inactive[$nid])) $d['inactive'] = true;
+    $rows[] = $d;
+  }
+  return $rows;
 }
