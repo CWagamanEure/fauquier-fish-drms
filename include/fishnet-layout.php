@@ -27,7 +27,7 @@ date_default_timezone_set('America/New_York');
 // The signed-in person (pages can use $fishnetUser too)
 require_once 'database/dbPersons.php';
 require_once 'domain/Person.php';
-$fishnetUser = isset($_SESSION['_id']) ? retrieve_person($_SESSION['_id']) : null;
+$fishnetUser = auth_current_user();   // loaded by require_authentication(); never null here
 
 
 // ---------- Top of every page ----------

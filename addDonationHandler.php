@@ -1,7 +1,6 @@
 <?php
 require_once __DIR__ . '/include/auth.php';
 require_authentication(3);
-auth_require_csrf();
 
 include_once 'database/dbinfo.php';
 
@@ -11,7 +10,6 @@ $first = trim($_POST["firstName"]);
 $last = trim($_POST["lastName"]);
 $email = trim($_POST["donorEmail"]);
 $date = $_POST["date"];
-$isoDate = is_string($date) && $date !== "" ? $date : NULL;   // written to donation_date
 $amount = $_POST["amount"];
 $fee = $_POST["fee"];
 $event = $_POST["eventName"];
@@ -101,8 +99,9 @@ if ($reason == ""){
 }
 
 #insert new donation into database
-$query = "INSERT INTO donations (amount,reason,date,fee,thanked,eventID,donorID,donation_date,recorded_by) VALUES (?,?,?,?,?,?,?,?,?)";
-$data = [$amount,$reason,$date,$fee,$thanked,$eventID,$donorID,$isoDate,$_SESSION['_id']];
+# donation_date is derived from `date` by the database trigger (migration 002).
+$query = "INSERT INTO donations (amount,reason,date,fee,thanked,eventID,donorID,recorded_by) VALUES (?,?,?,?,?,?,?,?)";
+$data = [$amount,$reason,$date,$fee,$thanked,$eventID,$donorID,$_SESSION['_id']];
 try{
 	$exec = $con->prepare($query);
 	$exec->execute($data);

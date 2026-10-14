@@ -77,9 +77,10 @@ username without checking the database, so the page never confirms which account
 
 Protected PHP entry points call `require_authentication()` from `include/auth.php` before
 producing output or touching data; `include/fishnet-layout.php` does this for every FISH
-page. Handlers enforce the same access level as their forms, and handlers that change data
-(account creation, password reset, user and document deletion, donations) accept only a
-POST carrying the form token from `auth_csrf_field()`. Login rotates the session ID;
+page. Handlers enforce the same access level as their forms. Every authenticated POST must
+carry the form token: forms include it with `auth_csrf_field()`, JavaScript callers send it in
+an `X-CSRF-Token` header, and `require_authentication()` rejects anything else with 403.
+Deleting events, users and uploaded documents is POST-only. Login rotates the session ID;
 sign-out requires a form token, destroys the session and expires its cookie, and visiting
 `logout.php` directly shows a confirmation form. Authentication responses are not cached.
 Report, export, import and email handlers release their session locks during long

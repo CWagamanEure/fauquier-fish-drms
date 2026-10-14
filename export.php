@@ -213,6 +213,7 @@ if (isset($_SESSION['_id'])) {
         <div class="card-container">
 
             <form class="export-card" action="python/ExportHandler.php" method="post" onclick="this.submit();">
+            <?php echo auth_csrf_field(); ?>
                 <div class="icon-overlay">
                     <i class="fas fa-users"></i>
                 </div>
@@ -226,6 +227,7 @@ if (isset($_SESSION['_id'])) {
             </form>
 
             <form class="export-card" action="python/ExportHandler.php" method="post" onclick="this.submit();">
+            <?php echo auth_csrf_field(); ?>
                 <div class="icon-overlay">
                     <i class="fas fa-hand-holding-dollar"></i>
                 </div>

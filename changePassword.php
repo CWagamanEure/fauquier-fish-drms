@@ -88,6 +88,7 @@ require_authentication(1);
                 <p class="error-toast">Your new password must contain at least 8 characters, one uppercase letter, one lowercase letter, and one number.</p>    
             <?php endif ?>
             <form id="password-change" method="post">
+            <?php echo auth_csrf_field(); ?>
                 <?php if (!$forced): ?>
                     <label for="password">Current Password</label>
                     <input type="password" id="password" name="password" placeholder="Enter old password" required>

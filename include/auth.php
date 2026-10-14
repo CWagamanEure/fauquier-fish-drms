@@ -44,9 +44,35 @@ function auth_valid_username($username) {
     return preg_match('/\A.{1,256}\z/us', $stored) === 1;
 }
 
-// The representation registration stores in dbpersons.id: trimmed, lower-cased, HTML-encoded.
+// The representation registration stores in dbpersons.id: trimmed and HTML-encoded, case kept.
+function auth_stored_username($username) {
+    return htmlspecialchars(trim((string) $username), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+
+// The lookup form of a username: the stored form lower-cased (the id column's collation is
+// case-insensitive, so this matches however the account was typed at registration).
 function auth_canonical_username($username) {
-    return htmlspecialchars(strtolower(trim((string) $username)), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    return strtolower(auth_stored_username($username));
+}
+
+// Resolve a user-supplied file name inside a private directory. Returns the real path or false.
+// Rejects path separators, NUL, dotfiles and anything outside $extensions, so callers can only
+// ever reach plain documents directly inside $directory.
+function auth_private_file($directory, $name, array $extensions) {
+    $root = realpath($directory);
+    if ($root === false || !is_string($name) || $name === '' || $name[0] === '.'
+        || strpbrk($name, "/\\\0") !== false) {
+        return false;
+    }
+    $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+    if (!in_array($extension, $extensions, true)) {
+        return false;
+    }
+    $path = realpath($root . '/' . $name);
+    if ($path === false || dirname($path) !== $root || !is_file($path)) {
+        return false;
+    }
+    return $path;
 }
 
 // role (migration 001) is the source of truth; the numeric level only feeds the legacy page gate.
@@ -72,6 +98,11 @@ function auth_url($page) {
     return $base . '/' . $page;
 }
 
+// The Person behind the current session, loaded once per request by require_authentication().
+function auth_current_user() {
+    return $GLOBALS['auth_current_user'] ?? null;
+}
+
 // Re-read the account behind the session so changes made since login take effect on the next
 // request: deactivated accounts are signed out and role changes update the access level.
 function auth_refresh_account() {
@@ -85,6 +116,7 @@ function auth_refresh_account() {
     if (!$user || $user->get_status() !== 'active') {
         return false;
     }
+    $GLOBALS['auth_current_user'] = $user;
     $_SESSION['role'] = $user->get_role();
     $_SESSION['access_level'] = auth_access_level_for_role($user->get_role());
     return true;
@@ -117,6 +149,11 @@ function require_authentication($minimumLevel = 1, $json = false) {
         }
         exit;
     }
+    // Every authenticated POST must carry the form token (field, or X-CSRF-Token header for
+    // JavaScript callers), so no handler can be driven from another site.
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        auth_require_csrf($json);
+    }
 }
 
 function auth_csrf_token() {
@@ -137,9 +174,11 @@ function auth_csrf_field() {
         . htmlspecialchars(auth_csrf_token(), ENT_QUOTES, 'UTF-8') . '">';
 }
 
-// For handlers that change data: only accept a POST carrying a valid form token.
+// Only accept a POST carrying a valid form token. Called by require_authentication() for every
+// POST; handlers that must be POST-only can call it directly to reject GET as well.
 function auth_require_csrf($json = false) {
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !auth_valid_csrf_token($_POST['csrf_token'] ?? null)) {
+    $token = $_POST['csrf_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? null);
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !auth_valid_csrf_token($token)) {
         http_response_code(403);
         if ($json) {
             header('Content-Type: application/json');

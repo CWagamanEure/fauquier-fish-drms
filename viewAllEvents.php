@@ -294,6 +294,7 @@ require_authentication(1);
                     <!-- DELETE CONFIRM -->
                     <div id="confirmDeleteContainer">
                         <form method="POST" action="deleteMultipleEvents.php" onsubmit="return confirm('Delete selected events?');">
+                        <?php echo auth_csrf_field(); ?>
                             <input type="hidden" id="selectedEventsInput" name="selectedEvents">
                             <button id="confirmDeleteButton">Delete Selected</button>
                         </form>

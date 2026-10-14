@@ -174,6 +174,7 @@ require_authentication(1);
         <main class="date">
             <h2>Sign-Up for Event Form</h2>
             <form id="new-event-form" method="post">
+            <?php echo auth_csrf_field(); ?>
                 <label for="event-name">* Event Name </label>
                 <input type="text" id="event-name" name="event-name" required 
                     value="<?php echo htmlspecialchars(isset($_GET['event_name']) ? $_GET['event_name'] : ''); ?>" 

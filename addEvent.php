@@ -192,6 +192,7 @@ require_authentication(2);
             </p>
 
             <form id="new-event-form" method="POST">
+            <?php echo auth_csrf_field(); ?>
                 <label for="name">* Fundraiser Name </label>
                 <input type="text" id="name" name="name" required placeholder="Enter name"> 
 

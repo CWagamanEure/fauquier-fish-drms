@@ -12,7 +12,10 @@ $ids = json_decode($_POST['selectedEvents'], true);
 
 if (is_array($ids)) {
     foreach ($ids as $id) {
-        delete_event($id);
+        $id = filter_var($id, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($id !== false) {
+            delete_event($id);
+        }
     }
 }
 

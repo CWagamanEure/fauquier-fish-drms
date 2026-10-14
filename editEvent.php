@@ -188,6 +188,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </p>
 
     <form id="edit-event-form" method="POST">
+    <?php echo auth_csrf_field(); ?>
 
         <label>* Fundraiser Name</label>
         <input type="text" name="name" required value="<?php echo htmlspecialchars($name); ?>">

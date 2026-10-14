@@ -1,17 +1,13 @@
 <?php
-// Deletes one uploaded document. POST only, with a form token, and the file must be a plain
-// name inside uploads/ (no path separators), mirroring the checks in download.php.
+// Deletes one uploaded document. POST only (require_authentication checks the form token on
+// every POST; auth_require_csrf rejects GET), and the file must be a plain document name inside
+// uploads/, resolved by the same helper download.php uses.
 require_once __DIR__ . '/include/auth.php';
 require_authentication(2);
 auth_require_csrf();
 
-$file = $_POST['file'] ?? '';
-$directory = realpath(__DIR__ . '/uploads');
-$path = false;
-if (is_string($file) && $file !== '' && strpbrk($file, "/\\\0") === false && $directory !== false) {
-    $path = realpath($directory . '/' . $file);
-}
-if ($path === false || dirname($path) !== $directory || !is_file($path)) {
+$path = auth_private_file(__DIR__ . '/uploads', $_POST['file'] ?? '', ['pdf', 'doc', 'docx']);
+if ($path === false) {
     http_response_code(404);
     exit('File not found.');
 }

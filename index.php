@@ -11,12 +11,7 @@ require_authentication(1);
     require_once 'database/dbPersons.php';
     require_once 'domain/Person.php';
 
-    $person = retrieve_person($_SESSION['_id']);
-    if (!$person) {
-        auth_logout();
-        header('Location: login.php', true, 303);
-        exit;
-    }
+    $person = auth_current_user();   // loaded by require_authentication()
 
     $isStandardUser = ($_SESSION['access_level'] === 1);
 ?>

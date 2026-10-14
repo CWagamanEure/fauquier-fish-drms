@@ -6,29 +6,28 @@ function add_person($person) {
 	}
 
 	$con = connect();
-	$query = "SELECT * FROM dbpersons WHERE id = '" . $person->get_id() . "'";
-	$result = mysqli_query($con, $query);
+	$id = $person->get_id();
+	$name = $person->get_name();
+	$password = $person->get_password();
+	$level = $person->get_access_level();
 
-	// If the result is empty, it means the person doesn't exist, so we can add the person
-	if (mysqli_num_rows($result) == 0) {
-		// Prepare the insert query
-		$insert_query = 'INSERT INTO dbpersons (id, name, password,accessLevel) VALUES ("'.$person->get_id().'","'.$person->get_name().'","'.$person->get_password().'","'.$person->get_access_level().'");';
-		// Check if the query is properly built
-		if (empty($insert_query)) {
-			die("Error: insert query is empty");
-		}
-
-		// Perform the insert
-		if (mysqli_query($con, $insert_query)) {
-			mysqli_close($con);
-			return true;
-		} else {
-			die("Error: " . mysqli_error($con)); // Debugging MySQL error
-		}
+	// Returns false when the username is already taken. Values are bound, never interpolated.
+	$stmt = $con->prepare('SELECT 1 FROM dbpersons WHERE id = ?');
+	$stmt->bind_param('s', $id);
+	$stmt->execute();
+	$exists = $stmt->get_result()->num_rows > 0;
+	$stmt->close();
+	if ($exists) {
+		mysqli_close($con);
+		return false;
 	}
 
+	$stmt = $con->prepare('INSERT INTO dbpersons (id, name, password, accessLevel) VALUES (?, ?, ?, ?)');
+	$stmt->bind_param('sssi', $id, $name, $password, $level);
+	$ok = $stmt->execute();
+	$stmt->close();
 	mysqli_close($con);
-	return false;
+	return (bool) $ok;
 }
 
 

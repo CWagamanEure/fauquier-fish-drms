@@ -236,6 +236,7 @@ if (isset($_SESSION['_id'])) {
 
             <h3 class="mb-3">Select Files</h3>
             <form action="python/ImportHandler.php" method="post" enctype="multipart/form-data" onsubmit="return validateFiles();">
+            <?php echo auth_csrf_field(); ?>
 
                 <div class="file-input-wrapper">
                     <input type="file" name="files[]" multiple onchange="displayImport(event)">

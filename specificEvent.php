@@ -216,8 +216,9 @@ require_authentication(1);
 
 
 
-            <form action="deleteEvent.php" method="GET">
-                <input type="hidden" name="id" value=<?php echo $event['id'];?>>
+            <form action="deleteEvent.php" method="post">
+                <?php echo auth_csrf_field(); ?>
+                <input type="hidden" name="id" value="<?php echo (int) $event['id']; ?>">
                 <button 
                     type="submit" 
                     onclick="return confirm('Are you sure you want to delete this event? This action cannot be undone.');"

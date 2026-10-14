@@ -117,6 +117,7 @@ require_once('header.php');
 
         <!-- Upload Form -->
         <form action="uploadResources.php" method="post" enctype="multipart/form-data" class="mt-10 w-[80%] bg-white p-6 rounded-xl border-2 border-gray-300 shadow-md">
+        <?php echo auth_csrf_field(); ?>
             <label for="fileToUpload" class="font-medium text-center">Select PDF to Upload:</label>
             <input type="file" name="fileToUpload" id="fileToUpload" accept="application/pdf" class="block mx-auto mb-4 border border-gray-300 p-2 rounded-md w-full">
 

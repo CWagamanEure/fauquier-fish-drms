@@ -62,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				exit;
 			}
 			$error = $failed;
-		} catch (mysqli_sql_exception $exception) {
+		} catch (Throwable $exception) {
 			error_log('Login database lookup failed: ' . $exception->getMessage());
 			http_response_code(503);
 			$error = 'Login is temporarily unavailable. Please try again shortly.';

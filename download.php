@@ -17,18 +17,12 @@ if (!is_string($type) || !isset($documents[$type])) {
 require_authentication($documents[$type]['level']);
 
 $file = $_GET['file'] ?? '';
-if (!is_string($file) || $file === '' || strpbrk($file, "/\\\0") !== false) {
+$path = auth_private_file($documents[$type]['dir'], $file, $documents[$type]['ext']);
+if ($path === false) {
     http_response_code(404);
     exit('File not found.');
 }
-$directory = realpath($documents[$type]['dir']);
-$path = $directory === false ? false : realpath($directory . '/' . $file);
-$extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
-if ($path === false || dirname($path) !== $directory || !is_file($path)
-    || !in_array($extension, $documents[$type]['ext'], true)) {
-    http_response_code(404);
-    exit('File not found.');
-}
+$extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
 
 header('Content-Type: ' . ($extension === 'pdf' ? 'application/pdf' : 'application/octet-stream'));
 header('X-Content-Type-Options: nosniff');

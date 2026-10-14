@@ -103,6 +103,7 @@ $access_level = $_SESSION['access_level'];
                                 <?php if ($access_level >= 2): ?>
                                     <td>
                                         <form method="POST" style="display:inline;">
+                                        <?php echo auth_csrf_field(); ?>
                                             <input type="hidden" name="event_id" value="<?php echo htmlspecialchars($id); ?>">
                                             <input type="hidden" name="user_id" value="<?php echo htmlspecialchars($signup['userID']); ?>">
                                             <button type="submit" class="button danger" onclick="return confirm('Are you sure you want to remove this user?');">

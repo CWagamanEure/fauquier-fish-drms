@@ -294,6 +294,7 @@ if (mysqli_query($connection, $query)) {
             <h2>Edit this time: 
             </h2>            
             <form id="new-event-form" method="post">
+            <?php echo auth_csrf_field(); ?>
             <!-- <p><?= $formattedEndDateTime ?></p>   -->
             <p><strong>Start Time: </strong><?= htmlspecialchars($displayTimeStart); ?></p>  
             <p><strong>End Time: </strong><?= htmlspecialchars($displayTimeEnd); ?></p> 

@@ -189,6 +189,7 @@ header('Expires: 0');
 		<h3 class="mb-3">Report Generator</h3>
 
 		<form id="emailForm" action="reportGeneration/formHandler.php" method="post">
+		<?php echo auth_csrf_field(); ?>
 
 			<div class="mb-3">
 				<label><b>Name of Report</b></label>
@@ -257,6 +258,7 @@ header('Expires: 0');
     <div class="content-card">
         <h3>Report History</h3>
 		<form action="./reportGeneration/reports/delHandler.php" method="post">
+		<?php echo auth_csrf_field(); ?>
 		<table class="casa-table">
 			<thead>
                 <tr>

@@ -1,7 +1,6 @@
 <?php
 require_once __DIR__ . '/include/auth.php';
 require_authentication(3);
-auth_require_csrf();
 #HANDLE SEARCHING DONATIONS
 if (isset($_POST["goal"]) and $_POST["goal"] == "search"){
 

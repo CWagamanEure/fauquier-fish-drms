@@ -97,6 +97,7 @@ require_authentication(1);
 			<h2><?php echo $eventName ?></h2>
             
 			<form id="new-check-in" method="post">
+			<?php echo auth_csrf_field(); ?>
 
                 <label for="name">* New Check-In Time </label>                
                 <input type="text" id="start-time" name="start-time" pattern="([1-9]|10|11|12):[0-5][0-9] ?([aApP][mM])" required placeholder="Enter new check-in time. Ex. 12:00 PM">

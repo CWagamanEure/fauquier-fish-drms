@@ -323,21 +323,35 @@ class AuthenticationTests(unittest.TestCase):
                 self.assertEqual(self.browser.request("index.php")[0], 303)
 
     def test_access_level_derives_from_role(self):
-        # Fixtures only set accessLevel; migration 001's trigger derives role from it and
-        # normalizes unsupported values (-1, 4, NULL) to the staff level.
-        for level in (-1, 4, None):
+        # Fixtures only set accessLevel; migration 001's trigger derives role and status from it:
+        # 2/3 mean manager/admin, 0 or less means an inactive account, anything else is staff.
+        for level, expected in ((4, ("staff", "active", 1)), (None, ("staff", "active", 1)),
+                                (-1, ("staff", "inactive", 0)), (2, ("manager", "active", 2)),
+                                (3, ("admin", "active", 3))):
             with self.subTest(level=level):
                 row = self.run_fixtures("read", [self.users[level]])[0]
-                self.assertEqual((row["role"], row["accessLevel"]), ("staff", 1))
+                self.assertEqual((row["role"], row["status"], row["accessLevel"]), expected)
+        for level in (4, None):
+            with self.subTest(login=level):
                 browser = Browser()
                 self.assertEqual(self.login(level, browser)[0], 303)
                 self.assertEqual(browser.request("index.php")[0], 200)
                 self.assertEqual(browser.request("VolunteerRegister.php")[0], 403)
-        self.assertEqual(self.run_fixtures("read", [self.users[2]])[0]["role"], "manager")
-        self.assertEqual(self.run_fixtures("read", [self.users[3]])[0]["role"], "admin")
+        status, _, body = self.login(-1, Browser())
+        self.assertEqual(status, 200)
+        self.assertIn("Unable to log in", body)
 
     def test_inactive_accounts_cannot_log_in_and_lose_live_sessions(self):
-        user = self.users[0]
+        user = self.users[0]   # legacy level 0: created inactive by migration 001's trigger
+        row = self.run_fixtures("read", [user])[0]
+        self.assertEqual((row["status"], row["accessLevel"]), ("inactive", 0))
+        status, _, body = self.login(0)
+        self.assertEqual(status, 200)
+        self.assertIn("Unable to log in", body)
+
+        self.run_fixtures("status", [{"id": user["id"], "status": "active"}])
+        self.addCleanup(self.run_fixtures, "status", [{"id": user["id"], "status": "inactive"}])
+        self.assertEqual(self.run_fixtures("read", [user])[0]["accessLevel"], 1)
         self.assertEqual(self.login(0)[0], 303)
         status, _, body = self.browser.request("index.php")
         self.assertEqual(status, 200)
@@ -348,16 +362,28 @@ class AuthenticationTests(unittest.TestCase):
 
         # Deactivation takes effect on the next request, not only at the next login.
         self.run_fixtures("status", [{"id": user["id"], "status": "inactive"}])
-        self.addCleanup(self.run_fixtures, "status", [{"id": user["id"], "status": "active"}])
         status, headers, _ = self.browser.request("index.php")
         self.assertEqual((status, headers["Location"]), (303, "/login.php"))
         status, _, body = self.login(0)
         self.assertEqual(status, 200)
         self.assertIn("Unable to log in", body)
 
-        self.run_fixtures("status", [{"id": user["id"], "status": "active"}])
-        self.assertEqual(self.login(0)[0], 303)
-        self.assertEqual(self.browser.request("index.php")[0], 200)
+    def test_posts_without_form_token_are_rejected(self):
+        self.assertEqual(self.login()[0], 303)
+        for path in ("addEvent.php", "uploadResources.php", "deleteEvent.php", "VolunteerRegister.php",
+                     "deletePerson.php", "reportGeneration/formHandler.php", "python/ExportHandler.php"):
+            with self.subTest(path=path):
+                status, _, body = self.browser.request(path, {"id": "1", "export": "donor"})
+                self.assertEqual(status, 403)
+                self.assertIn("form has expired", body)
+        # JSON endpoints answer in JSON, and accept the token as a header for JavaScript callers.
+        headers = {"Content-Type": "application/json"}
+        status, response_headers, _ = self.browser.request("send_email.php", data=b"[]", headers=headers)
+        self.assertEqual((status, response_headers["Content-Type"]), (403, "application/json"))
+        headers["X-CSRF-Token"] = self.browser.token("emailgen.php")
+        self.assertNotEqual(self.browser.request("send_email.php", data=b"[]", headers=headers)[0], 403)
+        # GET-driven deletes are gone: an event delete without POST is refused even with a session.
+        self.assertEqual(self.browser.request("deleteEvent.php?id=1")[0], 403)
 
     def test_registration_to_login_and_standard_user_navigation(self):
         self.assertEqual(self.login()[0], 303)
@@ -450,7 +476,9 @@ class AuthenticationTests(unittest.TestCase):
                 token = self.browser.token("logout.php")
                 cookie = self.browser.cookie_header()
                 payload = {"export": "donor"} if path == "export.php" else {}
-                headers = {"Cookie": cookie}
+                # Every authenticated POST needs the form token; the header form keeps the
+                # multipart import payload unchanged.
+                headers = {"Cookie": cookie, "X-CSRF-Token": token}
                 if path == "import.php":
                     payload, upload_headers, upload_path = import_upload()
                     headers.update(upload_headers)
@@ -489,6 +517,7 @@ class AuthenticationTests(unittest.TestCase):
         payload, headers, upload_path = import_upload()
         self.addCleanup(upload_path.unlink, missing_ok=True)
         headers["Cookie"] = self.browser.cookie_header()
+        headers["X-CSRF-Token"] = self.browser.token("import.php")
         with slow_handler_server() as (work, worker_browser):
             (work / "release").touch()
             status, response_headers, body = worker_browser.request("import.php", payload, headers)

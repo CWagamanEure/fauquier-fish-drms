@@ -103,11 +103,11 @@ require_authentication(1);
                         ";
                         echo "
                             <div style='text-align:center; margin-top: 10px; margin-bottom: 30px;'>
-                                <form action='deleteEvent.php' method='GET' 
+                                <form action='deleteEvent.php' method='post' 
                                     onsubmit=\"return confirm('Are you sure you want to delete the event: ".htmlspecialchars($event_name, ENT_QUOTES)." ?');\" 
                                     style='display:inline-block;'>
-                                    
-                                    <input type='hidden' name='id' value='".$event['id']."'>
+                                    ".auth_csrf_field()."
+                                    <input type='hidden' name='id' value='".(int) $event['id']."'>
 
                                     <button type='submit'
                                         style=\"

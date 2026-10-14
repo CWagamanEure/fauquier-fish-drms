@@ -46,11 +46,14 @@ flush();
 
 #build out the command using options from the form
 
+// Each option becomes one shell argument. Keys must be plain identifiers and every argument is
+// quoted with escapeshellarg, so form input can never add commands to the line below.
 $args = array();
 foreach ($_POST as $key => $value){
-	if ($value != NULL){
-		array_push($args,$key.":".$value);
+	if ($key === 'csrf_token' || !is_string($value) || $value === '' || !preg_match('/^[A-Za-z0-9_]{1,64}$/', $key)) {
+		continue;
 	}
+	array_push($args, escapeshellarg($key.":".$value));
 }
 
 //Path to the pyFile no matter what OS. NO TOUCHIE
@@ -81,8 +84,6 @@ catch (Throwable $e){
 			echo $value;
 			echo "<br/>";
 	}
-	echo $command;
-	echo "<br/>";
 	echo "There was a problem on our end please exit the page.";
 }
 ?>

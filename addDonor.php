@@ -195,6 +195,7 @@ require_authentication(3);
                 <em>* indicates required fields</em>
             </p>
             <form id="new-event-form" method="POST">
+            <?php echo auth_csrf_field(); ?>
                 <label for="name">* First name</label>
                 <input type="text" id="first" name="first" required placeholder="Enter name">
 

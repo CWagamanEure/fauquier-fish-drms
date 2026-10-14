@@ -44,32 +44,16 @@ ob_flush();
 flush();
 
 
-#get arguments
-$args = [];
-foreach ($_POST as $key=>$value){
-	$len = strlen($key);
-	$key[$len-4] = ".";
-	array_push($args,$key);
-}
-
-#get os
-$os = NULL;
-if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN'){
-				$os = "w";
-}
-else{
-				$os = "l";
-}
-
-if ($os == "w"){
-	foreach ($args as $file){
-		exec("del ".$file);
+// Each checked report arrives as a POST key (PHP turns the '.' before the extension into '_').
+// Restore the dot, then only delete a plain .pdf that really sits in the reports directory.
+foreach ($_POST as $key => $value){
+	if ($key === 'csrf_token' || strlen($key) < 5) {
+		continue;
 	}
-}
-
-else{
-	foreach ($args as $file){
-		exec("rm ".$file);
+	$name = substr($key, 0, -4) . '.' . substr($key, -3);
+	$path = auth_private_file(__DIR__, $name, ['pdf']);
+	if ($path !== false) {
+		unlink($path);
 	}
 }
 
