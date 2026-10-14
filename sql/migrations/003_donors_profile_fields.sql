@@ -37,3 +37,8 @@ WHERE d.donor_since IS NULL;
 
 -- Only now give new rows a default, so donors added through any form count as 'new' from today.
 ALTER TABLE donors ALTER COLUMN donor_since SET DEFAULT (CURRENT_DATE);
+
+-- Anonymous gifts reference donor 999 (legacy convention). Make sure the row exists even when the
+-- database was seeded from an export that never had it.
+INSERT IGNORE INTO donors (id, donor_type, `first`, `last`, email, notes)
+VALUES (999, 'individual', 'anonymous', 'anonymous', 'anonymous', 'Placeholder for anonymous gifts; do not delete.');

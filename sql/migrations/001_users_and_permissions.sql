@@ -16,6 +16,43 @@ ALTER TABLE dbpersons
   ADD UNIQUE INDEX IF NOT EXISTS uq_dbpersons_email (email),
   ADD INDEX IF NOT EXISTS idx_dbpersons_role_status (role, status);
 
+-- Keep role, status and accessLevel in step no matter which one a writer sets. Legacy writers
+-- (registration, fixtures) only know accessLevel: 2/3 mean manager/admin, 0 or less means
+-- "no access" (inactive). New code sets role and status and never touches accessLevel.
+DELIMITER $$
+CREATE OR REPLACE TRIGGER trg_dbpersons_role_level_bi
+BEFORE INSERT ON dbpersons FOR EACH ROW
+BEGIN
+  IF NEW.accessLevel IS NOT NULL AND NEW.accessLevel < 1 THEN
+    SET NEW.status = 'inactive';
+  END IF;
+  IF NEW.role = 'staff' AND NEW.accessLevel IN (2, 3) THEN
+    SET NEW.role = IF(NEW.accessLevel = 3, 'admin', 'manager');
+  END IF;
+  SET NEW.accessLevel = IF(NEW.status = 'inactive', 0,
+                           CASE NEW.role WHEN 'admin' THEN 3 WHEN 'manager' THEN 2 ELSE 1 END);
+END$$
+CREATE OR REPLACE TRIGGER trg_dbpersons_role_level_bu
+BEFORE UPDATE ON dbpersons FOR EACH ROW
+BEGIN
+  IF NEW.role <> OLD.role OR NEW.status <> OLD.status THEN
+    SET NEW.accessLevel = IF(NEW.status = 'inactive', 0,
+                             CASE NEW.role WHEN 'admin' THEN 3 WHEN 'manager' THEN 2 ELSE 1 END);
+  ELSEIF NOT (NEW.accessLevel <=> OLD.accessLevel) THEN
+    IF NEW.accessLevel IS NULL OR NEW.accessLevel < 1 THEN
+      SET NEW.status = 'inactive', NEW.accessLevel = 0;
+    ELSE
+      SET NEW.role = CASE WHEN NEW.accessLevel = 3 THEN 'admin'
+                          WHEN NEW.accessLevel = 2 THEN 'manager'
+                          WHEN NEW.role IN ('staff', 'viewer') THEN NEW.role
+                          ELSE 'staff' END;
+      SET NEW.status = 'active';
+      SET NEW.accessLevel = CASE NEW.role WHEN 'admin' THEN 3 WHEN 'manager' THEN 2 ELSE 1 END;
+    END IF;
+  END IF;
+END$$
+DELIMITER ;
+
 -- Backfill names from the legacy "first last" column: first token -> first_name, rest -> last_name.
 UPDATE dbpersons
 SET first_name = CASE WHEN name IS NULL OR TRIM(name) = '' THEN NULL
@@ -38,36 +75,13 @@ UPDATE dbpersons
 SET status = 'inactive'
 WHERE id <> 'vmsroot' AND (accessLevel IS NULL OR accessLevel < 1);
 
--- role is the source of truth; accessLevel is derived from it for the legacy page gate.
+-- role is the source of truth; accessLevel is derived from it for the legacy page gate,
+-- and an inactive account always carries level 0 so even code that only checks the level
+-- (or an already-open session) treats it as having no access.
 UPDATE dbpersons
-SET accessLevel = CASE role WHEN 'admin' THEN 3 WHEN 'manager' THEN 2 ELSE 1 END
-WHERE NOT (accessLevel <=> CASE role WHEN 'admin' THEN 3 WHEN 'manager' THEN 2 ELSE 1 END);
+SET accessLevel = IF(status = 'inactive', 0, CASE role WHEN 'admin' THEN 3 WHEN 'manager' THEN 2 ELSE 1 END)
+WHERE NOT (accessLevel <=> IF(status = 'inactive', 0, CASE role WHEN 'admin' THEN 3 WHEN 'manager' THEN 2 ELSE 1 END));
 
--- Keep role and accessLevel in step no matter which one a writer sets. Legacy writers
--- (registration, fixtures) only know accessLevel; new code only sets role.
-DELIMITER $$
-CREATE OR REPLACE TRIGGER trg_dbpersons_role_level_bi
-BEFORE INSERT ON dbpersons FOR EACH ROW
-BEGIN
-  IF NEW.role = 'staff' AND NEW.accessLevel IN (2, 3) THEN
-    SET NEW.role = IF(NEW.accessLevel = 3, 'admin', 'manager');
-  END IF;
-  SET NEW.accessLevel = CASE NEW.role WHEN 'admin' THEN 3 WHEN 'manager' THEN 2 ELSE 1 END;
-END$$
-CREATE OR REPLACE TRIGGER trg_dbpersons_role_level_bu
-BEFORE UPDATE ON dbpersons FOR EACH ROW
-BEGIN
-  IF NEW.role <> OLD.role THEN
-    SET NEW.accessLevel = CASE NEW.role WHEN 'admin' THEN 3 WHEN 'manager' THEN 2 ELSE 1 END;
-  ELSEIF NOT (NEW.accessLevel <=> OLD.accessLevel) THEN
-    SET NEW.role = CASE WHEN NEW.accessLevel = 3 THEN 'admin'
-                        WHEN NEW.accessLevel = 2 THEN 'manager'
-                        WHEN NEW.role IN ('staff', 'viewer') THEN NEW.role
-                        ELSE 'staff' END;
-    SET NEW.accessLevel = CASE NEW.role WHEN 'admin' THEN 3 WHEN 'manager' THEN 2 ELSE 1 END;
-  END IF;
-END$$
-DELIMITER ;
 
 CREATE TABLE IF NOT EXISTS user_permissions (
   id         INT NOT NULL AUTO_INCREMENT,

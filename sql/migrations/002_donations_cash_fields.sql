@@ -34,27 +34,46 @@ SET @sql := IF(@fk_exists = 0,
   'SELECT ''fk_donations_recorded_by already present'' AS note');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
+-- Parse 'M/D/YYYY' (padded or not) or 'YYYY-MM-DD' text into a DATE without ever building an
+-- invalid intermediate value: STR_TO_DATE('02/30/2026') yields a date strict mode rejects, and
+-- inside a trigger that warning becomes an error. Returns NULL for anything else.
+DELIMITER $$
+CREATE OR REPLACE FUNCTION fish_parse_date(txt VARCHAR(32)) RETURNS DATE DETERMINISTIC
+BEGIN
+  DECLARE y INT; DECLARE m INT; DECLARE d INT;
+  IF txt IS NULL THEN RETURN NULL; END IF;
+  SET txt = TRIM(txt);
+  IF txt REGEXP '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}$' THEN
+    SET m = CAST(SUBSTRING_INDEX(txt, '/', 1) AS UNSIGNED);
+    SET d = CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(txt, '/', 2), '/', -1) AS UNSIGNED);
+    SET y = CAST(SUBSTRING_INDEX(txt, '/', -1) AS UNSIGNED);
+  ELSEIF txt REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN
+    SET y = CAST(SUBSTRING_INDEX(txt, '-', 1) AS UNSIGNED);
+    SET m = CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(txt, '-', 2), '-', -1) AS UNSIGNED);
+    SET d = CAST(SUBSTRING_INDEX(txt, '-', -1) AS UNSIGNED);
+  ELSE
+    RETURN NULL;
+  END IF;
+  IF y < 1900 OR y > 2100 OR m < 1 OR m > 12 OR d < 1 THEN RETURN NULL; END IF;
+  IF d > DAY(LAST_DAY(MAKEDATE(y, 1) + INTERVAL (m - 1) MONTH)) THEN RETURN NULL; END IF;
+  RETURN MAKEDATE(y, 1) + INTERVAL (m - 1) MONTH + INTERVAL (d - 1) DAY;
+END$$
+DELIMITER ;
+
 -- Backfill from M/D/YYYY (padded or not) and ISO YYYY-MM-DD text; anything else stays NULL.
 UPDATE donations
-SET donation_date = STR_TO_DATE(`date`, '%c/%e/%Y')
-WHERE donation_date IS NULL
-  AND `date` REGEXP '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}$'
-  AND STR_TO_DATE(`date`, '%c/%e/%Y') BETWEEN '1900-01-01' AND '2100-12-31';
+SET donation_date = fish_parse_date(`date`)
+WHERE donation_date IS NULL AND fish_parse_date(`date`) IS NOT NULL;
 UPDATE donations
-SET donation_date = STR_TO_DATE(`date`, '%Y-%m-%d'),
-    `date` = DATE_FORMAT(STR_TO_DATE(`date`, '%Y-%m-%d'), '%m/%d/%Y')
-WHERE donation_date IS NULL
-  AND `date` REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
-  AND STR_TO_DATE(`date`, '%Y-%m-%d') BETWEEN '1900-01-01' AND '2100-12-31';
+SET `date` = DATE_FORMAT(donation_date, '%m/%d/%Y')
+WHERE donation_date IS NOT NULL AND NOT (`date` <=> DATE_FORMAT(donation_date, '%m/%d/%Y'));
 
 DELIMITER $$
 CREATE OR REPLACE TRIGGER trg_donations_date_sync_bi
 BEFORE INSERT ON donations FOR EACH ROW
 BEGIN
-  IF NEW.donation_date IS NULL AND NEW.`date` REGEXP '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}$' THEN
-    SET NEW.donation_date = STR_TO_DATE(NEW.`date`, '%c/%e/%Y');
-  ELSEIF NEW.donation_date IS NULL AND NEW.`date` REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN
-    SET NEW.donation_date = STR_TO_DATE(NEW.`date`, '%Y-%m-%d');
+  IF NEW.donation_date IS NULL THEN
+    SET NEW.donation_date = fish_parse_date(NEW.`date`);
   END IF;
   IF NEW.donation_date IS NOT NULL THEN
     -- legacy readers parse `date` as %m/%d/%Y, so always store that representation
@@ -66,10 +85,7 @@ BEFORE UPDATE ON donations FOR EACH ROW
 BEGIN
   IF NOT (NEW.`date` <=> OLD.`date`) THEN
     -- legacy editor changed the text column
-    SET NEW.donation_date = CASE
-      WHEN NEW.`date` REGEXP '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}$' THEN STR_TO_DATE(NEW.`date`, '%c/%e/%Y')
-      WHEN NEW.`date` REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN STR_TO_DATE(NEW.`date`, '%Y-%m-%d')
-      ELSE NULL END;
+    SET NEW.donation_date = fish_parse_date(NEW.`date`);
     IF NEW.donation_date IS NOT NULL THEN
       SET NEW.`date` = DATE_FORMAT(NEW.donation_date, '%m/%d/%Y');
     END IF;

@@ -15,7 +15,7 @@ make db-shell   # mariadb shell inside the db container
 ```
 
 Applied files are recorded in the `schema_migrations` table with a checksum. The runner skips
-files already listed and warns if an applied file was edited afterwards.
+files already listed and stops with an error if an applied file was edited afterwards.
 
 ## Adding a migration
 
@@ -50,5 +50,10 @@ guard in `002_donations_cash_fields.sql`.
 | `donor_summary` (view) | One row per donor with lifetime totals, last gift, derived status (new / active / lapsed) and last contact, for donor.php and donorProfile.php | UF2-26, UF2-27 |
 
 `dbevents` doubles as the campaigns table: `donations.eventID` and every `campaign_id` column
-point at it. Anonymous gifts use donor id 999. Demo rows from `make seed-demo` use ids from 900001 so they never collide with real rows. Deleting a donor with gifts, hours or
-communications is blocked by foreign keys; mark them inactive or reassign first.
+point at it. Anonymous gifts use donor id 999 (migration 003 guarantees the row exists). Demo rows
+from `make seed-demo` carry markers instead of fixed ids: activity rows are `recorded_by` a
+`fish.*` demo user and demo donors/campaigns have notes starting with `[demo]`; the seed deletes
+and re-inserts them on every run. Deleting a donor who has cash gifts, non-cash gifts, hours or
+communications is blocked by foreign keys (there is no donor-inactive flag yet; reassign or
+delete the activity first). `donor_summary` freezes its column list when created, so a migration
+that adds a `donors` column must also recreate the view.

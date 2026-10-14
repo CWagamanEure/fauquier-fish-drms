@@ -32,7 +32,12 @@ for f in "$MIGRATIONS_DIR"/[0-9][0-9][0-9]_*.sql; do
     [[ $line == "$name $sum" ]] && same=1
   done <<< "$applied"
   if (( seen )); then
-    (( same )) || echo "WARNING: $name changed since it was applied; add a new migration instead of editing it." >&2
+    if (( ! same )); then
+      echo "ERROR: $name changed since it was applied to this database." >&2
+      echo "       Applied files are immutable: add a new migration instead, or (local dev only)" >&2
+      echo "       delete its schema_migrations row and re-run if the file is still idempotent." >&2
+      exit 1
+    fi
     continue
   fi
   echo "Applying $name"

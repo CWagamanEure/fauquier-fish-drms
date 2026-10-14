@@ -10,13 +10,18 @@ SET NAMES utf8mb4;
 SET @pw := '$2y$10$yXqRVA1EFSrJmx3kuKDtmOmXm1ReT3EFSgZ076S6k6rfAbgrXRfsC';
 SET @demo_users := 'fish.admin,fish.manager,fish.staff,fish.viewer,fish.former';
 
--- 1. Remove the previous run (children before parents).
-DELETE FROM non_cash_distributions WHERE FIND_IN_SET(recorded_by, @demo_users);
-DELETE FROM communications        WHERE FIND_IN_SET(recorded_by, @demo_users);
-DELETE FROM volunteer_hours       WHERE FIND_IN_SET(recorded_by, @demo_users);
-DELETE FROM non_cash_donations    WHERE FIND_IN_SET(recorded_by, @demo_users);
-DELETE FROM donations             WHERE FIND_IN_SET(recorded_by, @demo_users);
-DELETE FROM donors   WHERE notes LIKE '[demo]%';
+-- 1. Remove the previous run (children before parents). Activity is removed when it was recorded
+--    by a demo user OR belongs to a demo donor, so rows a developer added by hand against a demo
+--    donor do not block the donor delete.
+CREATE TEMPORARY TABLE demo_donor_ids AS SELECT id FROM donors WHERE notes LIKE '[demo]%';
+DELETE FROM non_cash_distributions WHERE FIND_IN_SET(recorded_by, @demo_users)
+   OR non_cash_donation_id IN (SELECT id FROM non_cash_donations WHERE donor_id IN (SELECT id FROM demo_donor_ids));
+DELETE FROM communications     WHERE FIND_IN_SET(recorded_by, @demo_users) OR donor_id IN (SELECT id FROM demo_donor_ids);
+DELETE FROM volunteer_hours    WHERE FIND_IN_SET(recorded_by, @demo_users) OR donor_id IN (SELECT id FROM demo_donor_ids);
+DELETE FROM non_cash_donations WHERE FIND_IN_SET(recorded_by, @demo_users) OR donor_id IN (SELECT id FROM demo_donor_ids);
+DELETE FROM donations          WHERE FIND_IN_SET(recorded_by, @demo_users) OR donorID  IN (SELECT id FROM demo_donor_ids);
+DELETE FROM donors   WHERE id IN (SELECT id FROM demo_donor_ids);
+DROP TEMPORARY TABLE demo_donor_ids;
 DELETE FROM dbevents WHERE description LIKE '[demo]%';
 
 -- 2. Demo staff accounts (username is the natural key, so upsert is safe here).
@@ -29,7 +34,9 @@ INSERT INTO dbpersons (id, name, password, first_name, last_name, email, role, s
 ON DUPLICATE KEY UPDATE name=VALUES(name), password=VALUES(password), first_name=VALUES(first_name),
  last_name=VALUES(last_name), email=VALUES(email), role=VALUES(role), status=VALUES(status);
 
-INSERT IGNORE INTO user_permissions (user_id, area, can_view, can_edit, can_delete)
+-- Reset the demo users' permissions to their role presets (local edits are discarded).
+DELETE FROM user_permissions WHERE FIND_IN_SET(user_id, @demo_users);
+INSERT INTO user_permissions (user_id, area, can_view, can_edit, can_delete)
 SELECT p.id, r.area, r.can_view, r.can_edit, r.can_delete
 FROM dbpersons p JOIN role_permission_presets r ON r.role = p.role
 WHERE FIND_IN_SET(p.id, @demo_users);
@@ -50,7 +57,7 @@ INSERT INTO donors (donor_type, `first`, `last`, email, phone, street, city, sta
  ('individual', 'Maria', 'Lopez', 'maria.lopez@example.com', '540-555-0101', '12 Main St', 'Warrenton', 'VA', '20186', 'email', 1, 1, 0, 0, '2021-03-14', '[demo] Regular monthly giver; volunteers Saturdays');
 SET @d_maria := LAST_INSERT_ID();
 INSERT INTO donors (donor_type, `first`, `last`, email, phone, street, city, state, zip, preferred_contact, is_volunteer, email_updates, mail_receipts, do_not_contact, donor_since, notes) VALUES
- ('individual', 'James', 'Whitaker', 'jwhitaker@example.com', '540-555-0102', '88 Oak Ln', 'Bealeton', 'VA', '22712', 'mail', 0, 0, 1, 0, '2019-11-02', '[demo] Lapsed: last gift over a year ago');
+ ('individual', 'James', 'Whitaker', 'jwhitaker@example.com', '540-555-0102', '88 Oak Ln', 'Bealeton', 'VA', '22712', 'mail', 0, 0, 1, 0, '2019-11-02', '[demo] Lapsed: no gift in the last 12 months');
 SET @d_james := LAST_INSERT_ID();
 INSERT INTO donors (donor_type, org_name, org_contact, email, phone, street, city, state, zip, preferred_contact, is_volunteer, email_updates, mail_receipts, do_not_contact, donor_since, notes) VALUES
  ('organization', 'Warrenton Rotary Club', 'Priya Natarajan', 'giving@warrentonrotary.example.org', '540-555-0103', '1 Court St', 'Warrenton', 'VA', '20186', 'email', 0, 1, 1, 0, '2020-06-01', '[demo] Annual sponsor');
@@ -69,7 +76,7 @@ SET @d_maria2 := LAST_INSERT_ID();
 INSERT INTO donations (donorID, eventID, amount, fee, reason, thanked, donation_date, payment_method, check_number, is_signed, deposit_date, platform, in_honor_of, honoree_name, send_receipt, receipt_sent_at, recorded_by) VALUES
  (@d_maria,  @c_fall,    50.00, 0.00, 'Monthly gift',          1, CURDATE() - INTERVAL 10 DAY, 'online', NULL,    NULL, NULL,                        'mighty_cause', 0, NULL,                         1, NOW() - INTERVAL 9 DAY,  'fish.staff'),
  (@d_maria,  NULL,       50.00, 1.75, 'Monthly gift',          1, CURDATE() - INTERVAL 40 DAY, 'card',   NULL,    NULL, NULL,                        'in_person',    0, NULL,                         1, NOW() - INTERVAL 39 DAY, 'fish.staff'),
- (@d_james,  @c_tuesday, 250.00, 0.00, 'Giving Tuesday',       1, '2024-12-02',                'check',  '1042',  1,    '2024-12-05',                'in_person',    1, 'In memory of Ruth Whitaker', 1, '2024-12-10 10:00:00',   'fish.admin'),
+ (@d_james,  NULL,       250.00, 0.00, 'Giving Tuesday 2024',       1, '2024-12-03',                'check',  '1042',  1,    '2024-12-05',                'in_person',    1, 'In memory of Ruth Whitaker', 1, '2024-12-10 10:00:00',   'fish.admin'),
  (@d_rotary, @c_fall,   2500.00, 0.00, 'Annual sponsorship',   0, CURDATE() - INTERVAL 20 DAY, 'check',  '77812', 1,    CURDATE() - INTERVAL 18 DAY, 'in_person',    0, NULL,                         1, NULL,                    'fish.staff'),
  (@d_thomas, @c_fall,    100.00, 2.90, 'First gift',           0, CURDATE() - INTERVAL 3 DAY,  'online', NULL,    NULL, NULL,                        'benevity',     0, NULL,                         1, NULL,                    'fish.staff'),
  (@d_grace,  @c_holiday, 1200.00, 0.00, 'Holiday meals',       1, '2025-12-15',                'check',  '5531',  1,    '2025-12-18',                'in_person',    0, NULL,                         1, '2025-12-20 09:30:00',   'fish.admin'),
