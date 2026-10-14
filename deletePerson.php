@@ -1,4 +1,7 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(2);
+auth_require_csrf();   // also rejects GET
 /*
  * Copyright 2013 by Jerrick Hoang, Ivy Xing, Sam Roberts, James Cook,
  * Johnny Coster, Judy Yang, Jackson Moniaga, Oliver Radwan,
@@ -17,8 +20,6 @@
  */
 ?>
 <?PHP
-session_cache_expire(30);
-session_start();
 
 $loggedIn = false;
     $accessLevel = 0;
@@ -38,16 +39,25 @@ $loggedIn = false;
         header('Location: login.php');
         die();
     }
-    if ($isAdmin && isset($_GET['id'])) {
-        require_once('include/input-validation.php');
-        $args = sanitize($_GET);
-        $id = strtolower($args['id']);
-    } else {
-        $id = $userID;
-    }
+    // Rules mirror resetPassword.php: never the bootstrap account, never yourself, and a
+    // manager (level 2) may only remove standard-user accounts.
     require_once('database/dbPersons.php');
-    if (isset($_GET['removePic'])) {
-      if ($_GET['removePic'] === 'true') {
+    $id = auth_canonical_username($_POST['id'] ?? '');
+    if ($id === '' || $id === 'vmsroot' || $id === strtolower($userID)) {
+        http_response_code(403);
+        exit('That account cannot be deleted from here.');
+    }
+    $target = retrieve_person($id);
+    if (!$target) {
+        http_response_code(404);
+        exit('That user does not exist.');
+    }
+    if ($accessLevel < 3 && (int) $target->get_access_level() > 1) {
+        http_response_code(403);
+        exit('You do not have permission to delete that user.');
+    }
+    if (isset($_POST['removePic'])) {
+      if ($_POST['removePic'] === 'true') {
       }
     }
 

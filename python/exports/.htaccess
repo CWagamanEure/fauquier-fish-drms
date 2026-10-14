@@ -1,0 +1,2 @@
+# Downloads are served through download.php after authentication.
+Require all denied

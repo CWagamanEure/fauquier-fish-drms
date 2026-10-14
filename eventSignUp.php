@@ -1,8 +1,8 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(1);
     // Make session information accessible, allowing us to associate
     // data with the logged-in user.
-    session_cache_expire(30);
-    session_start();
 
     $loggedIn = false;
     $accessLevel = 0;
@@ -174,6 +174,7 @@
         <main class="date">
             <h2>Sign-Up for Event Form</h2>
             <form id="new-event-form" method="post">
+            <?php echo auth_csrf_field(); ?>
                 <label for="event-name">* Event Name </label>
                 <input type="text" id="event-name" name="event-name" required 
                     value="<?php echo htmlspecialchars(isset($_GET['event_name']) ? $_GET['event_name'] : ''); ?>" 

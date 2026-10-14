@@ -6,29 +6,28 @@ function add_person($person) {
 	}
 
 	$con = connect();
-	$query = "SELECT * FROM dbpersons WHERE id = '" . $person->get_id() . "'";
-	$result = mysqli_query($con, $query);
+	$id = $person->get_id();
+	$name = $person->get_name();
+	$password = $person->get_password();
+	$level = $person->get_access_level();
 
-	// If the result is empty, it means the person doesn't exist, so we can add the person
-	if (mysqli_num_rows($result) == 0) {
-		// Prepare the insert query
-		$insert_query = 'INSERT INTO dbpersons (id, name, password,accessLevel) VALUES ("'.$person->get_id().'","'.$person->get_name().'","'.$person->get_password().'","'.$person->get_access_level().'");';
-		// Check if the query is properly built
-		if (empty($insert_query)) {
-			die("Error: insert query is empty");
-		}
-
-		// Perform the insert
-		if (mysqli_query($con, $insert_query)) {
-			mysqli_close($con);
-			return true;
-		} else {
-			die("Error: " . mysqli_error($con)); // Debugging MySQL error
-		}
+	// Returns false when the username is already taken. Values are bound, never interpolated.
+	$stmt = $con->prepare('SELECT 1 FROM dbpersons WHERE id = ?');
+	$stmt->bind_param('s', $id);
+	$stmt->execute();
+	$exists = $stmt->get_result()->num_rows > 0;
+	$stmt->close();
+	if ($exists) {
+		mysqli_close($con);
+		return false;
 	}
 
+	$stmt = $con->prepare('INSERT INTO dbpersons (id, name, password, accessLevel) VALUES (?, ?, ?, ?)');
+	$stmt->bind_param('sssi', $id, $name, $password, $level);
+	$ok = $stmt->execute();
+	$stmt->close();
 	mysqli_close($con);
-	return false;
+	return (bool) $ok;
 }
 
 
@@ -55,15 +54,19 @@ function remove_person($id) {
 
 function retrieve_person($id) { // (username! not id)
 	$con=connect();
-	$query = "SELECT * FROM dbpersons WHERE id = '" . $id . "'";
-	$result = mysqli_query($con,$query);
+	$stmt = $con->prepare('SELECT id, name, password, accessLevel, role, status, first_name, last_name, email FROM dbpersons WHERE id = ?');
+	$stmt->bind_param('s', $id);
+	$stmt->execute();
+	$result = $stmt->get_result();
 	if (mysqli_num_rows($result) !== 1) {
+		$stmt->close();
 		mysqli_close($con);
 		return false;
 	}
 	$result_row = mysqli_fetch_assoc($result);
+	$stmt->close();
+	mysqli_close($con);
 	$thePerson = make_a_person($result_row);
-	//    mysqli_close($con);
 	return $thePerson;
 }
 
@@ -95,7 +98,7 @@ function change_password($id, $newPass) {
 
 function reset_password($id, $newPass) {
 	$con=connect();
-	$query = 'UPDATE dbpersons SET password = "' . $newPass . '", force_password_change="1" WHERE id = "' . $id . '"';
+	$query = 'UPDATE dbpersons SET password = "' . $newPass . '" WHERE id = "' . $id . '"';
 	$result = mysqli_query($con,$query);
 	mysqli_close($con);
 	return $result;
@@ -167,12 +170,17 @@ function get_new_volunteers_count($dateFrom, $dateTo) {
 
 
 function make_a_person($result_row) {
-	require_once './domain/Person.php';
+	require_once __DIR__ . '/../domain/Person.php';
 	$thePerson = new Person(
 		$result_row['id'],
 		$result_row['password'],
 		$result_row['name'],
-		$result_row['accessLevel']
+		$result_row['accessLevel'],
+		$result_row['role'] ?? null,
+		$result_row['status'] ?? null,   // unknown status is treated as not active
+		$result_row['first_name'] ?? null,
+		$result_row['last_name'] ?? null,
+		$result_row['email'] ?? null
 	);
 
 	return $thePerson;

@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/../include/auth.php';
+require_authentication(3);
 set_time_limit(120);
 ini_set('max_execution_time', 120);
 ini_set('display_errors', 0);
@@ -123,6 +125,7 @@ function generate_email($reason, $sender, $recipient_name, $recipient_email, $cu
 <h3 class="mb-3">AI Email Generator</h3>
 
 <form id="emailForm">
+            <?php echo auth_csrf_field(); ?>
 
     <div class="mb-3">
 	<label class="form-label">Reason</label>
@@ -210,7 +213,7 @@ sender: formData.get('sender'),
 
 await fetch('send_email.php', {
 method: 'POST',
-	headers: {'Content-Type':'application/json'},
+	headers: {'Content-Type':'application/json', 'X-CSRF-Token': formData.get('csrf_token')},
 	body: JSON.stringify(emailsToSend)
 });
 

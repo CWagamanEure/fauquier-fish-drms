@@ -1,9 +1,10 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(3);
 #HANDLE SEARCHING DONATIONS
 if (isset($_POST["goal"]) and $_POST["goal"] == "search"){
 
 				include_once './database/dbinfo.php';
-				session_start();
 
 				$con = connect();
 
@@ -104,7 +105,6 @@ if (isset($_POST["goal"]) and $_POST["goal"] == "search"){
 
 #HANDLE EDITING DONATIONS
 else if  (isset($_POST["goal"]) and $_POST["goal"] == "edit"){
-				session_start();
 				include_once './database/dbinfo.php';
 				$con = connect();
 

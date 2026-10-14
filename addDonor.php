@@ -1,5 +1,8 @@
-<?php session_cache_expire(30);
-    session_start();
+<?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(3);
+    // Make session information accessible, allowing us to associate
+    // data with the logged-in user.
 
     ini_set("display_errors",1);
     error_reporting(E_ALL);
@@ -192,6 +195,7 @@
                 <em>* indicates required fields</em>
             </p>
             <form id="new-event-form" method="POST">
+            <?php echo auth_csrf_field(); ?>
                 <label for="name">* First name</label>
                 <input type="text" id="first" name="first" required placeholder="Enter name">
 

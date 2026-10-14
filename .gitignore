@@ -10,3 +10,5 @@ node_modules/
 .local/
 output/
 .playwright-cli/
+python/exports/*
+!python/exports/.htaccess

@@ -1,7 +1,11 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(3);
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !auth_valid_username($_POST['username'] ?? null)) {
+    http_response_code(400);
+    exit('That username is empty, invalid, or too long. Please return to the form and try again.');
+}
     require_once('include/input-validation.php');
-    session_start();
-    $_SESSION['logged_in'] = "true";
 ?>
 
 <!DOCTYPE html>
@@ -52,9 +56,12 @@ require_once('header.php');
             $errors = true;
         }
 
-        $name = $args['first_name']." ".$args['last_name'];
+        // Stored as HTML text (matching existing rows) and inserted with a prepared statement,
+        // so no SQL escaping is applied here. The id uses the one shared stored-username form.
+        $name = htmlspecialchars(trim($_POST['first_name'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+              . " " . htmlspecialchars(trim($_POST['last_name'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
-        $id = $args['username'];
+        $id = auth_stored_username($_POST['username'] ?? '');
 
         $password = password_hash($args['password'], PASSWORD_BCRYPT);
 
@@ -64,7 +71,7 @@ require_once('header.php');
         }
 
         $newperson = new Person(
-            $id, $password, $name, 0 //temp access level for all new users ~ Ethan
+            $id, $password, $name, 1 // New users start with standard-user access.
         );
 
         $result = add_person($newperson);
