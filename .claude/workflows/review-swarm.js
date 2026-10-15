@@ -1,10 +1,10 @@
 export const meta = {
   name: 'review-swarm',
-  description: 'Four specialist auditors (security, data, correctness, verification) review a ticket draft or a code change; critical and high findings are adversarially verified; approval requires zero confirmed criticals',
+  description: 'Four specialist auditors (security, data, correctness, verification) review a ticket draft or a code change; critical findings are adversarially verified by two skeptics; approval requires zero confirmed criticals',
   whenToUse: 'Run through the /review-swarm skill before implementing a ticket and again before pushing code',
   phases: [
     { title: 'Audit', detail: 'four independent specialists, in parallel' },
-    { title: 'Verify', detail: 'two skeptics try to refute every critical and high finding' },
+    { title: 'Verify', detail: 'two skeptics try to refute every critical finding' },
   ],
 }
 
@@ -119,10 +119,11 @@ if (audits.length < AUDITORS.length) {
 }
 
 phase('Verify')
+// Only criticals are re-checked: they are the only findings that block, and each costs two more agents.
 const serious = audits.flatMap(a => a.findings
-  .filter(f => f.severity === 'critical' || f.severity === 'high')
+  .filter(f => f.severity === 'critical')
   .map(f => ({ ...f, auditor: a.auditor })))
-log(`${serious.length} critical/high finding(s) to verify`)
+log(`${serious.length} critical finding(s) to verify`)
 const verified = (await pipeline(serious, f =>
   parallel([0, 1].map(i => () =>
     agent(refutePrompt(f, i), { label: `refute:${f.auditor}:${(f.title || '').slice(0, 40)}`, phase: 'Verify', schema: VERDICT })))
@@ -134,7 +135,7 @@ const verified = (await pipeline(serious, f =>
 )).filter(Boolean)
 
 const minor = audits.flatMap(a => a.findings
-  .filter(f => f.severity === 'medium' || f.severity === 'low')
+  .filter(f => f.severity !== 'critical')
   .map(f => ({ ...f, auditor: a.auditor, status: 'reported' })))
 const confirmedCriticals = verified.filter(f => f.status === 'confirmed' && f.severity === 'critical')
 const approved = audits.length === AUDITORS.length && confirmedCriticals.length === 0

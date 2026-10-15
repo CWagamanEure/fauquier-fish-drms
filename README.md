@@ -98,11 +98,18 @@ uploaded documents are served through `download.php`; direct file URLs are denie
 Rebuild the web image with `make dev` after pulling this change. Existing sessions must log
 in again.
 
+Every signed-in account also has per-area permissions (`user_permissions`, seeded from its role's
+preset and editable per user later): the donor pages let a `viewer` read but not add or edit donors,
+`staff` edit but not deactivate, and `manager` and `admin` do both. Accounts without rows fall back to
+their role's preset.
+
 With `make dev` running, `make test-auth` runs `tests/auth_integration.py` against the real
 PHP/MariaDB stack. It creates uniquely named temporary accounts and files and removes them
 afterwards, covering anonymous access, credential validation, registration-to-login, legacy
 account migration, role-appropriate navigation, private downloads, session rotation, form
-tokens, Unicode boundaries, concurrent sign-out and session reuse after logout. Run it only
+tokens, Unicode boundaries, concurrent sign-out and session reuse after logout. `make test-donors`
+(after `make seed-demo`) runs `tests/donors_integration.py`: the donor list, profile tabs, add, edit,
+deactivate and reactivate against the real tables, plus the per-role write gate. Run both only
 against a local development database.
 
 ## Purpose

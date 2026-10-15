@@ -57,7 +57,8 @@ The saved-workflow registry is read when a session starts, so `scriptPath` is th
    equal `scripts/review-hash.sh` now), the auditors with their `approve` flag and `finding_count`, and
    the count of findings per severity and status. Commit it, then push. The hook and the Actions check
    refuse a push or PR whose content hash differs from the record, so any edit after approval means
-   another round.
+   another round. Commit the stub as a new commit: never amend or squash after approval, or the
+   `reviewed_commit` in the record stops being reachable.
 6. Open the PR with the template; link both records. Report rounds, accepted highs, and what the
    auditors did not cover.
 
@@ -69,8 +70,9 @@ process; say so in the PR.
 
 ## Rules
 
-- Never edit a record to make it pass. If a finding is wrong, the verification stage will have marked
-  it `disputed`; if it did not, fix the code or argue it in the responses file and re-run. Removing a
+- Never edit a record to make it pass. A wrong critical will have been marked `disputed` by the
+  skeptics; a wrong high has no skeptics, so argue it in the responses file (the next round's auditors
+  read it) and re-run. Removing a
   file-and-line pointer to a pre-existing, out-of-scope vulnerability from a responses file is allowed
   and is not that.
 - `REVIEW_SWARM_SKIP=1 git push` exists for emergencies only and must be mentioned in the PR.

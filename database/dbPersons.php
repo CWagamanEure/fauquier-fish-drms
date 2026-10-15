@@ -26,6 +26,16 @@ function add_person($person) {
 	$stmt->bind_param('sssi', $id, $name, $password, $level);
 	$ok = $stmt->execute();
 	$stmt->close();
+	if ($ok) {
+		// Seed the per-area permission rows from the role the trigger derived (see migration 001).
+		// fish_can() falls back to the presets anyway; the rows exist so Manage Users can edit them.
+		$stmt = $con->prepare('INSERT IGNORE INTO user_permissions (user_id, area, can_view, can_edit, can_delete)
+			SELECT p.id, r.area, r.can_view, r.can_edit, r.can_delete
+			FROM dbpersons p JOIN role_permission_presets r ON r.role = p.role WHERE p.id = ?');
+		$stmt->bind_param('s', $id);
+		$stmt->execute();
+		$stmt->close();
+	}
 	mysqli_close($con);
 	return (bool) $ok;
 }

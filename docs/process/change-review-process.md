@@ -2,8 +2,9 @@
 
 Every change to this repository, by a person or by an AI assistant, goes through the same gate
 twice: once on the plan, once on the code. The gate is a panel of four specialist auditors run by
-the `/review-swarm` skill, with each critical or high finding adversarially re-checked by two more
-agents so that a wrong finding cannot block work and a real one cannot be waved through.
+the `/review-swarm` skill, with each critical finding adversarially re-checked by two more agents so
+that a wrong finding cannot block work and a real one cannot be waved through. A round is therefore
+four agents, plus two per critical.
 
 ## The four auditors
 
@@ -15,8 +16,9 @@ agents so that a wrong finding cannot block work and a real one cannot be waved 
 | Verification and product | acceptance criteria, tests, match with the Jira ticket and the FISH NET pages, docs, post-merge steps |
 
 Each auditor returns findings with a severity: critical, high, medium, low. Two skeptic agents then
-try to refute every critical and high finding by reading the code or ticket; a finding both skeptics
-refute is marked disputed and does not count.
+try to refute every critical finding by reading the code or ticket; a finding both skeptics refute is
+marked disputed and does not count. High, medium and low findings are reported as the auditor wrote
+them; the author answers each one in the responses file.
 
 **Approved** means all four auditors reported and no confirmed critical finding remains. High findings
 are expected to be fixed; one may be accepted instead, with the reason written in the responses file,

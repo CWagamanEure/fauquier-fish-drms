@@ -24,6 +24,28 @@ require_once __DIR__ . '/auth.php';
 require_authentication(1);
 date_default_timezone_set('America/New_York');
 
+// ---------- View helpers shared by every FISH page (pages must not redefine these) ----------
+if (!function_exists('h')) {
+	// HTML-escape anything printed into a page.
+	function h($s) { return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
+}
+if (!function_exists('initials')) {
+	// First letters of the first and last word of a name; Unicode-safe.
+	function initials($name) {
+		$words = preg_split('/\s+/u', trim((string) $name)) ?: [];
+		$first = $words[0] ?? '';
+		$last = count($words) > 1 ? end($words) : '';
+		$pick = function ($w) { return preg_match('/^(.)/us', $w, $m) ? $m[1] : ''; };
+		return mb_strtoupper($pick($first) . $pick($last), 'UTF-8');
+	}
+}
+if (!function_exists('fish_str')) {
+	// A trimmed string parameter, or '' when the value is missing or not a string (arrays never reach trim()).
+	function fish_str(array $source, $key) {
+		return isset($source[$key]) && is_string($source[$key]) ? trim($source[$key]) : '';
+	}
+}
+
 // The signed-in person (pages can use $fishnetUser too)
 require_once 'database/dbPersons.php';
 require_once 'domain/Person.php';

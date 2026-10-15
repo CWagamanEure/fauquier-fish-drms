@@ -1,0 +1,35 @@
+{
+  "mode": "ticket",
+  "subject": "wagaman-eure-donor-data",
+  "round": 3,
+  "approved": true,
+  "auditors": [
+    {
+      "auditor": "security",
+      "approve": true,
+      "finding_count": 4
+    },
+    {
+      "auditor": "data",
+      "approve": true,
+      "finding_count": 4
+    },
+    {
+      "auditor": "correctness",
+      "approve": true,
+      "finding_count": 7
+    },
+    {
+      "auditor": "verification",
+      "approve": true,
+      "finding_count": 6
+    }
+  ],
+  "findings_by_severity_and_status": {
+    "high/reported": 1,
+    "low/reported": 16,
+    "medium/reported": 4
+  },
+  "rounds": 3,
+  "note": "Full round records are kept locally (public repository). Round-3 findings are answered in the ticket; implementation starts from this text."
+}

@@ -26,7 +26,7 @@ BASE_URL = "http://127.0.0.1"
 # does not also remove its regression coverage. Authenticated writes are limited
 # to temporary accounts owned by this suite.
 PROTECTED_PAGES = """
-dashboard.php donor.php donorProfile.php
+dashboard.php donor.php donorProfile.php updateDonor.php
 ReportGeneration.php VolunteerRegister.php addDonationHandler.php addDonor.php
 addEvent.php adminViewingEvents.php calendar.php cancelEvent.php changePassword.php
 completeEvent.php date.php deleteEvent.php
@@ -60,7 +60,7 @@ foreach ($request['users'] as $user) {
         $hash = password_hash($user['password'], PASSWORD_BCRYPT);
         $stmt->bind_param('sssi', $user['id'], $user['name'], $hash, $user['level']);
     } elseif ($request['action'] === 'read') {
-        $stmt = $con->prepare('SELECT id, accessLevel, role, status FROM dbpersons WHERE id = ?');
+        $stmt = $con->prepare('SELECT id, accessLevel, role, status, (SELECT COUNT(*) FROM user_permissions WHERE user_id = dbpersons.id) AS permission_rows FROM dbpersons WHERE id = ?');
         $stmt->bind_param('s', $user['id']);
     } elseif ($request['action'] === 'status') {
         $stmt = $con->prepare('UPDATE dbpersons SET status = ? WHERE id = ?');
@@ -81,6 +81,15 @@ if ($request['action'] === 'read') {
     echo json_encode($rows, JSON_THROW_ON_ERROR);
 }
 """
+
+
+PHP_ERROR = re.compile(r"(?:<b>)?(Fatal error|Warning|Notice|Deprecated)(?:</b>)?:")
+
+
+def assert_no_php_errors_in(test, body):
+    """Apache renders PHP diagnostics as <b>Warning</b>: ..., so match both the plain and HTML forms."""
+    match = PHP_ERROR.search(body)
+    test.assertIsNone(match, body[max(0, (match.start() if match else 0) - 80):(match.end() if match else 0) + 200])
 
 
 def stored_username(username):
@@ -261,8 +270,7 @@ class AuthenticationTests(unittest.TestCase):
         })
 
     def assert_no_php_errors(self, body):
-        for marker in ("Fatal error", "Warning:", "Notice:", "Deprecated:"):
-            self.assertNotIn(marker, body)
+        assert_no_php_errors_in(self, body)
 
     def test_anonymous_pages_and_mutation_handlers_require_login(self):
         for method in ("GET", "POST"):
@@ -402,7 +410,8 @@ class AuthenticationTests(unittest.TestCase):
                 self.assertEqual(status, 200)
                 self.assert_no_php_errors(body)
                 self.assertIn('document.location = "VolunteerRegister.php"', body)
-                self.assertEqual(self.run_fixtures("read", [account])[0]["accessLevel"], 1)
+                row = self.run_fixtures("read", [account])[0]
+                self.assertEqual((row["accessLevel"], row["permission_rows"]), (1, 7))   # add_person seeds the presets
 
                 new_user = Browser()
                 status, _, body = new_user.request("login.php", {
