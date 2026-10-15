@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Review gate (docs/process/change-review-process.md). For every branch being written on the remote,
+# scripts/review-check.sh must accept the pushed commit: a committed, approving code-review record whose
+# content hash matches. Tags and other refs pass; deleting a remote branch passes.
+# Client-side only: the same check runs on PRs in .github/workflows/review-gate.yml, and branch protection
+# on dev and main requires that check (status-check name "record").
+# Emergency bypass: REVIEW_SWARM_SKIP=1 git push ...  (say so in the PR; --no-verify does the same).
+set -euo pipefail
+if [ "${REVIEW_SWARM_SKIP:-}" = "1" ]; then
+  echo "pre-push: REVIEW_SWARM_SKIP=1, skipping the review-swarm gate. Mention this in the PR." >&2
+  exit 0
+fi
+status=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ -z "$local_ref" ] && continue
+  case "$local_sha" in *[!0]*) ;; *) continue ;; esac          # deleting a remote ref
+  case "$remote_ref" in refs/heads/*) ;; *) continue ;; esac   # tags and other refs are not gated
+  branch="${remote_ref#refs/heads/}"
+  scripts/review-check.sh "$local_sha" "$branch" || status=1
+done
+exit $status

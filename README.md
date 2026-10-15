@@ -54,6 +54,13 @@ no Ollama model server or external account is provisioned by this stack.
 
 This Compose setup is for local development; services bind to localhost only.
 
+## Change review process
+
+Every change goes through the four-auditor review swarm twice, on the ticket draft and on the code,
+before it is pushed. `make dev` installs the pre-push hook that guards against pushing unreviewed code;
+the PR check and a human review are the real controls. Read `docs/process/change-review-process.md`
+before starting work.
+
 ## Database migrations
 
 Schema changes are versioned in `sql/migrations/` and applied by `make migrate`, which
