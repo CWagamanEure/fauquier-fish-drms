@@ -276,7 +276,7 @@ header('Expires: 0');
 						echo "<td style='text-align: center;'><input type='checkbox' id =".$value." name=".$value."></td>";
 						echo "</tr>";
 					flush();
-					ob_flush();
+					if (ob_get_level() > 0) { ob_flush(); }   // no buffer is active under Apache; flushing none is a Notice
 					}
 				}
 			?>

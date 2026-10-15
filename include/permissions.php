@@ -1,0 +1,36 @@
+<?php
+// Per-area permissions (migration 001): fish_can('donors', 'edit') answers whether the signed-in account
+// may do $action in $area. The user's own user_permissions row wins; when the account has none for that
+// area (accounts created before migration 008's backfill, or by code that forgot to seed rows), the
+// role_permission_presets row for the account's role applies. Nothing bypasses it, admin included.
+// Fails closed: no signed-in user, an action outside the list, or no matching row all mean false.
+require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/../database/dbinfo.php';
+
+const FISH_PERMISSION_ACTIONS = ['view', 'edit', 'delete'];
+
+function fish_can($area, $action) {
+    static $cache = [];
+    $user = auth_current_user();
+    if (!$user || !is_string($area) || !in_array($action, FISH_PERMISSION_ACTIONS, true)) {
+        return false;
+    }
+    $key = $area . ':' . $action;
+    if (array_key_exists($key, $cache)) {
+        return $cache[$key];
+    }
+    $column = 'can_' . $action;   // $action is one of three constants, checked above
+    $userId = $user->get_id();
+    $role = (string) $user->get_role();
+    $con = connect();
+    $stmt = $con->prepare("SELECT COALESCE(u.$column, r.$column)
+                           FROM role_permission_presets r
+                           LEFT JOIN user_permissions u ON u.user_id = ? AND u.area = r.area
+                           WHERE r.role = ? AND r.area = ?");
+    $stmt->bind_param('sss', $userId, $role, $area);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_row();
+    $stmt->close();
+    mysqli_close($con);
+    return $cache[$key] = ($row !== null && (int) $row[0] === 1);
+}
