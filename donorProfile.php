@@ -6,17 +6,30 @@ require_once 'include/permissions.php';
 require_once 'database/dbDonors.php';
 
 $id = (int) ($_GET['id'] ?? 0);
-$donor = $id > 0 ? donor_get($id) : null;
+$loadError = false;
+$donor = null;
+$cash = $items = $vol = $comms = [];
+try {
+  $donor = $id > 0 ? donor_get($id) : null;
+  if ($donor) {
+    $cash  = donor_cash_history($id);
+    $items = donor_noncash_history($id);
+    $vol   = donor_hours_history($id);
+    $comms = donor_communications($id);
+  }
+} catch (mysqli_sql_exception $e) {
+  // A database fault must not print the exception into the page; log it and show an empty profile.
+  error_log('donorProfile.php: ' . $e->getMessage());
+  $loadError = true;
+  $donor = ['id' => $id, 'display_name' => 'Donor ' . $id, 'is_anonymous' => 0, 'is_active' => 1, 'phone' => '', 'email' => '',
+            'city' => '', 'state' => '', 'donor_since_date' => null, 'preferred_contact' => null, 'last_contact_at' => null,
+            'lifetime_cash' => 0, 'items_donated' => 0, 'volunteer_hours' => 0, 'last_gift_date' => null];
+}
 if (!$donor) { header('Location: donor.php', true, 303); exit; }   // unknown id: back to the list
 
 $saved = fish_str($_GET, 'saved') === '1';
 $isAnonymous = (int) $donor['is_anonymous'] === 1;
-$canEdit = fish_can('donors', 'edit') && !$isAnonymous;
-
-$cash  = donor_cash_history($id);
-$items = donor_noncash_history($id);
-$vol   = donor_hours_history($id);
-$comms = donor_communications($id);
+$canEdit = fish_can('donors', 'edit') && !$isAnonymous && !$loadError;
 
 // Tab footers come from the rows; the tiles come from the view so the list and the profile agree.
 $cashTotal  = array_sum(array_column($cash, 'amount'));
@@ -69,6 +82,7 @@ fishnet_open('Donor profile', 'donor', ['donor.css', 'forms.css']);
 
       <p class="crumbs"><a href="donor.php">Donor</a> &rsaquo; <strong><?= h($name) ?></strong></p>
       <?php if ($saved): ?><div class="notice" role="status">Donor saved.</div><?php endif; ?>
+      <?php if ($loadError): ?><div class="notice" role="alert">Could not load this donor. Please try again shortly.</div><?php endif; ?>
 
       <section class="card profile-head">
         <span class="big-initials"><?= h(initials($name)) ?></span>

@@ -56,6 +56,7 @@ switch ($req['action']) {
         $run("INSERT INTO donations (donorID, amount, donation_date, payment_method, check_number, send_receipt, thanked, reason) VALUES (?, 25.00, '2024-05-05', 'check', '<1042', 0, 0, 'suite')", 'i', $id);
         $run("INSERT INTO communications (donor_id, occurred_at, comm_type, subject, status) VALUES (?, NOW(), 'email', 'Suite bounce', 'bounced')", 'i', $id);
         $run("INSERT INTO non_cash_donations (donor_id, date_received, item_description, category, quantity, unit, estimated_value, intended_use, send_receipt) VALUES (?, '2024-06-06', 'Suite cans', 'canned_food', 5, 'items', 10.00, 'Food pantry', 0)", 'i', $id);
+        $run("INSERT INTO volunteer_hours (donor_id, activity_date, hours, job) VALUES (?, '2024-07-07', 3.5, 'Suite sorting'), (?, '2024-07-08', 2.5, 'Suite packing')", 'ii', $id, $id);
         $out = ['id' => $id];
         break;
     case 'donor_delete':
@@ -235,7 +236,8 @@ class DonorPagesTests(unittest.TestCase):
         names = [r[0].lower() for r in rows_in(body)]
         self.assertEqual(names, sorted(names))
         _, body = self.get(manager, "donor.php?q[]=x&page[]=1&sort=zzz&filter[]=lapsed")
-        self.assertIn("Sort: Last gift</option>", body.split('selected')[1] if 'selected' in body else body)
+        self.assertIn('<option value="last_gift" selected>', body)
+        self.assertIn('class="pill on">All</button>', body)
         self.get(manager, "donor.php?page=2")
 
     # ---- profile ----
@@ -255,12 +257,22 @@ class DonorPagesTests(unittest.TestCase):
         self.assertIn(f'Non-cash <span class="count">{summary["noncash_gift_count"]}</span>', body)
         self.assertIn(f'Communications <span class="count">{summary["communication_count"]}</span>', body)
         self.assertIn("Donor since 2020", body)
+        self.assertIn("3 hours served on avg", body)   # 3.5 + 2.5 over two shifts: the frequency reading for UF2-27
+        self.assertIn('Volunteer <span class="count">2</span>', body)
+
+        maria = fixture("view_rows", name="Maria Lopez")[0]
+        _, body = self.get(manager, f"donorProfile.php?id={maria['id']}")
+        for panel in ("p-cash", "p-vol", "p-comm"):
+            with self.subTest(panel=panel):
+                section = body.split(f'class="panel-tab {panel}"')[1].split('class="panel-tab')[0]
+                self.assertIn("Fall Food Drive 2026", section)
 
         grace = fixture("view_rows", name="Grace Community Church")[0]
         _, listing = self.get(manager, "donor.php?q=" + urllib.parse.quote("Grace Community Church"))
         row = next(r for r in rows_in(listing) if r[0] == "Grace Community Church")
         _, profile = self.get(manager, f"donorProfile.php?id={grace['id']}")
         self.assertIn(f'Last gift</p><p class="num">{row[4]}</p>', profile)
+        self.assertIn("Holiday Meals 2025", profile.split('class="panel-tab p-cash"')[1].split('class="panel-tab')[0])
 
         legacy = fixture("legacy_undated")
         self.assertIsNotNone(legacy, "baseline has no undated donation")
@@ -289,6 +301,15 @@ class DonorPagesTests(unittest.TestCase):
         self.assertEqual(read["summary"]["status"], "new")
         _, body = self.get(manager, headers["Location"])
         self.assertIn("Donor saved.", body)
+
+        status, headers, _ = manager.request("addDonor.php", {"csrf_token": token, **self.donor_form(
+            type="Organization", org_name="Suite Org " + self.marker, first="", last="", middle="", volunteer="on", do_not_contact="on")})
+        self.assertEqual(status, 303)
+        org_id = int(re.search(r"id=(\d+)", headers["Location"]).group(1))
+        self.created.append(org_id)
+        org = fixture("donor_read", id=org_id)
+        self.assertEqual((org["donor"]["donor_type"], org["donor"]["org_name"], org["donor"]["is_volunteer"], org["donor"]["do_not_contact"], org["summary"]["display_name"]),
+                         ("organization", "Suite Org " + self.marker, 1, 1, "Suite Org " + self.marker))
 
         # Edit: only the posted columns change; notes, the Text preference and the legacy state survive.
         stored = fixture("donor_read", id=self.donor_id)["donor"]

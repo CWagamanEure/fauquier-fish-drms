@@ -9,8 +9,18 @@ $q      = fish_str($_GET, 'q');
 $sort   = fish_str($_GET, 'sort');
 $page   = max(1, (int) ($_GET['page'] ?? 1));
 
-$tiles  = donors_tiles();
-$list   = donors_list($filter, $q, $sort, $page);
+$loadError = false;
+try {
+  $tiles = donors_tiles();
+  $list  = donors_list($filter, $q, $sort, $page);
+} catch (mysqli_sql_exception $e) {
+  // A database fault must not print the exception into the page; log it and render an empty list.
+  error_log('donor.php: ' . $e->getMessage());
+  $loadError = true;
+  $tiles = ['total' => 0, 'new_month' => 0, 'lapsed' => 0, 'dupes' => 0];
+  $list  = ['rows' => [], 'total' => 0, 'page' => 1, 'pages' => 1, 'filter' => in_array($filter, DONOR_FILTERS, true) ? $filter : 'all',
+            'sort' => in_array($sort, DONOR_SORTS, true) ? $sort : 'last_gift', 'per_page' => DONORS_PER_PAGE];
+}
 $donors = $list['rows'];
 $filter = $list['filter'];
 $sort   = $list['sort'];
@@ -40,6 +50,7 @@ fishnet_open('Donors', 'donor', 'donor.css');
         </div>
         <?php if ($canEdit): ?><a href="addDonor.php" class="btn btn-yellow">+ New donor</a><?php endif; ?>
       </section>
+      <?php if ($loadError): ?><div class="notice" role="alert">Could not load donors. Please try again shortly.</div><?php endif; ?>
 
       <section class="tiles">
         <div class="tile"><p class="label">Total donors</p><p class="num"><?= number_format($tiles['total']) ?></p></div>
@@ -62,7 +73,7 @@ fishnet_open('Donors', 'donor', 'donor.css');
           </div>
           <div class="tools">
             <input type="search" name="q" value="<?= h($q) ?>" placeholder="Search name, email or phone...">
-            <select name="sort" onchange="this.form.submit()">
+            <select name="sort" onchange="this.form.requestSubmit()">
               <option value="last_gift" <?= $sort === 'last_gift' ? 'selected' : '' ?>>Sort: Last gift</option>
               <option value="name"      <?= $sort === 'name'      ? 'selected' : '' ?>>Sort: Name</option>
               <option value="lifetime"  <?= $sort === 'lifetime'  ? 'selected' : '' ?>>Sort: Lifetime giving</option>

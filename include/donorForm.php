@@ -1,12 +1,11 @@
 <?php
 // The donor form shared by addDonor.php and updateDonor.php. Expects $form (the field array),
 // $errors (list of messages), $readOnly (bool), $formAction (string), $buttons (HTML for the footer).
-// Stored select values outside the option lists are kept as an extra "Other" choice so a legacy value
-// round-trips unchanged.
+// A stored state outside the option list is kept as an extra "Other" choice so a legacy value round-trips
+// unchanged (preferred contact is an ENUM, so it can only hold listed values).
 $stateOptions = DONOR_STATES;
 if ($form['state'] !== '' && !in_array($form['state'], $stateOptions, true)) { $stateOptions[] = $form['state']; }
 $preferredOptions = array_values(DONOR_PREFERRED_LABELS);
-if ($form['preferred'] !== '' && !in_array($form['preferred'], $preferredOptions, true)) { $preferredOptions[] = $form['preferred']; }
 ?>
         <form class="card form-card" method="post" action="<?= h($formAction) ?>" novalidate>
           <?php echo auth_csrf_field(); ?>
@@ -39,7 +38,7 @@ if ($form['preferred'] !== '' && !in_array($form['preferred'], $preferredOptions
           <div>
             <div class="group-title">Name</div>
             <div class="grid g-name only-ind">
-              <div class="form-field"><label for="first">First name *</label><input type="text" id="first" name="first" value="<?= h($form['first']) ?>" placeholder="First name"></div>
+              <div class="form-field"><label for="first">First name *</label><input type="text" id="first" name="first" value="<?= h($form['first']) ?>" placeholder="First name" <?= $readOnly ? '' : 'autofocus' ?>></div>
               <div class="form-field"><label for="middle">Middle</label><input type="text" id="middle" name="middle" value="<?= h($form['middle']) ?>" placeholder="Middle"></div>
               <div class="form-field"><label for="last">Last name *</label><input type="text" id="last" name="last" value="<?= h($form['last']) ?>" placeholder="Last name"></div>
             </div>
@@ -58,7 +57,7 @@ if ($form['preferred'] !== '' && !in_array($form['preferred'], $preferredOptions
                 <select id="preferred" name="preferred">
                   <option value="">Choose&hellip;</option>
                   <?php foreach ($preferredOptions as $o): ?>
-                    <option value="<?= h($o) ?>" <?= $form['preferred'] === $o ? 'selected' : '' ?>><?= in_array($o, DONOR_PREFERRED_LABELS, true) ? h($o) : 'Other: ' . h($o) ?></option>
+                    <option value="<?= h($o) ?>" <?= $form['preferred'] === $o ? 'selected' : '' ?>><?= h($o) ?></option>
                   <?php endforeach; ?>
                 </select>
               </div>

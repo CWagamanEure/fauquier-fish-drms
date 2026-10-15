@@ -57,7 +57,7 @@ fishnet_open('Add donor', 'donor', 'forms.css');
             <h3>Tips</h3>
             <p>Only first and last name are required.</p>
             <p>Pick Organization for churches, schools and businesses.</p>
-            <p>Use &ldquo;Save &amp; add donation&rdquo; to record a first gift right away.</p>
+            <p>&ldquo;Save &amp; add donation&rdquo; opens the new profile now and will open the donation form once that page exists.</p>
           </section>
         </aside>
       </div>

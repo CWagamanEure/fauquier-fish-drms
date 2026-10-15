@@ -36,23 +36,31 @@ function donor_like_escape($s) {
 // The four tiles on donor.php, all over the same set: active, non-anonymous donors.
 function donors_tiles() {
     $con = connect();
-    $row = $con->query("SELECT COUNT(*) AS total,
-                               SUM(donor_since_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')) AS new_month,
-                               SUM(status = 'lapsed') AS lapsed
-                        FROM donor_summary WHERE is_anonymous = 0 AND is_active = 1")->fetch_assoc();
+    $stmt = $con->prepare("SELECT COUNT(*) AS total,
+                                  SUM(donor_since_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')) AS new_month,
+                                  SUM(status = 'lapsed') AS lapsed
+                           FROM donor_summary WHERE is_anonymous = 0 AND is_active = 1");
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
     // Duplicates: donors sharing a non-empty email (case-insensitive) or the same non-empty phone digits
     // with another donor in the same set; counted as donors involved, not match groups.
-    $dupes = $con->query("SELECT COUNT(*) FROM donors d
-                          WHERE d.is_active = 1 AND d.id <> " . DONOR_ANONYMOUS_ID . " AND (
-                            (COALESCE(d.email, '') <> '' AND EXISTS (
-                               SELECT 1 FROM donors o WHERE o.id <> d.id AND o.is_active = 1 AND o.id <> " . DONOR_ANONYMOUS_ID . "
-                                 AND LOWER(o.email) = LOWER(d.email)))
-                            OR (REGEXP_REPLACE(COALESCE(d.phone, ''), '[^0-9]', '') <> '' AND EXISTS (
-                               SELECT 1 FROM donors o WHERE o.id <> d.id AND o.is_active = 1 AND o.id <> " . DONOR_ANONYMOUS_ID . "
-                                 AND REGEXP_REPLACE(COALESCE(o.phone, ''), '[^0-9]', '') = REGEXP_REPLACE(COALESCE(d.phone, ''), '[^0-9]', ''))))")->fetch_row();
+    $anon = DONOR_ANONYMOUS_ID;
+    $stmt = $con->prepare("SELECT COUNT(*) FROM donors d
+                           WHERE d.is_active = 1 AND d.id <> ? AND (
+                             (COALESCE(d.email, '') <> '' AND EXISTS (
+                                SELECT 1 FROM donors o WHERE o.id <> d.id AND o.is_active = 1 AND o.id <> ?
+                                  AND LOWER(o.email) = LOWER(d.email)))
+                             OR (REGEXP_REPLACE(COALESCE(d.phone, ''), '[^0-9]', '') <> '' AND EXISTS (
+                                SELECT 1 FROM donors o WHERE o.id <> d.id AND o.is_active = 1 AND o.id <> ?
+                                  AND REGEXP_REPLACE(COALESCE(o.phone, ''), '[^0-9]', '') = REGEXP_REPLACE(COALESCE(d.phone, ''), '[^0-9]', ''))))");
+    $stmt->bind_param('iii', $anon, $anon, $anon);
+    $stmt->execute();
+    $dupes = (int) $stmt->get_result()->fetch_row()[0];
+    $stmt->close();
     mysqli_close($con);
     return ['total' => (int) $row['total'], 'new_month' => (int) $row['new_month'],
-            'lapsed' => (int) $row['lapsed'], 'dupes' => (int) $dupes[0]];
+            'lapsed' => (int) $row['lapsed'], 'dupes' => $dupes];
 }
 
 // Builds the WHERE clause and bound values shared by the list and its count.
@@ -198,7 +206,8 @@ function donor_communications($id) {
 
 // ---------- form handling shared by addDonor.php and updateDonor.php ----------
 
-// The form array from a POST; only strings are accepted, arrays become ''.
+// The form array from a POST; only strings are accepted, arrays become ''. (Same rule as fish_str() in
+// include/fishnet-layout.php; repeated here because the data layer must not depend on the page layout.)
 function donor_form_from_post(array $post, array $base) {
     $str = function ($k) use ($post) { return isset($post[$k]) && is_string($post[$k]) ? trim($post[$k]) : ''; };
     $form = array_merge($base, [
