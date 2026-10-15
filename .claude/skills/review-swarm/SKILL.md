@@ -57,7 +57,8 @@ The saved-workflow registry is read when a session starts, so `scriptPath` is th
    equal `scripts/review-hash.sh` now), the auditors with their `approve` flag and `finding_count`, and
    the count of findings per severity and status. Commit it, then push. The hook and the Actions check
    refuse a push or PR whose content hash differs from the record, so any edit after approval means
-   another round.
+   another round. Commit the stub as a new commit: never amend or squash after approval, or the
+   `reviewed_commit` in the record stops being reachable.
 6. Open the PR with the template; link both records. Report rounds, accepted highs, and what the
    auditors did not cover.
 
