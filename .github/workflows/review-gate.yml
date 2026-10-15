@@ -1,0 +1,31 @@
+# Server-side copy of the pre-push gate: every PR into dev or main must carry a review-swarm approval
+# record whose content hash matches the PR head. Runs scripts/review-check.sh, the same script the hook
+# runs, against the PR head commit (not GitHub's synthetic merge commit). Branch protection on dev and
+# main requires this check; its status-check name is the job name, "record".
+# The dev/main exemption inside review-check.sh is for the release PR dev -> main from this repository
+# only: a pull request from a fork is never exempt, whatever its branch is called.
+name: review-gate
+on:
+  pull_request:
+    branches: [dev, main]
+permissions:
+  contents: read
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Check .reviews/<branch>/code-approved.json against the PR head
+        env:
+          BRANCH: ${{ github.head_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          set -euo pipefail
+          if [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
+            case "$BRANCH" in dev|main) echo "::error::Pull requests from forks are never exempt; name the branch something other than dev or main and add a review record."; exit 1 ;; esac
+          fi
+          scripts/review-check.sh "$HEAD_SHA" "$BRANCH"
