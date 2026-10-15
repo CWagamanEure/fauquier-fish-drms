@@ -39,13 +39,18 @@ In:
   account in one query: the `user_permissions` row for (user, area) when one exists, otherwise the
   `role_permission_presets` row for the account's role (`SELECT COALESCE(u.can_<action>, r.can_<action>) FROM
   role_permission_presets r LEFT JOIN user_permissions u ON u.user_id = ? AND u.area = r.area WHERE r.role = ?
-  AND r.area = ?`), cached per request in a static. No role bypasses it, admin included (the admin preset
-  already grants everything intended, and `data_import` delete stays 0). Accounts created after migration
+  AND r.area = ?`), cached per request in a static. `$action` is checked against the constant list
+  view/edit/delete before any SQL is built and `$area` is always bound; the function returns false when
+  there is no authenticated user, the action is unknown, or the query yields no row (unknown role or
+  area). No role bypasses it, admin included (the admin preset already grants everything intended, and
+  `data_import` delete stays 0). Accounts created after migration
   001 have no rows today (no PHP writes `user_permissions`), so the preset fallback is what makes new staff
   able to edit donors. Two more things close that gap for the Manage Users work: migration 008 backfills
   rows with the same idempotent `INSERT IGNORE ... FROM dbpersons JOIN role_permission_presets` that 001
   used, and `add_person()` in `database/dbPersons.php` inserts the preset rows for a new account. First
-  consumer: the donor write gate below. Later consumers: Manage Users, donations.
+  consumer: the donor write gate below. Later consumers: Manage Users, donations. Per-user rows override
+  the preset and outlive a role change, so any code that changes `dbpersons.role` (the Manage Users
+  ticket) must re-apply the preset rows for that user; this is written into `sql/README.md`.
 - `include/fishnet-layout.php` also gains `fish_str($source, $key)`: returns `trim($source[$key])` when the
   value is a string, `''` otherwise, so an array parameter never reaches `trim()` (a `(string)` cast of an
   array emits a PHP warning and yields "Array"). Both pages' GET readers and the `$in` closures use it;
@@ -62,8 +67,10 @@ In:
   (`$d['id','name','type','contact','lifetime','last_gift','status']`, `$detail['cash','items','vol','comms',
   'last_contact']`, `$prof[form keys]`) so the templates change as little as possible. Delete
   `include/donorDataStopgap.php` and the `?reset_demo` handler. `h()` and `initials()` move into
-  `include/fishnet-layout.php` (one definition each, `function_exists` guarded); the copies in `donor.php`
-  are removed.
+  `include/fishnet-layout.php` (one definition each, `function_exists` guarded; `initials()` takes the first
+  character with `preg_match('/^(.)/us', ...)` so non-ASCII names work); the copies in `donor.php` are
+  removed, and the Jira comment on UF2-67 and the PR say so, because James's in-progress branch may carry
+  page-level copies that would redeclare them.
 - Donor code shown on the profile (`D-01842` style) derives from the id; no new column.
 - `tests/donors_integration.py` run by `make test-donors`, reusing `Browser` and a PHP fixture modelled on
   `FIXTURES_PHP` from `tests/auth_integration.py`. The fixture creates the suite's own accounts with an
@@ -73,19 +80,31 @@ In:
   non-cash row; it reads donor rows by id for assertions and, in `addClassCleanup`, deletes the activity
   rows before the donor and the accounts (RESTRICT keys). Seeded demo donors are read only through search:
   the suite picks the table row whose name cell equals the exact display name ("Maria Lopez" returns two
-  demo rows, which is itself asserted) and reads the id from that row's Select link.
+  demo rows, which is itself asserted) and reads the id from that row's Select link. The fixture also
+  offers a fixed-SQL `count` action (the four tiles over `donor_summary` with the Approach 1 WHERE and dupes
+  definition; the name-only LIKE count) and a `permission` action that inserts one `user_permissions` row
+  for a suite account; `setUpClass` fails with "run make seed-demo" when no donor with `notes LIKE
+  '[demo]%'` exists. Its no-PHP-errors check matches both plain and HTML forms
+  (`(?:<b>)?(Fatal error|Warning|Notice|Deprecated)(?:</b>)?:`), and `assert_no_php_errors` in
+  `tests/auth_integration.py` is widened the same way (Apache renders PHP diagnostics as
+  `<b>Warning</b>:`, which the old marker never matched).
 - Docs, exact edits: `sql/README.md` heading "Sprint 1 schema (migrations 001-007)" becomes 001-008 with a
-  row for 008, and the sentence "there is no donor-inactive flag yet; reassign or delete the activity first"
+  row for 008 and the role-change re-apply rule next to the `user_permissions` row, and the sentence "there is no donor-inactive flag yet; reassign or delete the activity first"
   becomes "deactivate through updateDonor.php (`is_active`); deleting is still blocked"; `README.md` test
   paragraph gains `make test-donors` (needs `make seed-demo`); `Makefile` gains `test-donors` (.PHONY, help,
-  target); `CLAUDE.md` line 4 gains `make test-donors` and loses the "still read donorDataStopgap.php"
-  sentence. After merging: `make migrate` (`make dev` does it); no image rebuild, no re-login;
+  target); `CLAUDE.md` line 4 gains `make test-donors`, loses the "still read donorDataStopgap.php"
+  sentence, and Conventions gains "Writes to donor and donation data call `fish_can($area, $action)` from
+  `include/permissions.php` before touching the database; GET pages render read-only when it is false";
+  `README.md`'s Authentication section gains two sentences on per-area permissions (rows, preset fallback,
+  viewer read-only, staff cannot deactivate). After merging: `make migrate` (`make dev` does it); no image rebuild, no re-login;
   `make seed-demo` optional for demo donors. PHP `display_errors` is on in the dev container (pre-existing,
   out of scope); read-side failures on the new pages render "Could not load donors" like the write path.
 - Jira: comment on UF2-61/67/70/73-78/81 (James) and UF2-88 (Tristan) that the pages now read real data,
   before the PR is opened, since UF2-67 is In Progress on James's side.
 
-Out: logging a new communication / hours / donation from the profile (UF2-87 and Joel's donation pages),
+Out: per-user revocation of donor *viewing* (`can_view`) is deferred to the Manage Users ticket (read pages
+stay gated by login); the profile's per-row Edit links are removed until the donation pages land; logging a
+new communication / hours / donation from the profile (UF2-87 and Joel's donation pages),
 duplicate-donor merging (the tile only counts matches), campaign management, the Manage Users page,
 theming. Legacy `searchindex.php`, `search_multi_criteria.php`, `search_donors.php`, `donationAddEdit.php`
 and `addDonationHandler.php` stay as they are: they build SQL by string and ignore `is_active`, so inactive
@@ -107,7 +126,8 @@ then "Save & add donation" redirects to the new donor's profile with a notice.
      strings, unknown values fall back to the defaults; `perPage` is a constant; LIMIT/OFFSET are bound
      integers). Reads `donor_summary` where `is_anonymous = 0 AND is_active = 1`; `q` matches
      display_name and email (LIKE with `%`, `_` and `\` escaped), and the phone-digits clause is added only
-     when `preg_replace('/\D/', '', $q)` is non-empty, so a name search never matches every phone holder;
+     when `preg_replace('/\D/', '', $q)` has at least three digits, so "Apt 2" never matches every phone
+     holder;
      ORDER BY the sort key then
      `display_name, id` so paging is deterministic (last_gift newest first, NULLs last); COUNT first, clamp
      the page, then fetch; returns rows in James's shape plus `total` and the effective page. Type renders
@@ -119,10 +139,13 @@ then "Save & add donation" redirects to the new donor's profile with a notice.
      `is_anonymous` is set.
    - `donor_profile_fields($id)`: the `$prof` form shape from `donors` columns. `preferred_contact`
      email/phone/mail/text maps to the form labels Email/Phone/Mail/Text; **both forms gain the Text option**
-     (`$preferredOptions`), so an edit never clears it. Stored values outside a form's option list (legacy
-     states such as `DC`, nine legacy rows that fail the validator) round-trip unchanged: the select renders
-     an extra "Other: <stored value>" option selected, and `donor_update()` keeps the stored value when the
-     posted one is empty. The profile's primary date is "Donor since" from `donor_summary.donor_since_date`
+     (`$preferredOptions`), so an edit never clears it. One rule for every field in `donor_form_validate()`:
+     a posted value byte-identical to the stored value is accepted without further validation (legacy data
+     passes through untouched, including the nine legacy rows with two emails in one field or zip `0`), an
+     empty posted value clears the column, and any changed value must pass the normal rules. For the two
+     selects (state, preferred contact) a stored value outside the option list is rendered as an extra
+     "Other: <stored value>" option, selected, with value and label through `h()`, so the stored value is
+     what gets posted. The profile's primary date is "Donor since" from `donor_summary.donor_since_date`
      (earliest of `donor_since` and the first gift; em dash when NULL, about half the legacy donors); the
      edit page's "Record created" shows `created_at`, which is never NULL (legacy rows carry the migration
      date, which is the truth about the record).
@@ -140,8 +163,8 @@ then "Save & add donation" redirects to the new donor's profile with a notice.
      `h()`. Each tab footer count equals the view's `cash_gift_count` / `noncash_gift_count` for the donor.
    - `donor_create(array $f)`, `donor_update($id, array $f)`: explicit column lists covering only what the
      form posts (donor_type, first, middle_name, last, org_name, email, phone, preferred_contact, street,
-     city, state, zip, is_volunteer, email_updates, mail_receipts, do_not_contact, updated_by). `first`/`last`
-     NULL for organizations, `org_name` NULL for individuals. Never touches `org_contact`, `notes`, `gender`,
+     city, state, zip, is_volunteer, email_updates, mail_receipts, do_not_contact, updated_by). Name fields
+     are stored as submitted (trimmed, empty to NULL); a type switch does not clear the other side. Never touches `org_contact`, `notes`, `gender`,
      `donor_since` or `created_at`; `donor_create` omits `donor_since` so the column default applies and the
      new donor reads as "new". Both refuse id 999 and return false. Phone is stored as typed; comparisons
      use digits only. `updated_by` is always `auth_current_user()->get_id()`, set by the page, never a form
@@ -168,8 +191,12 @@ then "Save & add donation" redirects to the new donor's profile with a notice.
      `action=reactivate` require `fish_can('donors', 'delete')` (staff has `can_delete = 0`; manager and
      admin have 1). GET remains readable at level 1, but when `fish_can('donors', 'edit')` is false the form
      renders read-only with a one-line notice and the Update / Mark inactive / New donor buttons are hidden;
-     the POST gate is the real control. `updateDonor.php` shows "Reactivate" instead of "Mark inactive" when
-     the donor is inactive, and redirects to `donor.php` for the anonymous donor. "Save & add donation"
+     the POST gate is the real control; the Deactivate/Reactivate panel is likewise shown only when
+     `fish_can('donors', 'delete')` is true. `updateDonor.php` shows "Reactivate" instead of "Mark inactive"
+     when the donor is inactive, and redirects to `donor.php` for the anonymous donor. The post-save notice
+     is a fixed flag (`donorProfile.php?id=N&saved=1`, read with `fish_str`) whose text lives in the
+     template; nothing from the request is echoed. The profile's tab pagers become a plain
+     "Showing 1-N of N" line. "Save & add donation"
      redirects to the new profile with a notice until `addDonation.php` exists.
 3. Migration 008 + view recreate; `make migrate` picks it up.
 4. Tests, docs, Jira comments.
@@ -189,11 +216,14 @@ then "Save & add donation" redirects to the new donor's profile with a notice.
    non-cash) shows the same last gift in the list and on the profile. A legacy donor with an undated,
    NULL-payment gift renders without PHP warnings and with em dashes for the missing date and payment. The
    suite-owned donor's check number `<1042` renders escaped, its bounced communication shows the warning
-   badge, its unreceipted gift shows "Not requested", and each tab footer count equals the view's counts.
+   badge, its unreceipted gift shows "Not requested", each tab footer count equals the view's counts, and
+   the cash footer reads "N gifts · avg $X" and the volunteer footer the average hours (the frequency
+   reading for UF2-26/27; a per-month figure is a follow-up).
 3. Adding a donor through `addDonor.php` with `action=save` (the suite never uses "Save & add donation")
    inserts a `donors` row with donor_type, middle name, organization fields, preferred contact (including
    Text) and the four preference flags; the new donor appears in the list as "new" with `updated_by` equal
-   to the logged-in test account. A 101-character street gets a field-level validation message.
+   to the logged-in test account, and the profile shows the saved notice. A 101-character street gets a
+   field-level validation message.
 4. Editing through `updateDonor.php` changes only the posted columns (`notes`, a Text preference and a
    legacy state `DC` survive an edit); "Mark inactive" sets `is_active = 0`, `deactivated_at/by`, hides the
    donor from the list and tiles, keeps the profile reachable with an Inactive pill; "Reactivate" restores
@@ -201,8 +231,11 @@ then "Save & add donation" redirects to the new donor's profile with a notice.
 5. Anonymous requests to the four pages redirect to login; POSTs without the form token get 403; the
    suite's own `viewer` account (created by the fixture with an explicit role and no `user_permissions`
    rows, so the preset fallback is what is tested) gets 403 on the add and edit POSTs and a read-only form
-   on GET; its `staff` account gets 403 on deactivate; its `manager` account succeeds. `updateDonor.php` is
-   added to `PROTECTED_PAGES` in `tests/auth_integration.py`.
+   on GET; its `staff` account gets 403 on deactivate and sees no deactivate form; its `manager` account
+   succeeds. The row-present branch is tested too: the fixture gives the viewer a `user_permissions` row
+   with `can_edit = 1` and the edit POST then succeeds (the row goes with the account via ON DELETE
+   CASCADE). `updateDonor.php` is added to `PROTECTED_PAGES` in `tests/auth_integration.py`, and that suite
+   asserts a freshly registered account has seven `user_permissions` rows.
 6. `include/donorDataStopgap.php` is gone and no page defines its own `h()`; `make test-auth` passes;
    `make test-donors` passes; the suite creates its own donor for the write tests (unique marker in name and
    email) and deletes it in cleanup, and reads seeded demo donors only through search.
@@ -279,3 +312,24 @@ then "Save & add donation" redirects to the new donor's profile with a notice.
 | low: `donor_get()` mixes page policy; reactivate semantics | fixed: plain read, page redirects on `is_anonymous`; reactivate clears the columns |
 | medium: documentation edits named only partially | fixed: exact edits listed, `make test-donors` documented |
 | low: viewer sees the full form then a bare 403 | fixed: read-only form with a notice when `fish_can` is false |
+
+## Responses to round 3
+
+| Finding | Response |
+|---|---|
+| high: "no PHP warning" assertions cannot see Apache's `<b>Warning</b>:` form | fixed: both suites match plain and HTML forms with one regex |
+| medium: nine validator-failing legacy rows and "keep stored when empty" | fixed: one rule (identical passes, empty clears, changed validates); Other option for the two selects |
+| medium: row-present branch and `add_person()` seeding untested | fixed: viewer override row asserted; registration yields seven rows (AC 5/6) |
+| medium: docs omit the permission gate | fixed: CLAUDE.md, README, sql/README edits listed |
+| low: `fish_can()` fail-closed and action allowlist | fixed |
+| low: read pages not gated by `can_view` | deferred to Manage Users, stated in Out |
+| low: per-user rows outlive a role change | documented in Scope and sql/README for the Manage Users implementer |
+| low: Other option and notice are output sinks | fixed: `h()` on both, fixed-flag notice |
+| low: type switch forces NULL | fixed: stored as submitted |
+| low: no row from `fish_can()` | fixed |
+| low: seed guard and count action for the fixture | fixed |
+| low: `h()`/`initials()` redeclare risk and byte-based initials | fixed: guards, `/u` regex, Jira and PR note |
+| low: staff see a deactivate button they cannot use | fixed: panel gated on delete permission |
+| low: phone clause fires on one digit | fixed: three digits minimum |
+| low: dead profile controls and the notice untested | fixed: plain count line, Edit links removed, notice asserted |
+| low: "frequency" not asserted | fixed: footers asserted as the frequency reading |
