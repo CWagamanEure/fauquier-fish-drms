@@ -70,8 +70,9 @@ process; say so in the PR.
 
 ## Rules
 
-- Never edit a record to make it pass. If a finding is wrong, the verification stage will have marked
-  it `disputed`; if it did not, fix the code or argue it in the responses file and re-run. Removing a
+- Never edit a record to make it pass. A wrong critical will have been marked `disputed` by the
+  skeptics; a wrong high has no skeptics, so argue it in the responses file (the next round's auditors
+  read it) and re-run. Removing a
   file-and-line pointer to a pre-existing, out-of-scope vulnerability from a responses file is allowed
   and is not that.
 - `REVIEW_SWARM_SKIP=1 git push` exists for emergencies only and must be mentioned in the PR.
