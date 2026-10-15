@@ -9,7 +9,7 @@ $q      = fish_str($_GET, 'q');
 $sort   = fish_str($_GET, 'sort');
 $page   = max(1, (int) ($_GET['page'] ?? 1));
 
-$loadError = false;
+$loadError = fish_str($_GET, 'error') === 'load';   // set by updateDonor.php when its read failed
 try {
   $tiles = donors_tiles();
   $list  = donors_list($filter, $q, $sort, $page);
@@ -73,7 +73,7 @@ fishnet_open('Donors', 'donor', 'donor.css');
           </div>
           <div class="tools">
             <input type="search" name="q" value="<?= h($q) ?>" placeholder="Search name, email or phone...">
-            <select name="sort" onchange="this.form.requestSubmit()">
+            <select name="sort" onchange="this.form.querySelector('button[name=filter][hidden]').click()">
               <option value="last_gift" <?= $sort === 'last_gift' ? 'selected' : '' ?>>Sort: Last gift</option>
               <option value="name"      <?= $sort === 'name'      ? 'selected' : '' ?>>Sort: Name</option>
               <option value="lifetime"  <?= $sort === 'lifetime'  ? 'selected' : '' ?>>Sort: Lifetime giving</option>

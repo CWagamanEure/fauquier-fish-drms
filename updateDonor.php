@@ -5,7 +5,13 @@ require_once 'include/permissions.php';
 require_once 'database/dbDonors.php';
 
 $id = (int) ($_GET['id'] ?? 0);
-$stored = $id > 0 ? donor_profile_fields($id) : null;
+try {
+  $stored = $id > 0 ? donor_profile_fields($id) : null;
+} catch (mysqli_sql_exception $e) {
+  error_log('updateDonor.php: ' . $e->getMessage());
+  header('Location: donor.php?error=load', true, 303);   // the list page shows the generic notice
+  exit;
+}
 if (!$stored || $id === DONOR_ANONYMOUS_ID) { header('Location: donor.php', true, 303); exit; }
 
 $canEdit = fish_can('donors', 'edit');
