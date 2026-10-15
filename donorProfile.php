@@ -21,7 +21,9 @@ try {
   // A database fault must not print the exception into the page; log it and show an empty profile.
   error_log('donorProfile.php: ' . $e->getMessage());
   $loadError = true;
-  $donor = ['id' => $id, 'display_name' => 'Donor ' . $id, 'is_anonymous' => 0, 'is_active' => 1, 'phone' => '', 'email' => '',
+  $cash = $items = $vol = $comms = [];
+  // keep a row that did load; stub only when the donor itself could not be read
+  $donor = $donor ?: ['id' => $id, 'display_name' => 'Donor ' . $id, 'is_anonymous' => 0, 'is_active' => 1, 'phone' => '', 'email' => '',
             'city' => '', 'state' => '', 'donor_since_date' => null, 'preferred_contact' => null, 'last_contact_at' => null,
             'lifetime_cash' => 0, 'items_donated' => 0, 'volunteer_hours' => 0, 'last_gift_date' => null];
 }

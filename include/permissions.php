@@ -15,22 +15,27 @@ function fish_can($area, $action) {
     if (!$user || !is_string($area) || !in_array($action, FISH_PERMISSION_ACTIONS, true)) {
         return false;
     }
-    $key = $area . ':' . $action;
+    $userId = $user->get_id();
+    $key = $userId . ':' . $area . ':' . $action;
     if (array_key_exists($key, $cache)) {
         return $cache[$key];
     }
     $column = 'can_' . $action;   // $action is one of three constants, checked above
-    $userId = $user->get_id();
     $role = (string) $user->get_role();
-    $con = connect();
-    $stmt = $con->prepare("SELECT COALESCE(u.$column, r.$column)
-                           FROM role_permission_presets r
-                           LEFT JOIN user_permissions u ON u.user_id = ? AND u.area = r.area
-                           WHERE r.role = ? AND r.area = ?");
-    $stmt->bind_param('sss', $userId, $role, $area);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_row();
-    $stmt->close();
-    mysqli_close($con);
+    try {
+        $con = connect();
+        $stmt = $con->prepare("SELECT COALESCE(u.$column, r.$column)
+                               FROM role_permission_presets r
+                               LEFT JOIN user_permissions u ON u.user_id = ? AND u.area = r.area
+                               WHERE r.role = ? AND r.area = ?");
+        $stmt->bind_param('sss', $userId, $role, $area);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_row();
+        $stmt->close();
+        mysqli_close($con);
+    } catch (mysqli_sql_exception $e) {
+        error_log('fish_can failed: ' . $e->getMessage());
+        return $cache[$key] = false;   // a database fault denies, it never grants
+    }
     return $cache[$key] = ($row !== null && (int) $row[0] === 1);
 }

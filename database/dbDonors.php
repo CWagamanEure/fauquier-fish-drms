@@ -20,7 +20,7 @@ function donor_pref_to_enum($label) {
 }
 
 function donor_pref_label($enum) {
-    return DONOR_PREFERRED_LABELS[$enum] ?? (string) $enum;
+    return DONOR_PREFERRED_LABELS[$enum] ?? '';
 }
 
 function donor_phone_digits($phone) {
@@ -273,7 +273,7 @@ function donor_bind_values(array $form) {
         $form['type'] === 'Organization' ? 'organization' : 'individual',
         $nullable($form['first']), $nullable($form['middle']), $nullable($form['last']), $nullable($form['org_name']),
         $nullable($form['email']), $nullable($form['phone']),
-        $form['preferred'] === '' ? null : (donor_pref_to_enum($form['preferred']) ?? null),
+        $form['preferred'] === '' ? null : donor_pref_to_enum($form['preferred']),
         $nullable($form['street']), $nullable($form['city']), $nullable($form['state']), $nullable($form['zip']),
         (int) $form['volunteer'], (int) $form['email_updates'], (int) $form['mail_receipts'], (int) $form['do_not_contact'],
     ];
