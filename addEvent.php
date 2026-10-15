@@ -1,5 +1,6 @@
-<?php session_cache_expire(30);
-    session_start();
+<?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(2);
     // Make session information accessible, allowing us to associate
     // data with the logged-in user.
 
@@ -191,6 +192,7 @@
             </p>
 
             <form id="new-event-form" method="POST">
+            <?php echo auth_csrf_field(); ?>
                 <label for="name">* Fundraiser Name </label>
                 <input type="text" id="name" name="name" required placeholder="Enter name"> 
 

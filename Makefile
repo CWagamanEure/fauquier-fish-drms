@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help dev stop logs status migrate seed-demo db-shell
+.PHONY: help dev stop logs status migrate seed-demo db-shell test-auth
 
 help:
 	@echo "make dev        Build and start the Docker app and database, then apply migrations"
@@ -9,6 +9,7 @@ help:
 	@echo "make migrate    Apply pending sql/migrations/*.sql to the local database (safe to repeat)"
 	@echo "make seed-demo  Load or reset the optional FISH demo data from sql/seed/demo_fish.sql"
 	@echo "make db-shell   Open a mariadb shell in the db container"
+	@echo "make test-auth  Run the login/logout integration tests against the local stack"
 
 # Never overwrite existing local credentials or database seed settings.
 .env:
@@ -42,3 +43,6 @@ seed-demo: migrate
 
 db-shell:
 	docker compose exec db sh -c 'MYSQL_PWD="$$MARIADB_PASSWORD" exec mariadb -u"$$MARIADB_USER" "$$MARIADB_DATABASE"'
+
+test-auth:
+	docker compose exec -T web python tests/auth_integration.py

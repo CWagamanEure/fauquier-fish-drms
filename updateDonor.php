@@ -92,6 +92,7 @@ fishnet_open('Edit donor', 'donor', 'forms.css');
 
       <div class="split">
         <form class="card form-card" method="post" action="updateDonor.php?id=<?= $id ?>" novalidate>
+          <?php echo auth_csrf_field(); ?>
 
           <?php if ($errors): ?>
           <div class="form-errors" role="alert">
@@ -192,6 +193,7 @@ fishnet_open('Edit donor', 'donor', 'forms.css');
             <p>Hides them from lists but keeps their giving history for reports.</p>
             <form method="post" action="updateDonor.php?id=<?= $id ?>"
                   onsubmit="return confirm(<?= h(json_encode('Mark ' . $displayName . ' inactive? They will be hidden from the donor list, but their giving history is kept.')) ?>);">
+              <?php echo auth_csrf_field(); ?>
               <input type="hidden" name="action" value="deactivate">
               <button type="submit" class="btn btn-danger pill-btn">Mark inactive</button>
             </form>

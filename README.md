@@ -62,6 +62,41 @@ database volume is first created, so existing local databases get new tables and
 from migrations, not from re-importing a dump. `make seed-demo` loads optional FISH demo
 donors, donations, hours and communications for local page work. See `sql/README.md` for how
 to add a migration.
+## Authentication (UF2-2 / UF2-4)
+
+Log in at `login.php` (username first, then password) and sign out with **Log Out** in the
+FISH NET top bar. Staff accounts live in `dbpersons`: `role` (admin / manager / staff /
+viewer) and `status` (active / inactive) come from migration 001, and `accessLevel`
+(1 standard, 2 manager, 3 super-admin) is kept in step with the role for the legacy page gate.
+Inactive accounts cannot log in, and every protected request re-reads the account, so
+deactivating a user or changing their role takes effect on their next request.
+
+Login matches the HTML-encoded username representation used by registration, so users
+enter their original username, including punctuation. The first login step accepts any
+username without checking the database, so the page never confirms which accounts exist.
+
+Protected PHP entry points call `require_authentication()` from `include/auth.php` before
+producing output or touching data; `include/fishnet-layout.php` does this for every FISH
+page. Handlers enforce the same access level as their forms. Every authenticated POST must
+carry the form token: forms include it with `auth_csrf_field()`, JavaScript callers send it in
+an `X-CSRF-Token` header, and `require_authentication()` rejects anything else with 403.
+Deleting events, users and uploaded documents is POST-only. Login rotates the session ID;
+sign-out requires a form token, destroys the session and expires its cookie, and visiting
+`logout.php` directly shows a confirmation form. Authentication responses are not cached.
+Report, export, import and email handlers release their session locks during long
+operations so sign-out completes immediately, and imports save their result only if the
+original session is still authenticated when processing finishes. Reports, exports and
+uploaded documents are served through `download.php`; direct file URLs are denied by Apache
+(`docker/apache.conf` and the `.htaccess` files, which must be preserved on other hosts).
+Rebuild the web image with `make dev` after pulling this change. Existing sessions must log
+in again.
+
+With `make dev` running, `make test-auth` runs `tests/auth_integration.py` against the real
+PHP/MariaDB stack. It creates uniquely named temporary accounts and files and removes them
+afterwards, covering anonymous access, credential validation, registration-to-login, legacy
+account migration, role-appropriate navigation, private downloads, session rotation, form
+tokens, Unicode boundaries, concurrent sign-out and session reuse after logout. Run it only
+against a local development database.
 
 ## Purpose
 This project is the result of a semester's worth of collaboration among UMW students. The goal of the project was to create a web application that better suits the needs of Rappahannock CASA, specifically as a system to manage their donors. 
