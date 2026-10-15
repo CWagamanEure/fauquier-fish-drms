@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(2, true);
 // search_multi_criteria.php
 
 // 1. Include the database connection

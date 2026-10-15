@@ -93,6 +93,7 @@ fishnet_open('Add donor', 'donor', 'forms.css');
 
       <div class="split">
         <form class="card form-card" method="post" action="addDonor.php" novalidate>
+          <?php echo auth_csrf_field(); ?>
           <!-- Hidden default button: pressing Enter in a field saves normally instead of triggering "Save & add donation" -->
           <button type="submit" name="action" value="save" hidden></button>
 

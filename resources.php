@@ -1,6 +1,6 @@
 <?php
-session_cache_expire(30);
-session_start();
+require_once __DIR__ . '/include/auth.php';
+require_authentication(2);
 
 $loggedin = false;
 $accesslevel = 0;
@@ -91,16 +91,17 @@ require_once('header.php');
             <?php foreach ($pdfFiles as $pdf): ?>
                 <tr>
                     <td>
-                        <a href="<?php echo $target_dir . $pdf; ?>" target="_blank" class="text-blue-700 hover:underline">
+                        <a href="download.php?type=resources&amp;file=<?php echo rawurlencode($pdf); ?>" target="_blank" class="text-blue-700 hover:underline">
                             <?php echo htmlspecialchars($pdf); ?>
                         </a>
                     </td>
                     <td class="text-right">
-                        <a href="deleteResources.php?file=<?php echo urlencode($pdf); ?>"
-                           class="delete-button"
-                           onclick="return confirm('Are you sure you want to delete <?php echo addslashes($pdf); ?>?')">
-                            Delete
-                        </a>
+                        <form method="post" action="deleteResources.php" style="display:inline"
+                              onsubmit="return confirm('Are you sure you want to delete <?php echo htmlspecialchars(addslashes($pdf), ENT_QUOTES, 'UTF-8'); ?>?')">
+                            <?php echo auth_csrf_field(); ?>
+                            <input type="hidden" name="file" value="<?php echo htmlspecialchars($pdf, ENT_QUOTES, 'UTF-8'); ?>">
+                            <button type="submit" class="delete-button">Delete</button>
+                        </form>
                     </td>
                 </tr>
             <?php endforeach ?>
@@ -116,6 +117,7 @@ require_once('header.php');
 
         <!-- Upload Form -->
         <form action="uploadResources.php" method="post" enctype="multipart/form-data" class="mt-10 w-[80%] bg-white p-6 rounded-xl border-2 border-gray-300 shadow-md">
+        <?php echo auth_csrf_field(); ?>
             <label for="fileToUpload" class="font-medium text-center">Select PDF to Upload:</label>
             <input type="file" name="fileToUpload" id="fileToUpload" accept="application/pdf" class="block mx-auto mb-4 border border-gray-300 p-2 rounded-md w-full">
 
