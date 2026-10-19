@@ -130,6 +130,35 @@ function donors_list($filter, $q, $sort, $page) {
             'filter' => $filter, 'sort' => $sort, 'per_page' => DONORS_PER_PAGE];
 }
 
+// The donor-picker shape used by addDonation.php (UF2-49): name, type and town plus the side-panel
+// figures. Email and phone are matched by donors_lookup() but never returned.
+function donor_lookup_row(array $r) {
+    $town = implode(', ', array_filter([(string) $r['city'], (string) $r['state']], 'strlen'));
+    return ['id' => (int) $r['id'], 'name' => $r['display_name'],
+            'type' => $r['donor_type'] === 'organization' ? 'Organization' : 'Individual',
+            'town' => $town, 'since' => $r['donor_since_date'] === null ? '' : substr($r['donor_since_date'], 0, 4),
+            'cash' => (float) $r['lifetime_cash'], 'items' => (int) $r['items_donated'],
+            'last_gift' => $r['last_gift_date'] ?? '', 'hours' => (float) $r['volunteer_hours']];
+}
+
+// Active, non-anonymous donors matching $q by name, email or phone (same rules as the donor list),
+// at most $limit, in donor_lookup_row() shape.
+function donors_lookup($q, $limit = 10) {
+    [$where, $types, $values] = donors_list_where('all', $q);
+    $con = connect();
+    $stmt = $con->prepare("SELECT id, display_name, donor_type, city, state, donor_since_date, lifetime_cash,
+                                  items_donated, last_gift_date, volunteer_hours
+                           FROM donor_summary WHERE $where ORDER BY display_name, id LIMIT ?");
+    $types .= 'i';
+    $values[] = (int) $limit;
+    $stmt->bind_param($types, ...$values);
+    $stmt->execute();
+    $rows = array_map('donor_lookup_row', $stmt->get_result()->fetch_all(MYSQLI_ASSOC));
+    $stmt->close();
+    mysqli_close($con);
+    return $rows;
+}
+
 // One donor_summary row (active or not), or null.
 function donor_get($id) {
     $con = connect();

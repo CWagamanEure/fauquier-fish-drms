@@ -1,6 +1,21 @@
 <?php
-// Front-end: sample data is hard-coded below; replace it with database values.
+// Front-end: campaigns are still sample data. The donor step searches the real donors through
+// donorLookup.php (UF2-49); ?donor=<id> opens the form with that donor already chosen.
 require_once 'include/fishnet-layout.php';
+require_once 'include/permissions.php';
+require_once 'database/dbDonors.php';
+
+$canViewDonors = fish_can('donors', 'view');
+$canAddDonors = fish_can('donors', 'edit');
+$chosenDonor = null;
+$donorParam = fish_str($_GET, 'donor');
+if ($canViewDonors && ctype_digit($donorParam)) {
+  $row = donor_get((int) $donorParam);
+  if ($row && (int) $row['is_active'] === 1 && (int) $row['is_anonymous'] === 0) {
+    $chosenDonor = donor_lookup_row($row);
+  }
+}
+
 fishnet_open('Add donation', 'donations', 'donation.css');
 ?>
 
@@ -22,13 +37,17 @@ fishnet_open('Add donation', 'donations', 'donation.css');
             <legend>1 &middot; Donor</legend>
             <input type="hidden" name="donor" id="donorId">
 
+            <?php if (!$canViewDonors): ?>
+            <p class="meta" role="status">Your account cannot view donors, so it cannot record donations.</p>
+            <?php else: ?>
             <div class="donor-box" id="donorSearchBox">
-              <input type="text" id="donorSearch" placeholder="Search donors by name..." autocomplete="off">
-              <!-- need code  to make this work to slect from exsisting or make a new donor-->
-              <a href="newDonor.php" class="link">+Add</a>
-              <ul class="results" id="donorResults" hidden></ul>
+              <input type="text" id="donorSearch" placeholder="Search donors by name, email or phone..." autocomplete="off" aria-label="Search donors" aria-controls="donorResults">
+              <?php if ($canAddDonors): ?>
+              <a href="addDonor.php" class="link">+Add</a>
+              <?php endif; ?>
+              <ul class="results" id="donorResults" aria-live="polite" hidden></ul>
             </div>
-            <!-- for test we need to type jhon for this to werk-->
+            <?php endif; ?>
             <div class="donor-box chosen" id="donorChosen" hidden>
               <span class="initials" id="chosenInitials"></span>
               <div>
@@ -116,15 +135,13 @@ fishnet_open('Add donation', 'donations', 'donation.css');
         <aside class="side">
           <div class="card summary" id="donorSummary" hidden>
             <h3 id="sumName"></h3>
-            <!--  this will need code and a connection to the data base this information is fake for example -->
             <dl>
               <dt>Lifetime cash</dt><dd id="sumCash"></dd>
               <dt>Lifetime items</dt><dd id="sumItems"></dd>
               <dt>Last gift</dt><dd id="sumLast"></dd>
-              <dt>Volunteers linked</dt><dd id="sumVol"></dd>
+              <dt>Volunteer hours</dt><dd id="sumVol"></dd>
             </dl>
-            <!-- this will need code to take the user to this persons profile in a new tab -->
-            <a href="#" id="sumProfile" class="link">View full profile &rarr;</a>
+            <a href="#" id="sumProfile" class="link" target="_blank" rel="noopener">View full profile &rarr;</a>
           </div>
           <!-- this will need code and a connection this is not real data  -->
           <div class="card campaign" id="campaignCard" hidden>
@@ -138,7 +155,7 @@ fishnet_open('Add donation', 'donations', 'donation.css');
       </form>
 
 <script>
-const DONORS = {"main-st-church":{"name":"Main St. Church","type":"Organization","town":"Warrenton, VA","since":2019,"cash":4250,"items":1870,"lastGift":"Aug 12, 2026","volunteers":6},"jhon-rangel":{"name":"Jhon D. Rangel Duran","type":"Individual","town":"Warrenton, VA","since":2021,"cash":11250.74,"items":40,"lastGift":"Oct 3, 2026","volunteers":0},"oak-ridge":{"name":"Oak Ridge Elementary","type":"Organization","town":"Bealeton, VA","since":2022,"cash":800,"items":610,"lastGift":"Oct 2, 2026","volunteers":3},"warrenton-rotary":{"name":"Warrenton Rotary","type":"Organization","town":"Warrenton, VA","since":2017,"cash":9500,"items":0,"lastGift":"Oct 1, 2026","volunteers":12}};
+const CHOSEN_DONOR = <?= json_encode($chosenDonor, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 const CAMPAIGNS = {"Thanksgiving Food Drive":[2000,1240],"Winter Coat Drive":[500,120],"General Fund":[0,0]};
 </script>
 <script src="js/addDonation.js"></script>

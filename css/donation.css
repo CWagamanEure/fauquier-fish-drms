@@ -70,10 +70,14 @@
   max-height: 260px;
   overflow-y: auto;
 }
-.results li { padding: 10px 16px; cursor: pointer; }
-.results li:hover { background: #eef5f6; }
+.results li.none { padding: 10px 16px; color: var(--muted); }
+/* each result is a button so it can be reached with Tab and chosen with Enter */
+.results li button {
+  display: block; width: 100%; padding: 10px 16px;
+  border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer;
+}
+.results li button:hover, .results li button:focus-visible { background: #eef5f6; outline: none; }
 .results li small { color: var(--muted); margin-left: 6px; }
-.results li.none { color: var(--muted); cursor: default; }
 
 /* Type choices */
 .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
