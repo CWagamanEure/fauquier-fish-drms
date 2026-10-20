@@ -63,12 +63,15 @@
                   <?php foreach (FISH_PERMISSION_ACTIONS as $action):
                     $never = in_array($action, FISH_USER_NEVER[$area] ?? [], true);
                     // Locked cells are not posted. A changed role on an error page draws the new role's
-                    // presets disabled: the server writes those and ignores any box.
+                    // presets disabled: the server writes those and ignores any box. data-locked (kept
+                    // disabled by the JavaScript whatever the select says) follows the stored account:
+                    // own account, or an admin whose users row the server forces to the preset.
                     $locked = ($area === 'users' && ($lockRole || $form['role'] === 'admin'))
-                      || (!$isNew && $form['role'] !== $storedRole); ?>
+                      || (!$isNew && $form['role'] !== $storedRole);
+                    $keepLocked = $area === 'users' && ($lockRole || (!$isNew && $storedRole === 'admin')); ?>
                   <td><?php if ($never): ?>&mdash;<?php else: ?>
                     <input type="checkbox" name="perm[<?= $area ?>][<?= $action ?>]" aria-label="<?= h(user_area_label($area) . ' ' . $action) ?>"
-                           <?= !empty($matrix[$area][$action]) ? 'checked' : '' ?> <?= $locked ? 'disabled' : '' ?><?= $area === 'users' && ($lockRole || $form['role'] === 'admin') ? ' data-locked="1"' : '' ?>>
+                           <?= !empty($matrix[$area][$action]) ? 'checked' : '' ?> <?= $locked ? 'disabled' : '' ?><?= $keepLocked ? ' data-locked="1"' : '' ?>>
                   <?php endif; ?></td>
                   <?php endforeach; ?>
                 </tr>

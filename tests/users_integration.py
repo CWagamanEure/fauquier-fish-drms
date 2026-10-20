@@ -408,6 +408,13 @@ class UsersPagesTests(unittest.TestCase):
         self.assertIn('name="preset_role" value="manager"', body)
         # Those preset boxes are drawn disabled: Save ignores them on a role change.
         self.assertIn("disabled", re.search(r'name="perm\[donors\]\[view\]"[^>]*>', body).group(0), "boxes not disabled")
+        # An error page drawn for a promotion to admin disables the users row but does not mark it
+        # data-locked (the stored account is not an admin), so the script re-enables it on revert.
+        status, _, body = self.post(admin, path, self.user_form({**viewer, "role": "admin"}, first=""))
+        self.assertEqual(status, 200)
+        users_view = re.search(r'name="perm\[users\]\[view\]"[^>]*>', body).group(0)
+        self.assertIn("disabled", users_view)
+        self.assertNotIn("data-locked", users_view)
         self.assertEqual(fixture("user_read", id=viewer["id"]), before)
         # Give the account a custom row, then: from the error page the select is put back to the stored
         # role but the boxes were drawn for manager (JavaScript disables them, so none are posted). The

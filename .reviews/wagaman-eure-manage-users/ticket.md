@@ -166,8 +166,11 @@ In:
     deactivate blocks login, ends the open session on its next request, shows Inactive, leaves the donor
     the (staff) user created in place; reactivate restores login; password change makes the old
     password fail and the new one work; self-deactivate, demoting/deactivating the last non-vmsroot
-    admin, and a manager with `users` edit touching an admin all return 403 and change nothing. Each
-    write POST's elapsed time is printed; it is asserted against the Jira limit (2 s add, 5 s
+    admin, and a manager with `users` edit touching an admin all return 403 and change nothing; an edit
+    validation error re-renders the username, the posted boxes (same role) or the new role's presets
+    disabled (changed role, users row without `data-locked` for a non-admin account), and a save with a
+    stale `preset_role` and no boxes writes the stored role's presets over a custom row; the edit aside
+    renders the Created date. Each write POST's elapsed time is printed; it is asserted against the Jira limit (2 s add, 5 s
     edit/password) only when `USERS_TIMING_STRICT=1` is set, so a slow CI runner cannot block PRs; the
     local run sets it and the PR records the times. All created rows (users, donor) are deleted in
     cleanup.
