@@ -1,0 +1,42 @@
+{
+  "mode": "ticket",
+  "subject": "wagaman-eure-ci-tests",
+  "round": 1,
+  "approved": true,
+  "auditors": [
+    {
+      "auditor": "security",
+      "approve": true,
+      "finding_count": 4
+    },
+    {
+      "auditor": "data",
+      "approve": true,
+      "finding_count": 4
+    },
+    {
+      "auditor": "correctness",
+      "approve": true,
+      "finding_count": 6
+    },
+    {
+      "auditor": "verification",
+      "approve": true,
+      "finding_count": 5
+    }
+  ],
+  "findings_by_severity": {
+    "medium": 7,
+    "high": 1,
+    "low": 11
+  },
+  "findings_by_status": {
+    "reported": 19
+  },
+  "accepted_highs": [
+    {
+      "title": "Pre-existing, out of scope: the compose init seed that CI will load appears to contain real donor contact records in a public repository",
+      "reason": "pre-existing content of sql/casadb.sql, out of scope; raised to the repo admin for a separate ticket"
+    }
+  ]
+}

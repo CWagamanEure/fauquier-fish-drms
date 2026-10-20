@@ -13,5 +13,6 @@
 ## Checks run
 
 - [ ] `make test-auth`
+- [ ] `tests` check green on this PR
 - [ ] Verification plan from the ticket draft
 - [ ] Teammates must run `make dev` after merging: yes / no
