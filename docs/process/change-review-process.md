@@ -38,8 +38,8 @@ everyone who can read the repository). The per-auditor approve flag is informati
    and committed.
 5. **Push and open the PR** using the template, linking both records. The pre-push hook refuses a push
    without a matching approval record. A human teammate still reviews the PR; the swarm comes before that
-   review, not instead of it. Branch protection requires the `tests` check (lint and the integration
-   suites, `.github/workflows/ci.yml`) and zero approving reviews, so the human review is expected rather
+   review, not instead of it. Branch protection requires the `tests` check once the admin applies it
+   (lint and the integration suites, `.github/workflows/ci.yml`) and zero approving reviews, so the human review is expected rather
    than enforced; raise `required_approving_review_count` to 1 in `docs/process/branch-protection.json`
    and re-apply it to enforce it. The `record` check still runs and reports but does not block since
    2026-10-20 (see Enforcement).
@@ -70,9 +70,12 @@ everyone who can read the repository). The per-auditor approve flag is informati
   them: it builds the compose stack on the runner, applies the migrations twice (they must be safe to
   re-run), loads the demo data, lints every tracked PHP file with `php -l`, runs `make test-auth`,
   `make test-donors` and `make test-gate`, and refuses a PR that edits or deletes a migration already on
-  the base branch. It needs nothing installed on the author's machine. Branch protection requires it
-  (`docs/process/branch-protection.json`, applied by the admin after the first green run on `dev`). The
-  job runs untrusted PR code, so it has no secrets, read-only permissions, and stays on `pull_request`.
+  the base branch. It needs nothing installed on the author's machine. `docs/process/branch-protection.json`
+  names it as the required check; the admin applies that after the first green run on `dev`. The job
+  runs untrusted PR code, so it has no secrets, read-only permissions, and stays on `pull_request`. A PR
+  runs the `ci.yml` from its own merge commit, so the check is only as strong as the review of changes
+  to that file while `required_approving_review_count` is 0; raising it to 1, or adding a
+  `.github/CODEOWNERS` entry for `.github/workflows/` with code-owner reviews required, closes that.
   `tests/auth_integration.py` guards only the pages listed in its `PROTECTED_PAGES`; pages added by PRs
   #10, #19 and #21 are not yet listed (follow-up ticket).
 - The record is a plain file, so the real control is the human reviewer confirming it is a genuine
