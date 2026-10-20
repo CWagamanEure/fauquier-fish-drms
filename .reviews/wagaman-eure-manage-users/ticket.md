@@ -86,9 +86,12 @@ In:
    layout with HTTP 404. Save rule, stated on the page: if the posted role differs from the stored role
    the permissions are reset to the new role's presets inside the same transaction as the role UPDATE and
    the posted checkboxes are ignored (matches the mockup footer "Changing the role resets permissions to
-   that role's defaults"); otherwise the posted checkboxes are saved as the user's rows (one
-   `INSERT ... ON DUPLICATE KEY UPDATE` per area; a missing checkbox is stored as 0, so unticking
-   revokes). Self-edit: when `id` is the signed-in user, the role select and the `users` row are rendered
+   that role's defaults"); if the role is unchanged but the hidden `preset_role` names another role (the
+   boxes were drawn for it, e.g. an error page re-rendered after a role change and then put back) the
+   stored role's presets are written, replacing any customised rows, which is what the page shows;
+   otherwise the posted checkboxes are saved as the user's rows (one `INSERT ... ON DUPLICATE KEY UPDATE`
+   per area; a missing checkbox is stored as 0, so unticking revokes). An error page re-rendered with a
+   changed role draws that role's presets disabled, since Save ignores the boxes. Self-edit: when `id` is the signed-in user, the role select and the `users` row are rendered
    disabled and the server takes role and the `users` row from the stored record, never from POST (no
    403, nothing reset). Admin accounts: the `users` row is locked to the admin preset (rendered disabled,
    forced server side), so an active admin always has effective `users` edit and the last-admin rule

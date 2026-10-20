@@ -406,10 +406,14 @@ class UsersPagesTests(unittest.TestCase):
         self.assertIn('<option value="manager" selected>', body)
         self.assertTrue(re.search(r'name="perm\[%s\]\[%s\]"[^>]*\schecked' % (area, action), body), "preset not shown")
         self.assertIn('name="preset_role" value="manager"', body)
+        # Those preset boxes are drawn disabled: Save ignores them on a role change.
+        self.assertIn("disabled", re.search(r'name="perm\[donors\]\[view\]"[^>]*>', body).group(0), "boxes not disabled")
         self.assertEqual(fixture("user_read", id=viewer["id"]), before)
-        # From that error page the select is put back to the stored role but the boxes were drawn for
-        # manager (JavaScript disables them, so none are posted): the stored role's presets are written,
-        # never an all-zero matrix.
+        # Give the account a custom row, then: from the error page the select is put back to the stored
+        # role but the boxes were drawn for manager (JavaScript disables them, so none are posted). The
+        # stored role's presets are written, replacing the custom row, never an all-zero matrix.
+        self.assertEqual(self.post(admin, path, {**self.user_form({**viewer, "role": "staff"}), "perm[reports][edit]": "on"})[0], 303)
+        self.assertEqual(fixture("user_read", id=viewer["id"])["perms"]["reports"][1], 1)
         form = self.user_form({**viewer, "role": "staff"}, first="Vera")
         form = {k: v for k, v in form.items() if not k.startswith("perm[")}
         form["preset_role"] = "manager"
