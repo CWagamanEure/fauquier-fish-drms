@@ -82,6 +82,9 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--teal); c
 .panel { border-width: 0; border-radius: 10px; padding: 22px 24px; }
 .panel h3 { font-size: 1.1rem; margin-bottom: 12px; }
 .panel p { font-size: 0.92rem; color: #2d4f6a; margin-bottom: 10px; line-height: 1.4; }
+.notice { background: #eef6f3; border: 1px solid #bcd9cf; color: #1c4a3f; border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; font-size: 0.95rem; }
+fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; display: contents; }
+.perms td input[type=checkbox] { width: 18px; height: 18px; }
 .panel.danger { border: 2px solid #e3a49c; }
 .facts { display: grid; grid-template-columns: 1fr auto; gap: 12px 10px; font-size: 0.9rem; }
 .facts dt { color: var(--muted); }

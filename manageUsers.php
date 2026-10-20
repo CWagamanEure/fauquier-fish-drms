@@ -1,79 +1,72 @@
 <?php
-// Front-end: sample data is hard-coded below; replace it with database values.
+// Manage Users: every staff account from dbpersons with its effective permissions (UF2-83, UF2-97).
 require_once 'include/fishnet-layout.php';
+require_once 'include/users-common.php';
+
+users_require_view();
+$canEdit = fish_can('users', 'edit');
+$isAdmin = users_current_is_admin();
+$loadError = false;
+$users = [];
+$notice = '';
+try {
+  $users = users_list();
+  $notice = users_saved_notice();
+} catch (mysqli_sql_exception $e) {
+  error_log('manageUsers.php: ' . $e->getMessage());
+  $loadError = true;
+}
+
+// Chips: the areas the account can add/edit, then view-only areas, or "None".
+function permission_chips(array $matrix) {
+  $edit = $view = [];
+  foreach ($matrix as $area => $cell) {
+    if ($cell['edit']) { $edit[] = user_area_label($area); }
+    elseif ($cell['view']) { $view[] = user_area_label($area); }
+  }
+  if (!$edit && !$view) { return '<span class="chip">None</span>'; }
+  $out = '';
+  foreach ($edit as $label) { $out .= '<span class="chip">' . h($label) . '</span>'; }
+  foreach ($view as $label) { $out .= '<span class="chip">' . h($label) . ' (view)</span>'; }
+  return $out;
+}
+$colours = ['teal', 'navy', 'sage', 'yellow', 'grey'];
+
 fishnet_open('Manage Users', 'users', 'donor.css');
 ?>
 
       <section class="page-head">
         <h1>Manage Users</h1>
-        <a href="addUser.php" class="btn btn-yellow">+ Add user</a>
+        <?php if ($canEdit): ?><a href="addUser.php" class="btn btn-yellow">+ Add user</a><?php endif; ?>
       </section>
+
+      <?php if ($notice !== ''): ?><div class="notice" role="status"><?= h($notice) ?></div><?php endif; ?>
+      <?php if ($loadError): ?><div class="notice" role="alert">Could not load users. Please try again shortly.</div><?php endif; ?>
 
       <section class="card table-card users-card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Permissions</th><th>Last login</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Permissions</th><th>Email</th><th>Status</th><th></th></tr></thead>
             <tbody>
+              <?php foreach ($users as $i => $u):
+                $name = users_full_name($u);
+                $link = rawurlencode($u['id']);
+                $manageable = $canEdit && ($u['role'] !== 'admin' || $isAdmin); ?>
               <tr>
-                <td><span class="initials teal">TC</span><strong>Tristan Chavez-Duran</strong></td>
-                <td>tchavezduran</td>
-                <td>Administrator</td>
-                <td><span class="chip">Admin</span><span class="chip">Donor Coord.</span></td>
-                <td>Today 3:52 PM</td>
-                <td><span class="status active">Active</span></td>
-                <td class="actions"><a href="editUser.php" class="edit">Edit</a><a href="userPassword.php" class="pw-link">Change password</a></td>
+                <td><span class="initials <?= $colours[$i % count($colours)] ?>"><?= h(initials($name)) ?></span><strong><?= h($name) ?></strong></td>
+                <td><?= h($u['id']) ?></td>
+                <td><?= h(user_role_label($u['role'])) ?></td>
+                <td><?= permission_chips($u['matrix']) ?></td>
+                <td><?= $u['email'] !== null && $u['email'] !== '' ? h($u['email']) : '&mdash;' ?></td>
+                <td><span class="status <?= $u['status'] === 'active' ? 'active' : 'off' ?>"><?= $u['status'] === 'active' ? 'Active' : 'Inactive' ?></span></td>
+                <td class="actions"><?php if ($manageable): ?><a href="editUser.php?id=<?= $link ?>" class="edit">Edit</a><a href="userPassword.php?id=<?= $link ?>" class="pw-link">Change password</a><?php else: ?><a href="editUser.php?id=<?= $link ?>" class="pw-link">View</a><?php endif; ?></td>
               </tr>
-              <tr>
-                <td><span class="initials navy">CW</span><strong>Cory Wagaman-Eure</strong></td>
-                <td>cwagaman</td>
-                <td>Administrator</td>
-                <td><span class="chip">Admin</span><span class="chip">Data imports</span></td>
-                <td>Today 11:08 AM</td>
-                <td><span class="status active">Active</span></td>
-                <td class="actions"><a href="editUser.php" class="edit">Edit</a><a href="userPassword.php" class="pw-link">Change password</a></td>
-              </tr>
-              <tr>
-                <td><span class="initials sage">JA</span><strong>James Andrews</strong></td>
-                <td>jandrews</td>
-                <td>Volunteer Coordinator</td>
-                <td><span class="chip">Volunteers</span><span class="chip">Campaigns</span></td>
-                <td>Oct 2, 2026</td>
-                <td><span class="status active">Active</span></td>
-                <td class="actions"><a href="editUser.php" class="edit">Edit</a><a href="userPassword.php" class="pw-link">Change password</a></td>
-              </tr>
-              <tr>
-                <td><span class="initials yellow">CC</span><strong>Charity Coleman</strong></td>
-                <td>ccoleman</td>
-                <td>Donor Coordinator</td>
-                <td><span class="chip">Donors</span><span class="chip">Donations</span></td>
-                <td>Oct 3, 2026</td>
-                <td><span class="status active">Active</span></td>
-                <td class="actions"><a href="editUser.php" class="edit">Edit</a><a href="userPassword.php" class="pw-link">Change password</a></td>
-              </tr>
-              <tr>
-                <td><span class="initials teal">DP</span><strong>Dana Price</strong></td>
-                <td>dprice</td>
-                <td>Treasurer</td>
-                <td><span class="chip">Reports</span><span class="chip">Donations (view)</span></td>
-                <td>Sep 30, 2026</td>
-                <td><span class="status active">Active</span></td>
-                <td class="actions"><a href="editUser.php" class="edit">Edit</a><a href="userPassword.php" class="pw-link">Change password</a></td>
-              </tr>
-              <tr>
-                <td><span class="initials grey">ME</span><strong>Mark Ellis</strong></td>
-                <td>mellis</td>
-                <td>Volunteer Coordinator</td>
-                <td><span class="chip">Volunteers</span></td>
-                <td>Jun 14, 2026</td>
-                <td><span class="status off">Inactive</span></td>
-                <td class="actions"><a href="editUser.php" class="edit">Edit</a><a href="userPassword.php" class="pw-link">Change password</a></td>
-              </tr>
+              <?php endforeach; ?>
             </tbody>
           </table>
         </div>
         <div class="pager">
-          <p>Showing 1&ndash;6 of 6 users</p>
-          <div class="pages"><a href="#" class="pg wide">&lsaquo; Previous</a><a href="#" class="pg on">1</a><a href="#" class="pg wide">Next &rsaquo;</a></div>
+          <p>Showing <?= count($users) ? '1&ndash;' . count($users) : '0' ?> of <?= count($users) ?> users</p>
         </div>
       </section>
 

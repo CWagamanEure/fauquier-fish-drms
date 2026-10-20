@@ -21,6 +21,7 @@ const FISHNET_LINKS = [
 // Login check: runs as soon as a page includes this file. include/auth.php owns the session
 // settings, the CSRF token and the redirect to login.php for anonymous visitors.
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/permissions.php';
 require_authentication(1);
 date_default_timezone_set('America/New_York');
 
@@ -93,6 +94,7 @@ function fishnet_open($pageTitle, $activePage, $pageCss = []) {
   <div class="layout">
     <nav class="sidebar">
 <?php foreach (FISHNET_LINKS as $key => [$href, $label]):
+	if ($key === 'users' && !fish_can('users', 'view')) { continue; }   // Manage Users needs the users area
 	$classes = trim(($key === $activePage ? 'active' : '') . ($key === 'users' ? ' manage' : '')); ?>
       <a href="<?= $href ?>"<?= $classes ? " class=\"$classes\"" : '' ?>><?= $label ?></a>
 <?php endforeach; ?>
