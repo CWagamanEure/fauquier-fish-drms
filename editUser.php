@@ -40,10 +40,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $form['username'] = $stored['id'];                   // never posted: the field is read-only
     if ($self) { $form['role'] = $stored['role']; }      // own role and users row come from the record
     $errors = user_form_validate($form, $stored);
-    // What Save writes, computed before validation so an error re-renders the posted boxes (a changed
-    // role resets to its presets, so the table shows those).
-    $matrix = in_array($form['role'], array_keys(FISH_USER_ROLES), true) && $form['role'] !== $stored['role']
-      ? user_matrix_normalise(role_presets()[$form['role']], $form['role']) : user_matrix_from_post($_POST, $form['role']);
+    // What Save writes, computed before validation so an error re-renders it. A changed role resets to
+    // its presets; so do boxes drawn for another role (preset_role, as addUser.php does: after an error
+    // page the select may have been put back without the boxes following). Otherwise the posted boxes.
+    $reset = isset(FISH_USER_ROLES[$form['role']])
+      && ($form['role'] !== $stored['role'] || fish_str($_POST, 'preset_role') !== $form['role']);
+    $matrix = $reset ? user_matrix_normalise(role_presets()[$form['role']], $form['role'])
+                     : user_matrix_from_post($_POST, $form['role']);
     if ($self) { $matrix['users'] = $stored['matrix']['users']; }
     if (!$errors) {
       $result = user_update($stored, $form, $matrix);
@@ -63,6 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $readOnly = !$canEdit;
 $isNew = false;
 $lockRole = $self;
+$storedRole = $stored['role'];
 $name = users_full_name($stored);
 $active = $stored['status'] === 'active';
 $notice = $readOnly

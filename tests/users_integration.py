@@ -405,7 +405,19 @@ class UsersPagesTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn('<option value="manager" selected>', body)
         self.assertTrue(re.search(r'name="perm\[%s\]\[%s\]"[^>]*\schecked' % (area, action), body), "preset not shown")
+        self.assertIn('name="preset_role" value="manager"', body)
         self.assertEqual(fixture("user_read", id=viewer["id"]), before)
+        # From that error page the select is put back to the stored role but the boxes were drawn for
+        # manager (JavaScript disables them, so none are posted): the stored role's presets are written,
+        # never an all-zero matrix.
+        form = self.user_form({**viewer, "role": "staff"}, first="Vera")
+        form = {k: v for k, v in form.items() if not k.startswith("perm[")}
+        form["preset_role"] = "manager"
+        self.assertEqual(self.post(admin, path, form)[0], 303)
+        self.assertEqual(fixture("user_read", id=viewer["id"])["perms"], self.presets["staff"])
+        _, body = self.get(admin, path)
+        self.assertIn('data-stored-role="staff"', body)
+        self.assertTrue(re.search(r"<dt>Created</dt><dd>[A-Z][a-z]{2} \d{1,2}, \d{4}</dd>", body), "Created date missing")
 
         # The admin edits their own account: no 403, role and users row untouched, data_import delete stays 0.
         own = self.user_form(self.users["admin"], email=f"{self.users['admin']['id']}.own@example.test")

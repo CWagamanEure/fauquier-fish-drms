@@ -1,8 +1,8 @@
 <?php
 // Account + role + permissions fieldsets shared by addUser.php and editUser.php. Expects $form (first,
 // last, email, role, and username for a new account), $matrix (area => action => 0|1), $errors,
-// $readOnly (bool), $isNew (bool), $lockRole (bool: the signed-in user's own account), $notice (string).
-$presets = role_presets();
+// $readOnly (bool), $isNew (bool), $lockRole (bool: the signed-in user's own account), $notice (string),
+// $storedRole (the account's current role; edit only).
 ?>
           <?php if ($notice !== ''): ?>
           <div class="notice" role="status"><?= h($notice) ?></div>
@@ -55,7 +55,7 @@ $presets = role_presets();
 
           <div class="group">
             <p class="group-title">Permissions</p>
-            <div class="table-wrap"><table class="perms" id="permTable" data-is-new="<?= $isNew ? '1' : '0' ?>">
+            <div class="table-wrap"><table class="perms" id="permTable" data-is-new="<?= $isNew ? '1' : '0' ?>" data-stored-role="<?= h($isNew ? '' : $storedRole) ?>">
               <thead><tr><th>Area</th><th>View</th><th>Add / edit</th><th>Delete</th></tr></thead>
               <tbody>
                 <?php foreach (FISH_USER_AREAS as $area): ?>
