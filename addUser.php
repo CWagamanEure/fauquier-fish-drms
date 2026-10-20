@@ -49,13 +49,13 @@ fishnet_open('Add user', 'users', 'forms.css');
         </div>
       </section>
 
-      <form method="post" action="addUser.php" class="single" novalidate>
+      <form method="post" action="addUser.php" class="single">
         <?= auth_csrf_field() ?>
         <div class="card form-card">
           <?php require 'include/userForm.php'; ?>
           <div class="spacer"></div>
           <footer class="form-foot">
-            <p class="muted small-text">The new user can sign in as soon as the account is saved.</p>
+            <p class="muted small-text">Changing the role resets permissions to that role&rsquo;s defaults.</p>
             <div class="foot-btns">
               <a href="manageUsers.php" class="btn btn-outline small">Cancel</a>
               <?php if (!$readOnly): ?><button type="submit" class="btn btn-yellow small wide">Create user</button><?php endif; ?>

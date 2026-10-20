@@ -17,7 +17,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $password = $_POST['new_password'] ?? '';
   $errors = user_password_validate($password, $_POST['confirm_password'] ?? '');
   if (!$errors) {
-    if (change_password($target['id'], password_hash($password, PASSWORD_BCRYPT))) {
+    try {
+      $ok = change_password($target['id'], password_hash($password, PASSWORD_BCRYPT));
+    } catch (mysqli_sql_exception $e) {
+      users_log_fault('userPassword.php', $e);
+      $ok = false;
+    }
+    if ($ok) {
       header('Location: manageUsers.php?user=' . $link . '&did=password', true, 303);
       exit;
     }
@@ -39,7 +45,7 @@ fishnet_open('Change password', 'users', 'forms.css');
         </div>
       </section>
 
-      <form class="split" method="post" action="userPassword.php?id=<?= $link ?>" novalidate>
+      <form class="split" method="post" action="userPassword.php?id=<?= $link ?>">
         <?= auth_csrf_field() ?>
         <div class="card form-card narrow">
           <div class="user-chip">
@@ -80,9 +86,8 @@ fishnet_open('Change password', 'users', 'forms.css');
         <aside class="side">
           <div class="card panel">
             <h3>Who can do this</h3>
-            <p>Administrators can set a new password for any account. Other staff with the Users permission can do so for non-administrator accounts only. Everyone can change their own password from their profile.</p>
-            <p>At least <?= FISH_USER_PASSWORD_MIN ?> characters. The new password is not emailed: share it with the user directly.</p>
-            <p>The change updates the account&rsquo;s &ldquo;Last updated&rdquo; time. It does not sign the user out of sessions already open, and no password history is kept.</p>
+            <p>Administrators can reset anyone&rsquo;s password. Other staff can only change their own from their profile menu.</p>
+            <p>At least <?= FISH_USER_PASSWORD_MIN ?> characters. Share the new password with the user directly.</p>
           </div>
         </aside>
       </form>

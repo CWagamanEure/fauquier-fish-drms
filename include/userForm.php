@@ -21,11 +21,9 @@ $presets = role_presets();
               <div class="field"><label for="fn">First name *</label><input id="fn" name="first" value="<?= h($form['first']) ?>" maxlength="100" required></div>
               <div class="field"><label for="ln">Last name *</label><input id="ln" name="last" value="<?= h($form['last']) ?>" maxlength="100" required></div>
               <?php if ($isNew): ?>
-              <div class="field"><label for="un">Username *</label><input id="un" name="username" value="<?= h($form['username']) ?>" pattern="[A-Za-z0-9._-]{3,64}" autocomplete="off" required>
-                <p class="muted small-text">3 to 64 letters, digits, dots, underscores or hyphens. Cannot be changed later.</p></div>
+              <div class="field"><label for="un">Username *</label><input id="un" name="username" value="<?= h($form['username']) ?>" pattern="[A-Za-z0-9._-]{3,64}" title="3 to 64 letters, digits, dots, underscores or hyphens" autocomplete="off" required></div>
               <?php else: ?>
-              <div class="field"><label for="un">Username</label><input id="un" value="<?= h($form['username']) ?>" readonly>
-                <p class="muted small-text">Usernames cannot be changed: they identify the account in every record and session.</p></div>
+              <div class="field"><label for="un">Username *</label><input id="un" value="<?= h($form['username']) ?>" readonly></div>
               <?php endif; ?>
               <div class="field"><label for="em">Work email *</label><input type="email" id="em" name="email" value="<?= h($form['email']) ?>" maxlength="255" required></div>
             </div>
@@ -38,7 +36,6 @@ $presets = role_presets();
               <div class="field"><label for="pw1">Password *</label><input type="password" id="pw1" name="new_password" autocomplete="new-password" minlength="<?= FISH_USER_PASSWORD_MIN ?>" required></div>
               <div class="field"><label for="pw2">Confirm password *</label><input type="password" id="pw2" name="confirm_password" autocomplete="new-password" required></div>
             </div>
-            <p class="muted small-text">At least <?= FISH_USER_PASSWORD_MIN ?> characters. Share it with the new user directly; it is not emailed.</p>
           </div>
           <?php endif; ?>
 
@@ -51,7 +48,6 @@ $presets = role_presets();
                   <option value="<?= $value ?>"<?= $form['role'] === $value ? ' selected' : '' ?><?= $value === 'admin' && !users_current_is_admin() && $form['role'] !== 'admin' ? ' disabled' : '' ?>><?= h($label) ?></option>
                   <?php endforeach; ?>
                 </select>
-                <?php if ($lockRole): ?><p class="muted small-text">You cannot change your own role.</p><?php endif; ?>
               </div>
             </div>
             <input type="hidden" name="preset_role" value="<?= h($form['role']) ?>">
@@ -59,10 +55,6 @@ $presets = role_presets();
 
           <div class="group">
             <p class="group-title">Permissions</p>
-            <p class="muted small-text" id="permNote" data-same="<?= $isNew ? 'Boxes start from the role&rsquo;s defaults; adjust them before saving.' : 'Adjust the boxes and save.' ?>"
-               data-reset="Permissions will be reset to the new role&rsquo;s defaults when you save.">
-              <?= $isNew ? 'Boxes start from the role&rsquo;s defaults; adjust them before saving.' : 'Changing the role resets permissions to that role&rsquo;s defaults.' ?>
-            </p>
             <div class="table-wrap"><table class="perms" id="permTable" data-is-new="<?= $isNew ? '1' : '0' ?>">
               <thead><tr><th>Area</th><th>View</th><th>Add / edit</th><th>Delete</th></tr></thead>
               <tbody>
@@ -80,7 +72,6 @@ $presets = role_presets();
                 <?php endforeach; ?>
               </tbody>
             </table></div>
-            <p class="muted small-text">Administrators always keep the Users row. Data imports can never be deleted.</p>
           </div>
           </fieldset>
           <script type="application/json" id="permPresets"><?= users_presets_json() ?></script>

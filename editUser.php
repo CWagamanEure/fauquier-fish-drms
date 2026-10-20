@@ -64,7 +64,13 @@ $active = $stored['status'] === 'active';
 $notice = $readOnly
   ? ($stored['role'] === 'admin' && !users_current_is_admin() ? 'Only an administrator can change an administrator account.' : 'Your account can view users but not change them.')
   : '';
-function fmt_when($ts) { return $ts ? date('M j, Y g:i A', strtotime($ts)) : '&mdash;'; }
+// TIMESTAMP columns come back in the server's UTC session; show them in the app's time zone.
+function fmt_when($ts) {
+  if (!$ts) { return '&mdash;'; }
+  $when = new DateTime($ts, new DateTimeZone('UTC'));
+  $when->setTimezone(new DateTimeZone(date_default_timezone_get()));
+  return h($when->format('M j, Y'));
+}
 
 fishnet_open('Edit user', 'users', 'forms.css');
 ?>
@@ -72,18 +78,18 @@ fishnet_open('Edit user', 'users', 'forms.css');
       <section class="page-head">
         <div>
           <p class="crumbs"><a href="manageUsers.php">Manage Users</a> &rsaquo; <strong><?= h($name) ?></strong> &rsaquo; <strong>Edit</strong></p>
-          <h1><?= $readOnly ? 'User' : 'Edit user' ?></h1>
+          <h1>Edit user</h1>
         </div>
       </section>
 
-      <form class="split" method="post" action="editUser.php?id=<?= $link ?>" novalidate>
+      <form class="split" method="post" action="editUser.php?id=<?= $link ?>">
         <?= auth_csrf_field() ?>
         <div class="card form-card">
           <?php if (!$active): ?><div class="notice" role="status">This account is inactive: the user cannot sign in. Their records are kept.</div><?php endif; ?>
           <?php require 'include/userForm.php'; ?>
           <div class="spacer"></div>
           <footer class="form-foot">
-            <p class="muted small-text">Changes apply on the user&rsquo;s next request; they are not signed out.</p>
+            <p class="muted small-text">Changing the role resets permissions to that role&rsquo;s defaults.</p>
             <div class="foot-btns">
               <a href="manageUsers.php" class="btn btn-outline small">Cancel</a>
               <?php if (!$readOnly): ?><button type="submit" name="action" value="save" class="btn btn-yellow small wide">Save changes</button><?php endif; ?>
@@ -95,9 +101,10 @@ fishnet_open('Edit user', 'users', 'forms.css');
           <div class="card panel">
             <h3>Account info</h3>
             <dl class="facts">
-              <dt>Status</dt><dd><?= $active ? 'Active' : 'Inactive' ?></dd>
-              <dt>Record created</dt><dd><?= fmt_when($stored['created_at']) ?></dd>
-              <dt>Last updated</dt><dd><?= fmt_when($stored['updated_at']) ?></dd>
+              <dt>Created</dt><dd><?= fmt_when($stored['created_at']) ?></dd>
+              <dt>Last login</dt><dd>&mdash;</dd>
+              <dt>Password changed</dt><dd>&mdash;</dd>
+              <dt>Created by</dt><dd>&mdash;</dd>
             </dl>
           </div>
           <?php if (!$readOnly): ?>
@@ -108,7 +115,7 @@ fishnet_open('Edit user', 'users', 'forms.css');
           <?php if ($self): ?>
           <div class="card panel">
             <h3>Deactivate user</h3>
-            <p>You cannot deactivate your own account. Ask another administrator.</p>
+            <p>You cannot deactivate your own account.</p>
           </div>
           <?php elseif ($active): ?>
           <div class="card panel danger">

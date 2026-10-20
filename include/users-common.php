@@ -95,6 +95,7 @@ function user_form_validate(array $form, ?array $stored = null) {
 function user_password_validate($password, $confirm) {
     $errors = [];
     if (!is_string($password) || !is_string($confirm)) { return ['Enter the new password twice.']; }
+    if (strpos($password, "\0") !== false) { return ['Password contains an invalid character.']; }   // bcrypt stops at NUL
     if (mb_strlen($password, 'UTF-8') < FISH_USER_PASSWORD_MIN) { $errors[] = 'Password must be at least ' . FISH_USER_PASSWORD_MIN . ' characters.'; }
     if (strlen($password) > FISH_USER_PASSWORD_MAX) { $errors[] = 'Password is too long (' . FISH_USER_PASSWORD_MAX . ' bytes at most).'; }
     if ($password !== $confirm) { $errors[] = 'Passwords do not match.'; }

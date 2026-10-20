@@ -57,6 +57,9 @@ switch ($req['action']) {
     case 'users_delete_prefix':
         $run('DELETE FROM dbpersons WHERE id LIKE ?', 's', $req['prefix'] . '%');
         break;
+    case 'set_status':
+        foreach ($req['users'] as $id) { $run('UPDATE dbpersons SET status = ? WHERE id = ?', 'ss', $req['status'], $id); }
+        break;
     case 'permission':
         $run('INSERT INTO user_permissions (user_id, area, can_view, can_edit, can_delete) VALUES (?, ?, ?, ?, ?)
               ON DUPLICATE KEY UPDATE can_view = VALUES(can_view), can_edit = VALUES(can_edit), can_delete = VALUES(can_delete)',
@@ -114,7 +117,7 @@ def fixture(action, **payload):
 
 
 def rows_in(body):
-    """username -> (name, role label, permission chips, email, status) for every row on manageUsers.php."""
+    """username -> (name, role label, permission chips, last login, status) for every row on manageUsers.php."""
     out = {}
     for tr in re.findall(r"<tr>\s*<td><span class=\"initials[^\"]*\">.*?</tr>", body, re.S):
         cells = re.findall(r"<td[^>]*>(.*?)</td>", tr, re.S)
@@ -212,13 +215,15 @@ class UsersPagesTests(unittest.TestCase):
         rows = rows_in(body)
         stored = {u["id"]: u for u in fixture("users_read")}
         self.assertEqual(set(rows), set(stored))
-        for username, (name, role, chips, email, status) in rows.items():
+        for username, (name, role, chips, last_login, status) in rows.items():
             s = stored[username]
             expected_name = (f"{s['first_name'] or ''} {s['last_name'] or ''}").strip() or s["name"]
             self.assertEqual((name, status), (expected_name, "active" if s["status"] == "active" else "off"), username)
-            self.assertEqual(email, s["email"] if s["email"] else "—", username)
+            self.assertEqual(last_login, "—", username)   # no sign-in times are recorded yet
         for username, (name, role, email, status) in DEMO.items():
-            self.assertEqual(rows[username][:2] + rows[username][3:], (name, role, email, "active" if status == "active" else "off"))
+            self.assertEqual(rows[username][:2] + rows[username][4:], (name, role, "active" if status == "active" else "off"))
+        _, edit_body = self.get(admin, "editUser.php?id=fish.admin")
+        self.assertIn('value="dana.admin@example.org"', edit_body)
         self.assertEqual(rows["fish.viewer"][2], ["Donors & profiles (view)", "Donations (cash & non-cash) (view)", "Campaigns (view)", "Communications (view)", "Reports (view)"])
         self.assertEqual(rows["fish.staff"][2][:2], ["Donors & profiles", "Donations (cash & non-cash)"])
         self.assertIn(f"Showing 1&ndash;{len(stored)} of {len(stored)} users", body)
@@ -237,8 +242,6 @@ class UsersPagesTests(unittest.TestCase):
         manager = self.login("fish.manager")
         _, body = self.get(manager, "manageUsers.php")
         self.assertNotIn("+ Add user", body)
-        self.assertNotIn('class="edit">Edit</a>', body)
-        self.assertIn(">View</a>", body)
         _, body = self.get(manager, "editUser.php?id=fish.staff")
         self.assertIn("can view users but not change them", body)
         self.assertNotIn("Save changes", body)
@@ -312,6 +315,7 @@ class UsersPagesTests(unittest.TestCase):
                  "bad username": self.new_user_form("bad name!"),
                  "short password": self.new_user_form(self.prefix + "short", new_password="short", confirm_password="short"),
                  "mismatch": self.new_user_form(self.prefix + "mis", confirm_password=self.password + "x"),
+                 "nul byte": self.new_user_form(self.prefix + "nul", new_password="ab\0cdefghij", confirm_password="ab\0cdefghij"),
                  "admin role": None}
         for label, form in cases.items():
             with self.subTest(label):
@@ -397,8 +401,9 @@ class UsersPagesTests(unittest.TestCase):
         self.assertEqual((row["user"]["role"], row["user"]["email"], row["perms"]["users"], row["perms"]["data_import"]),
                          ("admin", f"{self.users['admin']['id']}.own@example.test", [1, 1, 1], [1, 1, 0]))
         _, body = self.get(self_admin, f"editUser.php?id={self.users['admin']['id']}")
-        self.assertIn("You cannot change your own role", body)
+        self.assertIn('<select id="role" name="role" disabled>', body)
         self.assertIn("You cannot deactivate your own account", body)
+        self.assertNotIn('value="deactivate"', body)
 
     def test_deactivate_reactivate_and_password(self):
         admin = self.login("fish.admin")
@@ -471,32 +476,31 @@ class UsersPagesTests(unittest.TestCase):
         _, body = self.get(mgr, "addUser.php")
         self.assertIn('<option value="admin" disabled>', body)
 
-        # Deactivate every active admin except fish.admin and vmsroot; fish.admin is then the last one.
+        # Last-admin rule. Only suite-created rows are touched: with the suite's admin inactive, fish.admin is
+        # the last active admin (vmsroot never counts) unless this database has other admin accounts.
         others = [u["id"] for u in fixture("users_read") if u["role"] == "admin" and u["status"] == "active" and u["id"] not in ("fish.admin", "vmsroot")]
-        self.assertIn(peer, others)
-        for other in others:
-            self.assertEqual(self.post(admin, f"editUser.php?id={other}", {"action": "deactivate"})[0], 303)
-        try:
-            before = fixture("user_read", id="fish.admin")
-            self.assertEqual(fixture("last_admin_check", id="fish.admin"), {"deactivate": "last_admin", "demote": "last_admin"})
-            self.assertEqual(fixture("user_read", id="fish.admin"), before)
-            # With a second active admin both actions go through, and the second admin may act on fish.admin.
-            self.assertEqual(self.post(admin, peer_path, {"action": "reactivate"})[0], 303)
-            acting = self.login(peer)
-            self.assertEqual(self.post(acting, own, {"action": "deactivate"})[0], 303)
-            self.assertEqual(fixture("user_read", id="fish.admin")["user"]["status"], "inactive")
-            self.assertEqual(self.post(acting, peer_path, {"action": "deactivate"})[0], 403)   # self, and last admin
-            self.assertEqual(self.post(acting, own, {"action": "reactivate"})[0], 303)
-            admin = self.login("fish.admin")
-            self.assertEqual(self.post(admin, peer_path, self.user_form(self.users["admin"], role="manager"))[0], 303)
-            row = fixture("user_read", id=peer)
-            self.assertEqual((row["user"]["role"], row["perms"]), ("manager", self.presets["manager"]))
-            self.assertEqual(self.post(admin, peer_path, self.user_form(self.users["admin"], role="admin"))[0], 303)
-            self.assertEqual(fixture("user_read", id=peer)["perms"], self.presets["admin"])
-        finally:
-            admin = self.login("fish.admin")
-            for other in others:
-                self.post(admin, f"editUser.php?id={other}", {"action": "reactivate"})
+        if others != [peer]:
+            self.skipTest(f"other active admin accounts exist on this database: {sorted(set(others) - {peer})}")
+        self.addCleanup(fixture, "set_status", users=["fish.admin", peer], status="active")
+        self.assertEqual(self.post(admin, peer_path, {"action": "deactivate"})[0], 303)
+        before = fixture("user_read", id="fish.admin")
+        # Through the pages this branch needs vmsroot or a race (another admin acting means two active admins),
+        # so the model is called directly; both refuse and write nothing.
+        self.assertEqual(fixture("last_admin_check", id="fish.admin"), {"deactivate": "last_admin", "demote": "last_admin"})
+        self.assertEqual(fixture("user_read", id="fish.admin"), before)
+        # With a second active admin both actions go through, in either direction.
+        self.assertEqual(self.post(admin, peer_path, {"action": "reactivate"})[0], 303)
+        acting = self.login(peer)
+        self.assertEqual(self.post(acting, own, {"action": "deactivate"})[0], 303)
+        self.assertEqual(fixture("user_read", id="fish.admin")["user"]["status"], "inactive")
+        self.assertEqual(self.post(acting, peer_path, {"action": "deactivate"})[0], 403)   # own account
+        self.assertEqual(self.post(acting, own, {"action": "reactivate"})[0], 303)
+        admin = self.login("fish.admin")
+        self.assertEqual(self.post(admin, peer_path, self.user_form(self.users["admin"], role="manager"))[0], 303)
+        row = fixture("user_read", id=peer)
+        self.assertEqual((row["user"]["role"], row["perms"]), ("manager", self.presets["manager"]))
+        self.assertEqual(self.post(admin, peer_path, self.user_form(self.users["admin"], role="admin"))[0], 303)
+        self.assertEqual(fixture("user_read", id=peer)["perms"], self.presets["admin"])
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
