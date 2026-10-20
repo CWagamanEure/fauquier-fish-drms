@@ -389,6 +389,22 @@ class UsersPagesTests(unittest.TestCase):
             status, _, body = self.post(admin, path, self.user_form({**viewer, "role": "staff"}, last="Updated", **bad))
             self.assertEqual(status, 200)
             self.assertIn('class="form-errors"', body)
+            # The error page keeps the read-only username and re-renders the posted role and boxes.
+            self.assertIn(f'value="{viewer["id"]}" readonly', body)
+            self.assertIn('<option value="staff" selected>', body)
+            self.assertTrue(re.search(r'name="perm\[donors\]\[edit\]"[^>]*\schecked', body), "posted box lost")
+        self.assertEqual(fixture("user_read", id=viewer["id"]), before)
+        # Same role, an extra ticked box and a blank name: the posted box survives the re-render.
+        status, _, body = self.post(admin, path, {**self.user_form({**viewer, "role": "staff"}, first=""), "perm[reports][edit]": "on"})
+        self.assertEqual(status, 200)
+        self.assertTrue(re.search(r'name="perm\[reports\]\[edit\]"[^>]*\schecked', body), "posted box lost")
+        # Changed role and a blank name: the table shows the new role's presets, which is what Save writes.
+        area, action = next((a, x) for a in AREAS for i, x in enumerate(("view", "edit", "delete"))
+                            if self.presets["manager"][a][i] and not self.presets["staff"][a][i])
+        status, _, body = self.post(admin, path, self.user_form({**viewer, "role": "manager"}, first=""))
+        self.assertEqual(status, 200)
+        self.assertIn('<option value="manager" selected>', body)
+        self.assertTrue(re.search(r'name="perm\[%s\]\[%s\]"[^>]*\schecked' % (area, action), body), "preset not shown")
         self.assertEqual(fixture("user_read", id=viewer["id"]), before)
 
         # The admin edits their own account: no 403, role and users row untouched, data_import delete stays 0.
@@ -441,6 +457,9 @@ class UsersPagesTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn("Passwords do not match", body)
         self.assertNotIn(new_password, body)
+        status, _, body = self.post(admin, pw_path, {"new_password": "Short!7", "confirm_password": "Short!7"})
+        self.assertEqual(status, 200)
+        self.assertIn("at least 8 characters", body)
         status, headers, _ = self.post(admin, pw_path, {"new_password": new_password, "confirm_password": new_password})
         self.assertEqual((status, headers["Location"]), (303, f"manageUsers.php?user={staff['id']}&did=password"))
         self.assertTrue(fixture("user_read", id=staff["id"])["user"]["password"].startswith("$2y$"))

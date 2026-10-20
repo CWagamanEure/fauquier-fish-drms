@@ -15,7 +15,7 @@ const FISH_USER_AREA_LABELS = [
 const FISH_USER_ROLES = ['admin' => 'Administrator', 'manager' => 'Manager', 'staff' => 'Staff', 'viewer' => 'Read only'];
 // Migration 001 / UF2-7: data imports are never deletable, whatever the admin ticks.
 const FISH_USER_NEVER = ['data_import' => ['delete']];
-const FISH_USER_COLUMNS = 'id, first_name, last_name, name, email, role, status, created_at, updated_at';
+const FISH_USER_COLUMNS = 'id, first_name, last_name, name, email, role, status, created_at, updated_at, UNIX_TIMESTAMP(created_at) AS created_ts';
 const FISH_USER_RECOVERY_ADMIN = 'vmsroot';   // excluded from the last-admin count; nobody may know its password
 
 function user_role_label($role) { return FISH_USER_ROLES[$role] ?? ucfirst((string) $role); }

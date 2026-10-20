@@ -78,8 +78,9 @@ Log in at `login.php` (username first, then password) and sign out with **Log Ou
 FISH NET top bar. Staff accounts live in `dbpersons`: `role` (admin / manager / staff /
 viewer) and `status` (active / inactive) come from migration 001, and `accessLevel`
 (1 standard, 2 manager, 3 super-admin) is kept in step with the role for the legacy page gate.
-Inactive accounts cannot log in, and every protected request re-reads the account, so
-deactivating a user or changing their role takes effect on their next request.
+Inactive accounts cannot log in, and every protected request re-reads the account and its
+permission rows, so deactivating a user or changing their role or per-area permissions takes
+effect on their next request; no session is terminated and no sign-out is needed.
 
 Login matches the HTML-encoded username representation used by registration, so users
 enter their original username, including punctuation. The first login step accepts any

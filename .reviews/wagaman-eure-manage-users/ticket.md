@@ -54,16 +54,18 @@ Facts that shape the design (verified in the tree):
 In:
 1. `manageUsers.php`: list every `dbpersons` row (active first, then inactive; by last name, first name,
    username). Columns: Name (initials + full name), Username, Role (display label), Permissions (one chip
-   per area the user can edit, "View only" chips for view-without-edit areas, "None" when nothing),
-   Email (replaces the mockup's "Last login", which has no data source; NULL renders as a dash), Status
-   (`Active` / `Inactive` with the existing `status active|off` badges), actions Edit and Change
-   password. Sort: `status` active first, then `COALESCE(last_name, name)`, `first_name`, `id`. Page
+   per area the user can edit, "(view)" chips for view-without-edit areas, "None" when nothing),
+   Last login (the mock-up column, rendered as a dash because no sign-in time is recorded; the email is
+   shown on the edit page), Status (`Active` / `Inactive` with the existing `status active|off` badges),
+   actions Edit and Change password on every row. Sort: `status` active first, then `COALESCE(last_name, name)`, `first_name`, `id`. Page
    requires `fish_can('users', 'view')`: otherwise HTTP 403 rendered inside the layout with the notice
    "Your account does not include Manage Users." (all four pages). `fishnet_open()` hides the sidebar
    "Manage Users" link when `fish_can('users', 'view')` is false (one-line change in
-   `include/fishnet-layout.php`, which now also requires `include/permissions.php`). "+ Add user",
-   "Edit" and "Change password" render only when `fish_can('users', 'edit')`. Pager line shows the real
-   count; no paging (tens of rows at most). Usernames in links and redirects are `rawurlencode()`d.
+   `include/fishnet-layout.php`, which now also requires `include/permissions.php`). "+ Add user"
+   renders only when `fish_can('users', 'edit')` (as `donor.php` hides its add button); Edit and Change
+   password stay on every row and those pages render read-only without the permission. Pager line shows
+   the real count with the mock-up's static page links; no paging (tens of rows at most). Usernames in
+   links and redirects are `rawurlencode()`d.
 2. `addUser.php` (UF2-86): fields first name, last name, username, email, role, password, confirm
    password, plus the seven-area permission table pre-filled from the chosen role's presets (default
    `staff`), plus a hidden `preset_role` naming the role those boxes were drawn from. On POST with
@@ -90,8 +92,9 @@ In:
    disabled and the server takes role and the `users` row from the stored record, never from POST (no
    403, nothing reset). Admin accounts: the `users` row is locked to the admin preset (rendered disabled,
    forced server side), so an active admin always has effective `users` edit and the last-admin rule
-   below counts effective access. Aside shows "Record created" and "Last updated" (from
-   `created_at`/`updated_at`; legacy rows carry migration 001's time), the Change password link and the
+   below counts effective access. Aside keeps the mock-up's four Account-info facts: Created (from
+   `UNIX_TIMESTAMP(created_at)`; legacy rows carry migration 001's time) and dashes for Last login,
+   Password changed and Created by (no data source), then the Change password link and the
    Deactivate/Reactivate control. Redirect 303 to `manageUsers.php?user=<username>&did=updated`.
 4. Deactivate / reactivate (UF2-97): POST `action=deactivate` sets `status = 'inactive'` (the trigger
    zeroes `accessLevel`; login refuses; existing session ends on its next request). `action=reactivate`
@@ -103,10 +106,9 @@ In:
    at least 8 characters (`mb_strlen`) and at most 72 bytes (`strlen`; bcrypt reads 72 bytes), must
    match the confirmation; stored with `password_hash(..., PASSWORD_BCRYPT)` via a parameterised
    `change_password()`. Password fields re-render empty on error and are never logged. Redirect 303 to
-   `manageUsers.php?user=<username>&did=password` ("Password updated for <name>."). The whole aside is
-   rewritten to match rule 6: who may change whose password (admins any account; a non-admin with
-   `users` edit only non-admin accounts), that the account's "Last updated" time changes, that no audit
-   log exists, and that the user's open sessions are not signed out (no session store to reach).
+   `manageUsers.php?user=<username>&did=password` ("Password updated for <name>."). The aside keeps the
+   mock-up copy minus the untrue "Every reset is logged" sentence, plus the length rule; its wording
+   about who may change passwords is left for the front-end owner (see the UI note below).
 6. Protection rules enforced server side on every write:
    - You cannot deactivate your own account (403). Your own role and your own `users` row are taken from
      the stored record on save (see item 3), so an ordinary edit of your own name or email succeeds.
@@ -216,8 +218,9 @@ Out:
 
 1. `manageUsers.php` as `fish.admin` renders one row per `dbpersons` row (the test compares with a
    SELECT through the fixture; on the current dev database that is 13 rows, a manual check only) with
-   real names, role labels, email (dash for NULL), Active/Inactive badges and a matching pager count; as
-   `fish.manager` the same list without Add/Edit/Change-password controls; as `fish.staff` or
+   real names, role labels, permission chips, a dash in Last login, Active/Inactive badges and a matching
+   pager count, and the edit page shows the email; as `fish.manager` the same list without "+ Add user",
+   with Edit and Change password rendering read-only and refusing POST with 403; as `fish.staff` or
    `fish.viewer` HTTP 403 inside the layout and no "Manage Users" sidebar link.
 2. Add user as admin: a `viewer` is created with exactly the viewer preset rows unless boxes were
    changed; the new account appears in the list, `name` equals "First Last", `accessLevel` follows the
@@ -235,8 +238,11 @@ Out:
    user entered (a donor they created) are untouched; reactivate restores login (UF2-97).
 6. Password: wrong confirmation or 7 characters re-renders with an error; a valid change makes the old
    password fail and the new one log in; POST under 5 s (UF2-84).
-7. Protection: self-deactivate, demoting or deactivating the only active non-vmsroot admin, and a
-   manager with `users` edit touching an admin account all return 403 and change nothing.
+7. Protection: self-deactivate and a manager with `users` edit touching an admin account return 403
+   through the pages and change nothing. Demoting or deactivating the only active non-vmsroot admin is
+   refused by `user_set_status()` / `user_update()` (tested through the `last_admin_check` fixture) and
+   `editUser.php` maps that result to 403; through the pages the case needs `vmsroot` or a race, because
+   an admin acting on another admin means two active admins.
 8. A logged-in POST without `csrf_token` to `addUser.php`, `editUser.php?id=` and `userPassword.php?id=`
    returns 403 "form has expired" and writes nothing (new test in `users_integration.py`; anonymous
    redirects stay covered by `test_anonymous_pages_and_mutation_handlers_require_login`).
@@ -301,3 +307,15 @@ Out:
 - Not adopted: making the users-edit path count effective access for non-admin accounts beyond the
   locked admin row (covered by the admin lock); the legacy test accounts and `vmsroot` credential remain
   data decisions (Out).
+
+## Amendment after code round 1 (UI scope)
+
+The user asked that the UI stay as the front-end mock-up (Tristan owns it) and only the data be wired.
+Items 1, 3 and 5 and criteria 1 and 7 above are reworded to match: the list keeps the mock-up columns
+(Last login as a dash), static pager links and Edit / Change password on every row; the edit aside keeps
+the four mock-up facts; the password aside keeps the mock-up copy. Changes the data forces and that
+Tristan should know about: four enum role options, seven permission rows with dash cells, an Initial
+password group on Add user, `?id=` links, Deactivate as a submit button, a Reactivate panel and inactive
+notice, the validation error block and saved notice, read-only rendering without the users edit
+permission, and the password aside's "Other staff can only change their own" sentence being incomplete
+(a non-admin with users edit can change non-admin passwords).

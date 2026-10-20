@@ -37,11 +37,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $errors[] = 'Could not update the user. Please try again.';
   } else {
     $form = user_form_from_post($_POST, $form);
+    $form['username'] = $stored['id'];                   // never posted: the field is read-only
     if ($self) { $form['role'] = $stored['role']; }      // own role and users row come from the record
     $errors = user_form_validate($form, $stored);
+    // What Save writes, computed before validation so an error re-renders the posted boxes (a changed
+    // role resets to its presets, so the table shows those).
+    $matrix = in_array($form['role'], array_keys(FISH_USER_ROLES), true) && $form['role'] !== $stored['role']
+      ? user_matrix_normalise(role_presets()[$form['role']], $form['role']) : user_matrix_from_post($_POST, $form['role']);
+    if ($self) { $matrix['users'] = $stored['matrix']['users']; }
     if (!$errors) {
-      $matrix = user_matrix_from_post($_POST, $form['role']);
-      if ($self) { $matrix['users'] = $stored['matrix']['users']; }
       $result = user_update($stored, $form, $matrix);
       if ($result === true) {
         header('Location: manageUsers.php?user=' . $link . '&did=updated', true, 303);
@@ -64,12 +68,9 @@ $active = $stored['status'] === 'active';
 $notice = $readOnly
   ? ($stored['role'] === 'admin' && !users_current_is_admin() ? 'Only an administrator can change an administrator account.' : 'Your account can view users but not change them.')
   : '';
-// TIMESTAMP columns come back in the server's UTC session; show them in the app's time zone.
+// created_ts is UNIX_TIMESTAMP(created_at), so the date does not depend on the database session zone.
 function fmt_when($ts) {
-  if (!$ts) { return '&mdash;'; }
-  $when = new DateTime($ts, new DateTimeZone('UTC'));
-  $when->setTimezone(new DateTimeZone(date_default_timezone_get()));
-  return h($when->format('M j, Y'));
+  return $ts ? h(date('M j, Y', (int) $ts)) : '&mdash;';
 }
 
 fishnet_open('Edit user', 'users', 'forms.css');
@@ -101,7 +102,7 @@ fishnet_open('Edit user', 'users', 'forms.css');
           <div class="card panel">
             <h3>Account info</h3>
             <dl class="facts">
-              <dt>Created</dt><dd><?= fmt_when($stored['created_at']) ?></dd>
+              <dt>Created</dt><dd><?= fmt_when($stored['created_ts']) ?></dd>
               <dt>Last login</dt><dd>&mdash;</dd>
               <dt>Password changed</dt><dd>&mdash;</dd>
               <dt>Created by</dt><dd>&mdash;</dd>
