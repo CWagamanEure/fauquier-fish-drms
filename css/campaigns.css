@@ -1,0 +1,143 @@
+/* Campaign pages: campaigns.php, addCampaign.php, campaign.php.
+   Loaded after fishnet.css plus donor.css (tables, pills, pager) and/or forms.css (form, tabs, panels). */
+
+/* ===== Type tags and status ===== */
+.ctype {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  white-space: nowrap;
+  vertical-align: middle;
+  background: #dfe6ee;
+  color: #2c4566;
+}
+.ctype.cash       { background: #cfe6ea; color: #1f5f6b; }
+.ctype.items      { background: #fbe9a6; color: #7a5a00; }
+.ctype.both       { background: #dfe6ee; color: #2c4566; }
+.ctype.volunteers { background: #dfeadb; color: #33602f; }
+.ctype.event      { background: #e4e5e7; color: #333; }
+
+.status.upcoming  { background: #dbe6f3; color: #2c4f7a; }
+.status.completed { background: #e4e5e7; color: #333; }
+
+/* ===== Progress bars ===== */
+.bar { height: 8px; border-radius: 999px; background: #e5e7e2; overflow: hidden; }
+.bar span { display: block; height: 100%; border-radius: 999px; background: var(--teal); }
+.bar span.done { background: #6e9a75; }
+.bar.yellow span { background: var(--yellow); }
+.bar.navy span { background: #3d5878; }
+
+.campaign-table td { vertical-align: middle; }
+.campaign-table td a strong:hover { text-decoration: underline; }
+.progress-cell { min-width: 230px; }
+.progress-top { display: flex; align-items: center; gap: 10px; }
+.progress-top .bar { flex: 1; }
+.progress-top strong { font-size: 0.85rem; min-width: 38px; text-align: right; }
+.progress-cell small { display: block; color: var(--muted); font-size: 0.8rem; margin-top: 4px; }
+
+/* ===== Add / edit form ===== */
+.plain-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 26px; }
+.g-basics { grid-template-columns: 2fr 1fr; }
+.g-goals  { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.g-dates  { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.top-gap  { margin-top: 16px; }
+.field textarea { resize: vertical; }
+
+.type-choices { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.type-choice { position: relative; cursor: pointer; }
+.type-choice input { position: absolute; opacity: 0; }
+.type-choice span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  height: 100%;
+  padding: 14px 16px 14px 44px;
+  border: 1.5px solid #b9bec5;
+  border-radius: 10px;
+  background: #fff;
+  position: relative;
+}
+.type-choice span::before {
+  content: "";
+  position: absolute;
+  left: 14px; top: 16px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: 2px solid #7d8590;
+  box-sizing: border-box;
+}
+.type-choice small { color: var(--muted); font-size: 0.85rem; }
+.type-choice input:checked + span { border: 2px solid var(--navy); background: #f1f1ec; }
+.type-choice input:checked + span::before { border: 6px solid var(--navy); }
+.type-choice input:focus-visible + span { outline: 2px solid var(--teal); outline-offset: 2px; }
+
+/* Goals that do not apply to the chosen type are hidden (campaigns.js also clears them). */
+.form-card:has(input[name="type"][value="cash"]:checked)       .goal-items,
+.form-card:has(input[name="type"][value="volunteers"]:checked) .goal-items,
+.form-card:has(input[name="type"][value="items"]:checked)      .goal-cash,
+.form-card:has(input[name="type"][value="volunteers"]:checked) .goal-cash { display: none; }
+
+/* Live preview */
+.preview-panel { background: var(--navy); color: #fff; }
+.preview-panel h3 { color: #fff; }
+.preview-card { background: #2a3d57; border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+.preview-panel p { color: #fff; margin: 0; }
+.pv-name { font-weight: bold; font-size: 1.1rem; }
+.preview-panel .pv-meta { font-size: 0.85rem; color: #c8d0da; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pv-goal small { display: block; color: #c8d0da; font-size: 0.8rem; margin: 2px 0; }
+.pv-goal .bar { background: #3d5878; }
+.preview-panel.is-cash .pv-goal.goal-items,
+.preview-panel.is-volunteers .pv-goal.goal-items,
+.preview-panel.is-items .pv-goal.goal-cash,
+.preview-panel.is-volunteers .pv-goal.goal-cash { display: none; }
+
+/* ===== Campaign detail ===== */
+.campaign-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 18px; border-width: 0; border-radius: 10px; padding: 24px 28px; }
+.campaign-head h1 { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.campaign-head h1 .status, .campaign-head h1 .ctype { font-size: 0.8rem; }
+.campaign-head .desc { color: var(--text); margin-top: 6px; }
+.head-btns { display: flex; gap: 10px; }
+
+.goal-tile .num { font-size: 1.7rem; }
+.goal-tile .bar { margin-top: 10px; }
+.goal-tile .sub { font-size: 0.85rem; color: var(--muted); margin-top: 6px; }
+
+/* Tabs: same look as the donor profile, new ids */
+#tGifts:checked ~ .tab-bar label[for="tGifts"],
+#tVols:checked  ~ .tab-bar label[for="tVols"],
+#tComms:checked ~ .tab-bar label[for="tComms"] { border-bottom-color: var(--teal); font-weight: bold; }
+#tGifts:checked ~ .tab-bar label[for="tGifts"] .count,
+#tVols:checked  ~ .tab-bar label[for="tVols"] .count,
+#tComms:checked ~ .tab-bar label[for="tComms"] .count { background: var(--navy); color: #fff; }
+#tGifts:checked ~ .p-gifts,
+#tVols:checked  ~ .p-vols,
+#tComms:checked ~ .p-comms { display: flex; }
+.campaign-tabs .p-vols, .campaign-tabs .p-comms { padding-top: 14px; }
+.tab-actions.left { justify-content: flex-start; }
+a.pill { display: inline-block; }
+
+.p-gifts td:nth-child(4) { white-space: normal; }
+.gifts-layout { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(240px, 1fr); gap: 28px; }
+.gift-side { padding-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+.gift-side h3 { font-size: 1rem; }
+.week-chart { display: flex; align-items: flex-end; gap: 12px; height: 160px; border-bottom: 1px solid #b9bec5; padding-top: 20px; margin-bottom: 8px; }
+.wk { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; position: relative; }
+.wk-bar { width: 100%; max-width: 48px; background: var(--teal); border-radius: 4px 4px 0 0; }
+.wk-bar.latest { background: var(--yellow); }
+.wk-val { font-size: 0.75rem; color: var(--muted); margin-bottom: 4px; }
+.wk-lbl { position: absolute; bottom: -20px; font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
+.week-chart + h3 { margin-top: 18px; }
+.top-row { display: flex; justify-content: space-between; font-size: 0.92rem; padding: 4px 0; }
+.top-row a:hover { text-decoration: underline; }
+
+/* ===== Smaller screens ===== */
+@media (max-width: 1100px) {
+  .type-choices, .g-goals, .g-dates { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .p-gifts td:last-child { white-space: normal; }
+.gifts-layout { grid-template-columns: 1fr; }
+}
+@media (max-width: 700px) {
+  .type-choices, .g-goals, .g-dates, .g-basics { grid-template-columns: 1fr; }
+}

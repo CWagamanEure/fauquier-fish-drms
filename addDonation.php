@@ -14,6 +14,7 @@ fishnet_open('Add donation', 'donations', 'donation.css');
 
       <!-- white space for the form -->
       <form class="donation-layout" method="post" id="donationForm">
+        <?= auth_csrf_field() ?>
 
         <div class="card form-card">
 

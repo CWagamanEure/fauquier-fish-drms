@@ -1,0 +1,81 @@
+# Lint and integration tests on every pull request into dev or main, and on every push to them.
+# Runs the same make targets a developer runs locally (README "Change review process"), inside the project's own
+# Docker Compose stack on the runner, so a PR needs no tooling on the author's machine.
+# The runner's database is sql/casadb.sql (compose init seed) plus every sql/migrations/*.sql plus
+# sql/seed/demo_fish.sql; .env.example must keep DB_SEED_FILE unset. The volume is fresh every run.
+# This job executes untrusted PR code (its Dockerfile, compose file and tests). It must never receive
+# secrets or write permissions and must stay on pull_request, never pull_request_target.
+# Branch protection on dev and main has required this check since 2026-10-20; its status-check name is the job name, "tests".
+# actions/checkout is pinned by major tag, as in review-gate.yml; both move to SHA pins together or not at all.
+name: ci
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Local-only defaults for the throwaway database
+        run: |
+          set -euo pipefail
+          cp .env.example .env
+          if grep -q '^DB_SEED_FILE=' .env; then echo "::error::.env.example must leave DB_SEED_FILE unset"; exit 1; fi
+      - name: Existing migrations are never edited or deleted
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          [ -n "$BASE" ] || { echo "::error::base SHA missing from the event"; exit 1; }
+          git cat-file -e "$BASE^{commit}" || { echo "::error::base commit $BASE not present in the checkout"; exit 1; }
+          changed=$(git diff --name-status --diff-filter=MDRT "$BASE"...HEAD -- sql/migrations)
+          if [ -n "$changed" ]; then
+            echo "$changed"
+            echo "::error::sql/migrations files already on the base branch were changed; add a new migration instead (sql/README.md)."
+            exit 1
+          fi
+      - name: Build and start web and db
+        run: docker compose up -d --build --wait --wait-timeout 180 web db
+      - name: Apply migrations and load the demo data
+        run: make seed-demo
+      - name: Migrations are safe to re-run
+        # make migrate skips applied files by checksum, so it proves nothing here. Each migration is
+        # replayed directly against the migrated database; a non-idempotent statement fails the step.
+        run: |
+          set -euo pipefail
+          make migrate
+          for f in sql/migrations/[0-9][0-9][0-9]_*.sql; do
+            echo "replaying $f"; scripts/db-sql.sh < "$f"
+          done
+      - name: PHP syntax check (tracked .php files, same PHP as production)
+        run: |
+          set -euo pipefail
+          # The container's sh is dash: no bash-isms here. xargs exits non-zero when any php -l fails,
+          # and every broken file is reported because each file gets its own invocation.
+          count=$(git ls-files -- '*.php' | wc -l)
+          [ "$count" -gt 0 ] || { echo "::error::no tracked PHP files found"; exit 1; }
+          echo "linting $count tracked PHP files"
+          git ls-files -z -- '*.php' | docker compose exec -T web xargs -0 -n1 sh -c 'out=$(php -l "$1" 2>&1) || { echo "$out"; exit 1; }' _
+      - name: Login and page guard tests
+        run: make test-auth
+      - name: Donor page tests
+        run: make test-donors
+      - name: Review gate tests
+        run: make test-gate
+      - name: Service state and logs
+        if: failure()
+        run: |
+          docker compose ps
+          docker compose logs --no-color --tail=200
