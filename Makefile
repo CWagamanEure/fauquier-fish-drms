@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help dev stop logs status migrate seed-demo db-shell test-auth hooks test-gate test-donors
+.PHONY: help dev stop logs status migrate seed-demo db-shell test-auth hooks test-gate test-donors test-users
 
 help:
 	@echo "make dev        Build and start the Docker app and database, then apply migrations"
@@ -11,6 +11,7 @@ help:
 	@echo "make db-shell   Open a mariadb shell in the db container"
 	@echo "make test-auth  Run the login/logout integration tests against the local stack"
 	@echo "make test-donors Run the donor page integration tests (needs make seed-demo)"
+	@echo "make test-users Run the Manage Users page integration tests (needs make seed-demo)"
 	@echo "make hooks      Point git at .githooks (pre-push review gate); make dev does this too"
 	@echo "make test-gate  Test the pre-push review gate in a temporary repository"
 
@@ -59,3 +60,6 @@ test-gate:
 
 test-donors:
 	docker compose exec -T web python tests/donors_integration.py
+
+test-users:
+	docker compose exec -T -e USERS_TIMING_STRICT web python tests/users_integration.py
