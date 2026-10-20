@@ -110,7 +110,8 @@ With `make dev` running, `make test-auth` runs `tests/auth_integration.py` again
 PHP/MariaDB stack. It creates uniquely named temporary accounts and files and removes them
 afterwards, covering anonymous access, credential validation, registration-to-login, legacy
 account migration, role-appropriate navigation, private downloads, session rotation, form
-tokens, Unicode boundaries, concurrent sign-out and session reuse after logout. `make test-donors`
+tokens, Unicode boundaries, concurrent sign-out and session reuse after logout, and that every PHP
+entry point is listed as protected or explicitly unguarded. `make test-donors`
 (after `make seed-demo`) runs `tests/donors_integration.py`: the donor list, profile tabs, add, edit,
 deactivate and reactivate against the real tables, plus the per-role write gate. Run both only
 against a local development database.

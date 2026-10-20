@@ -12,6 +12,7 @@ fishnet_open('Edit user', 'users', 'forms.css');
       </section>
 
       <form class="split" method="post">
+        <?= auth_csrf_field() ?>
         <div class="card form-card">
           <div class="group">
             <p class="group-title">Account</p>
