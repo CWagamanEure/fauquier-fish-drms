@@ -12,6 +12,7 @@ fishnet_open('Change password', 'users', 'forms.css');
       </section>
 
       <form class="split" method="post">
+        <?= auth_csrf_field() ?>
         <div class="card form-card narrow">
           <div class="user-chip">
             <span class="initials yellow">CC</span>

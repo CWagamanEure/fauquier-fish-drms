@@ -67,17 +67,20 @@ everyone who can read the repository). The per-auditor approve flag is informati
   exempt, whatever their branch is called. The PR template only appears once it exists on the default
   branch.
 - `.github/workflows/ci.yml` (job `tests`) runs on every PR into `dev` or `main` and on every push to
-  them: it builds the compose stack on the runner, applies the migrations twice (they must be safe to
-  re-run), loads the demo data, lints every tracked PHP file with `php -l`, runs `make test-auth`,
+  them: it builds the compose stack on the runner, applies the migrations, loads the demo data, replays
+  every migration file against the migrated database (they must be safe to re-run), lints every tracked
+  PHP file with `php -l`, runs `make test-auth`,
   `make test-donors` and `make test-gate`, and refuses a PR that edits or deletes a migration already on
   the base branch. It needs nothing installed on the author's machine. `docs/process/branch-protection.json`
-  names it as the required check; the admin applies that after the first green run on `dev`. The job
+  names it as the required check (applied to `dev` and `main` on 2026-10-20). The job
   runs untrusted PR code, so it has no secrets, read-only permissions, and stays on `pull_request`. A PR
   runs the `ci.yml` from its own merge commit, so the check is only as strong as the review of changes
   to that file while `required_approving_review_count` is 0; raising it to 1, or adding a
   `.github/CODEOWNERS` entry for `.github/workflows/` with code-owner reviews required, closes that.
-  `tests/auth_integration.py` guards only the pages listed in its `PROTECTED_PAGES`; pages added by PRs
-  #10, #19 and #21 are not yet listed (follow-up ticket).
+  `tests/auth_integration.py` checks the pages listed in `PROTECTED_PAGES` and `PROTECTED_APIS`, and
+  its `test_every_entry_point_is_listed` fails when a PHP file at the top level or under `python/`,
+  `reportGeneration/` or `ai-email-gen/` is in neither list nor `KNOWN_UNGUARDED`, so a new page must be
+  listed (and guarded, or explicitly recorded as unguarded) before `tests` goes green.
 - The record is a plain file, so the real control is the human reviewer confirming it is a genuine
   workflow output (rounds, auditors, finding counts, the reviewed commit) and not hand-written.
 - The repository is public. Only the ticket, the responses files and the `*-approved.json` stubs are
@@ -92,10 +95,10 @@ everyone who can read the repository). The per-auditor approve flag is informati
 
 ## After merging
 
-1. Branch protection is already applied to `dev` and `main` (2026-10-15) with the settings in
-   `docs/process/branch-protection.json`: pull request required, status check `tests` required (was
-   `record` until 2026-10-20), administrators included, no force pushes or deletions, `strict` off. To
-   apply after the first green `tests` run on `dev`, re-apply, or copy to another branch: `gh api -X PUT repos/<owner>/<repo>/branches/<branch>/protection --input docs/process/branch-protection.json`.
+1. Branch protection is applied to `dev` and `main` (2026-10-15, `tests` required since 2026-10-20) with
+   the settings in `docs/process/branch-protection.json`: pull request required, status check `tests`
+   required, administrators included, no force pushes or deletions, `strict` off. To re-apply, or copy
+   to another branch: `gh api -X PUT repos/<owner>/<repo>/branches/<branch>/protection --input docs/process/branch-protection.json`.
 2. Everyone runs `make dev` (installs the hook, rebuilds the web image for the Apache rules).
 3. Branches already in flight: merge `dev`, add
    `.reviews/<branch>/ticket.md` describing what was built, run `/review-swarm code`, commit the stub.

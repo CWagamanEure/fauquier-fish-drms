@@ -1,0 +1,6 @@
+# CodeRabbit reviews PRs into the default branch (main) only unless other base branches are listed.
+# Reference: https://docs.coderabbit.ai/reference/configuration (reviews.auto_review.base_branches).
+reviews:
+  auto_review:
+    base_branches:
+      - "^dev$"

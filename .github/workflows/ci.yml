@@ -5,7 +5,7 @@
 # sql/seed/demo_fish.sql; .env.example must keep DB_SEED_FILE unset. The volume is fresh every run.
 # This job executes untrusted PR code (its Dockerfile, compose file and tests). It must never receive
 # secrets or write permissions and must stay on pull_request, never pull_request_target.
-# Branch protection on dev and main requires this check; its status-check name is the job name, "tests".
+# Branch protection on dev and main has required this check since 2026-10-20; its status-check name is the job name, "tests".
 # actions/checkout is pinned by major tag, as in review-gate.yml; both move to SHA pins together or not at all.
 name: ci
 on:
@@ -40,7 +40,7 @@ jobs:
           set -euo pipefail
           [ -n "$BASE" ] || { echo "::error::base SHA missing from the event"; exit 1; }
           git cat-file -e "$BASE^{commit}" || { echo "::error::base commit $BASE not present in the checkout"; exit 1; }
-          changed=$(git diff --name-status --diff-filter=MDR "$BASE"...HEAD -- sql/migrations)
+          changed=$(git diff --name-status --diff-filter=MDRT "$BASE"...HEAD -- sql/migrations)
           if [ -n "$changed" ]; then
             echo "$changed"
             echo "::error::sql/migrations files already on the base branch were changed; add a new migration instead (sql/README.md)."

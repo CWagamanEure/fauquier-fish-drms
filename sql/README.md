@@ -25,7 +25,10 @@ files already listed and stops with an error if an applied file was edited after
    and backfills guarded by `WHERE target IS NULL`. Foreign keys on existing tables need the
    `information_schema` guard used in `002_donations_cash_fields.sql`.
 3. Never edit or renumber a file after it has been pushed; add a new file instead.
-4. Run `make migrate` twice locally, then commit the file.
+4. Prove it is safe to re-run the way CI does: `make migrate` applies it, then replay the whole
+   series in order against the migrated database and expect no errors:
+   `for f in sql/migrations/[0-9][0-9][0-9]_*.sql; do scripts/db-sql.sh < "$f"; done`
+   (a second `make migrate` proves nothing, it skips applied files by checksum). Then commit.
 
 Files are run through the `mariadb` client, so `DELIMITER` works for triggers.
 
