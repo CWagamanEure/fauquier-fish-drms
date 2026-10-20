@@ -59,7 +59,9 @@ This Compose setup is for local development; services bind to localhost only.
 Every change goes through the four-auditor review swarm twice, on the ticket draft and on the code,
 before it is pushed. `make dev` installs the pre-push hook that guards against pushing unreviewed code;
 the PR check and a human review are the real controls. Read `docs/process/change-review-process.md`
-before starting work.
+before starting work. GitHub Actions (`.github/workflows/ci.yml`, check `tests`) runs the PHP syntax
+check, `make test-auth`, `make test-donors` and `make test-gate` on every pull request, so a PR needs no
+tooling on the author's machine.
 
 ## Database migrations
 

@@ -38,9 +38,11 @@ everyone who can read the repository). The per-auditor approve flag is informati
    and committed.
 5. **Push and open the PR** using the template, linking both records. The pre-push hook refuses a push
    without a matching approval record. A human teammate still reviews the PR; the swarm comes before that
-   review, not instead of it. Branch protection currently requires the check but zero approving reviews,
-   so the human review is expected rather than enforced; raise `required_approving_review_count` to 1 in
-   `docs/process/branch-protection.json` and re-apply it to enforce it.
+   review, not instead of it. Branch protection requires the `tests` check (lint and the integration
+   suites, `.github/workflows/ci.yml`) and zero approving reviews, so the human review is expected rather
+   than enforced; raise `required_approving_review_count` to 1 in `docs/process/branch-protection.json`
+   and re-apply it to enforce it. The `record` check still runs and reports but does not block since
+   2026-10-20 (see Enforcement).
 
 ## Enforcement
 
@@ -50,16 +52,29 @@ everyone who can read the repository). The per-auditor approve flag is informati
   `git push origin HEAD` works. `dev` and `main` are exempt because they only receive PR merges; tags are
   not gated. The hook only exists on branches that contain `.githooks/`, so merge `dev` into older
   branches before continuing them. Because the hook directory is tracked, reviewers treat changes under
-  `.githooks/`, `scripts/review-hash.sh`, `scripts/review-check.sh` and `.github/workflows/review-gate.yml`
-  like auth code, and confirm the PR diff is what the record's `reviewed_commit` and `tree` describe.
+  `.githooks/`, `scripts/review-hash.sh`, `scripts/review-check.sh`, `.github/workflows/review-gate.yml`
+  and `.github/workflows/ci.yml` like auth code, and confirm the PR diff is what the record's
+  `reviewed_commit` and `tree` describe.
 - `.github/workflows/review-gate.yml` runs `scripts/review-check.sh` on every PR into `dev` or `main`
-  against the PR head commit. It fails the PR when the record is missing or stale, and since 2026-10-15
-  branch protection on `dev` and `main` requires that check (its status-check name is the job name,
-  `record`), requires a pull request, and applies to administrators, so a failing check blocks the merge
-  and direct pushes are refused. `strict` is off on purpose: the gate judges the PR head, and requiring
-  branches to be up to date would force a new swarm round on every open PR each time `dev` moves. Pull
-  requests from forks are never exempt, whatever their branch is called. The PR template only appears once
-  it exists on the default branch.
+  against the PR head commit. It fails the PR when the record is missing or stale. From 2026-10-15 to
+  2026-10-20 branch protection on `dev` and `main` required that check (status-check name `record`). On
+  2026-10-20 the repo admin removed it from the required checks because the teammates with write access
+  do not have Claude Code and so cannot produce the record; the check still runs and reports, and the
+  hook and the swarm remain the process for Claude Code sessions. The comments at the top of
+  `.githooks/pre-push` and `review-gate.yml` still describe `record` as required and are left unchanged
+  on purpose. `strict` is off: the gate judges the PR head, and requiring branches to be up to date would
+  force a new swarm round on every open PR each time `dev` moves. Pull requests from forks are never
+  exempt, whatever their branch is called. The PR template only appears once it exists on the default
+  branch.
+- `.github/workflows/ci.yml` (job `tests`) runs on every PR into `dev` or `main` and on every push to
+  them: it builds the compose stack on the runner, applies the migrations twice (they must be safe to
+  re-run), loads the demo data, lints every tracked PHP file with `php -l`, runs `make test-auth`,
+  `make test-donors` and `make test-gate`, and refuses a PR that edits or deletes a migration already on
+  the base branch. It needs nothing installed on the author's machine. Branch protection requires it
+  (`docs/process/branch-protection.json`, applied by the admin after the first green run on `dev`). The
+  job runs untrusted PR code, so it has no secrets, read-only permissions, and stays on `pull_request`.
+  `tests/auth_integration.py` guards only the pages listed in its `PROTECTED_PAGES`; pages added by PRs
+  #10, #19 and #21 are not yet listed (follow-up ticket).
 - The record is a plain file, so the real control is the human reviewer confirming it is a genuine
   workflow output (rounds, auditors, finding counts, the reviewed commit) and not hand-written.
 - The repository is public. Only the ticket, the responses files and the `*-approved.json` stubs are
@@ -75,11 +90,11 @@ everyone who can read the repository). The per-auditor approve flag is informati
 ## After merging
 
 1. Branch protection is already applied to `dev` and `main` (2026-10-15) with the settings in
-   `docs/process/branch-protection.json`: pull request required, status check `record` required,
-   administrators included, no force pushes or deletions, `strict` off. To re-apply or copy to another
-   branch: `gh api -X PUT repos/<owner>/<repo>/branches/<branch>/protection --input docs/process/branch-protection.json`.
+   `docs/process/branch-protection.json`: pull request required, status check `tests` required (was
+   `record` until 2026-10-20), administrators included, no force pushes or deletions, `strict` off. To
+   apply after the first green `tests` run on `dev`, re-apply, or copy to another branch: `gh api -X PUT repos/<owner>/<repo>/branches/<branch>/protection --input docs/process/branch-protection.json`.
 2. Everyone runs `make dev` (installs the hook, rebuilds the web image for the Apache rules).
-3. Branches already in flight (for example the open donation-page PRs): merge `dev`, add
+3. Branches already in flight: merge `dev`, add
    `.reviews/<branch>/ticket.md` describing what was built, run `/review-swarm code`, commit the stub.
    The ticket gate may be skipped for work that predates the process; say so in the PR.
 
