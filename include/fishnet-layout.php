@@ -18,24 +18,38 @@ const FISHNET_LINKS = [
 	'users'          => ['manageUsers.php',    'Manage Users'],
 ];
 
-// (took from casa)Login check: runs as soon as a page includes this file 
-session_cache_expire(30);
-session_start();
+// Login check: runs as soon as a page includes this file. include/auth.php owns the session
+// settings, the CSRF token and the redirect to login.php for anonymous visitors.
+require_once __DIR__ . '/auth.php';
+require_authentication(1);
 date_default_timezone_set('America/New_York');
 
-if (!isset($_SESSION['access_level']) || $_SESSION['access_level'] < 1) {
-	if (isset($_SESSION['change-password'])) {
-		header('Location: changePassword.php');
-	} else {
-		header('Location: login.php');
+// ---------- View helpers shared by every FISH page (pages must not redefine these) ----------
+if (!function_exists('h')) {
+	// HTML-escape anything printed into a page.
+	function h($s) { return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
+}
+if (!function_exists('initials')) {
+	// First letters of the first and last word of a name; Unicode-safe.
+	function initials($name) {
+		$words = preg_split('/\s+/u', trim((string) $name)) ?: [];
+		$first = $words[0] ?? '';
+		$last = count($words) > 1 ? end($words) : '';
+		$pick = function ($w) { return preg_match('/^(.)/us', $w, $m) ? $m[1] : ''; };
+		return mb_strtoupper($pick($first) . $pick($last), 'UTF-8');
 	}
-	die();
+}
+if (!function_exists('fish_str')) {
+	// A trimmed string parameter, or '' when the value is missing or not a string (arrays never reach trim()).
+	function fish_str(array $source, $key) {
+		return isset($source[$key]) && is_string($source[$key]) ? trim($source[$key]) : '';
+	}
 }
 
 // The signed-in person (pages can use $fishnetUser too)
 require_once 'database/dbPersons.php';
 require_once 'domain/Person.php';
-$fishnetUser = isset($_SESSION['_id']) ? retrieve_person($_SESSION['_id']) : null;
+$fishnetUser = auth_current_user();   // loaded by require_authentication(); never null here
 
 
 // ---------- Top of every page ----------
@@ -68,7 +82,10 @@ function fishnet_open($pageTitle, $activePage, $pageCss = []) {
       <input type="search" name="q" placeholder="Search Donors...">
     </form>
 
-    <a href="logout.php" class="logout">Log Out</a>
+    <form method="post" action="logout.php" class="logout-form">
+      <?= auth_csrf_field() ?>
+      <button type="submit" class="logout">Log Out</button>
+    </form>
     
     <a href="viewProfile.php" class="avatar" title="Your profile"><?= htmlspecialchars($initial) ?></a>
   </header>

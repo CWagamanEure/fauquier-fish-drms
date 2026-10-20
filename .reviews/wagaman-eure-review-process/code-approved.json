@@ -1,0 +1,35 @@
+{
+  "mode": "code",
+  "subject": "wagaman-eure-review-process",
+  "round": 5,
+  "approved": true,
+  "reviewed_commit": "d945e1c14d9b55784cb0dea73541694b1bc3d7b9",
+  "tree": "3a9e1790327b86a7c720c181b225aa9439e1e63e790534626d4ca2f8b72947e3",
+  "auditors": [
+    {
+      "auditor": "security",
+      "approve": true,
+      "finding_count": 1
+    },
+    {
+      "auditor": "data",
+      "approve": true,
+      "finding_count": 0
+    },
+    {
+      "auditor": "correctness",
+      "approve": true,
+      "finding_count": 1
+    },
+    {
+      "auditor": "verification",
+      "approve": true,
+      "finding_count": 2
+    }
+  ],
+  "findings_by_severity_and_status": {
+    "low/reported": 4
+  },
+  "rounds": 5,
+  "note": "Full round records are kept locally (public repository). Lows in round 5 accepted; see code-round-5-responses.md."
+}

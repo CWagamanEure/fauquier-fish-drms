@@ -1,6 +1,6 @@
 <?php
-    session_cache_expire(30);
-    session_start();
+require_once __DIR__ . '/include/auth.php';
+require_authentication(1);
     ini_set("display_errors",1);
     error_reporting(E_ALL);
 

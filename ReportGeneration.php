@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(3);
 header('Cache-Control: no-cache, no-store, must-revalidate');
 header('Pragma: no-cache');
 header('Expires: 0');
@@ -26,8 +28,6 @@ header('Expires: 0');
 
     // Make session information accessible, allowing us to associate
     // data with the logged-in user.
-    session_cache_expire(30);
-    session_start();
 
     $loggedIn = false;
     $accessLevel = 0;
@@ -189,6 +189,7 @@ header('Expires: 0');
 		<h3 class="mb-3">Report Generator</h3>
 
 		<form id="emailForm" action="reportGeneration/formHandler.php" method="post">
+		<?php echo auth_csrf_field(); ?>
 
 			<div class="mb-3">
 				<label><b>Name of Report</b></label>
@@ -257,6 +258,7 @@ header('Expires: 0');
     <div class="content-card">
         <h3>Report History</h3>
 		<form action="./reportGeneration/reports/delHandler.php" method="post">
+		<?php echo auth_csrf_field(); ?>
 		<table class="casa-table">
 			<thead>
                 <tr>
@@ -269,11 +271,12 @@ header('Expires: 0');
 				foreach ($output as $value){
 					if (str_contains($value,".pdf")){
 						echo "<tr>";
-						echo "<td><a target='_blank' href=./reportGeneration/reports/".$value.">".$value."</a></td>";
+						$downloadUrl = 'download.php?type=reports&file=' . rawurlencode($value);
+						echo '<td><a target="_blank" href="' . htmlspecialchars($downloadUrl, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars($value, ENT_QUOTES, 'UTF-8') . '</a></td>';
 						echo "<td style='text-align: center;'><input type='checkbox' id =".$value." name=".$value."></td>";
 						echo "</tr>";
 					flush();
-					ob_flush();
+					if (ob_get_level() > 0) { ob_flush(); }   // no buffer is active under Apache; flushing none is a Notice
 					}
 				}
 			?>

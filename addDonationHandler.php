@@ -1,8 +1,9 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(3);
 
 include_once 'database/dbinfo.php';
 
-session_start();
 
 //Read in donation info
 $first = trim($_POST["firstName"]);
@@ -98,8 +99,9 @@ if ($reason == ""){
 }
 
 #insert new donation into database
-$query = "INSERT INTO donations (amount,reason,date,fee,thanked,eventID,donorID) VALUES (?,?,?,?,?,?,?)";
-$data = [$amount,$reason,$date,$fee,$thanked,$eventID,$donorID];
+# donation_date is derived from `date` by the database trigger (migration 002).
+$query = "INSERT INTO donations (amount,reason,date,fee,thanked,eventID,donorID,recorded_by) VALUES (?,?,?,?,?,?,?,?)";
+$data = [$amount,$reason,$date,$fee,$thanked,$eventID,$donorID,$_SESSION['_id']];
 try{
 	$exec = $con->prepare($query);
 	$exec->execute($data);

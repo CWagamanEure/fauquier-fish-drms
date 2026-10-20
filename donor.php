@@ -1,6 +1,44 @@
 <?php
-// opens the css and php that keep the pages consistan
+// Donor list: reads the donor_summary view through database/dbDonors.php (UF2-61, 67, 68, 70).
 require_once 'include/fishnet-layout.php';
+require_once 'include/permissions.php';
+require_once 'database/dbDonors.php';
+
+$filter = fish_str($_GET, 'filter');
+$q      = fish_str($_GET, 'q');
+$sort   = fish_str($_GET, 'sort');
+$page   = max(1, (int) ($_GET['page'] ?? 1));
+
+$loadError = fish_str($_GET, 'error') === 'load';   // set by updateDonor.php when its read failed
+try {
+  $tiles = donors_tiles();
+  $list  = donors_list($filter, $q, $sort, $page);
+} catch (mysqli_sql_exception $e) {
+  // A database fault must not print the exception into the page; log it and render an empty list.
+  error_log('donor.php: ' . $e->getMessage());
+  $loadError = true;
+  $tiles = ['total' => 0, 'new_month' => 0, 'lapsed' => 0, 'dupes' => 0];
+  $list  = ['rows' => [], 'total' => 0, 'page' => 1, 'pages' => 1, 'filter' => in_array($filter, DONOR_FILTERS, true) ? $filter : 'all',
+            'sort' => in_array($sort, DONOR_SORTS, true) ? $sort : 'last_gift', 'per_page' => DONORS_PER_PAGE];
+}
+$donors = $list['rows'];
+$filter = $list['filter'];
+$sort   = $list['sort'];
+$page   = $list['page'];
+$totalFiltered = $list['total'];
+$totalPages = $list['pages'];
+$perPage = $list['per_page'];
+$offset = ($page - 1) * $perPage;
+$canEdit = fish_can('donors', 'edit');
+
+function pageUrl($p) {
+  $params = array_filter($_GET, 'is_string') + ['page' => $p];
+  $params['page'] = $p;
+  return '?' . http_build_query($params);
+}
+$colors = ['teal', 'navy', 'sage', 'yellow'];
+$statusLabels = ['active' => 'Active', 'new' => 'New', 'lapsed' => 'Lapsed'];
+
 fishnet_open('Donors', 'donor', 'donor.css');
 ?>
 
@@ -10,128 +48,69 @@ fishnet_open('Donors', 'donor', 'donor.css');
           <h1>Donors</h1>
           <p class="lede">Everyone who gives to Fauquier FISH &mdash; people and organizations</p>
         </div>
-        <a href="newDonor.php" class="btn btn-yellow">+ New donor</a>
+        <?php if ($canEdit): ?><a href="addDonor.php" class="btn btn-yellow">+ New donor</a><?php endif; ?>
       </section>
+      <?php if ($loadError): ?><div class="notice" role="alert">Could not load donors. Please try again shortly.</div><?php endif; ?>
 
       <section class="tiles">
-        <div class="tile"><p class="label">Total donors</p><p class="num">1,284</p></div>
-        <div class="tile"><p class="label">New this month</p><p class="num">19</p></div>
-        <div class="tile"><p class="label">Lapsed (12+ months)</p><p class="num">146</p></div>
+        <div class="tile"><p class="label">Total donors</p><p class="num"><?= number_format($tiles['total']) ?></p></div>
+        <div class="tile"><p class="label">New this month</p><p class="num"><?= number_format($tiles['new_month']) ?></p></div>
+        <div class="tile"><p class="label">Lapsed (12+ months)</p><p class="num"><?= number_format($tiles['lapsed']) ?></p></div>
         <div class="tile warn">
           <p class="label">Possible duplicates</p>
-          <div class="row"><p class="num">5</p><a href="dataImports.php">Review &rarr;</a></div>
+          <div class="row"><p class="num"><?= number_format($tiles['dupes']) ?></p><a href="dataImports.php">Review &rarr;</a></div>
         </div>
       </section>
-<!-- Cards at the top of the page  NEEDS  real Connections  -->
+
       <section class="card table-card">
         <form class="toolbar" method="get">
+          <!-- Hidden default button: pressing Enter in the search box keeps the current filter instead of resetting to "All" -->
+          <button type="submit" name="filter" value="<?= h($filter) ?>" hidden></button>
           <div class="pills">
-            <button type="submit" name="filter" value="all" class="pill on">All</button>
-            <button type="submit" name="filter" value="individuals" class="pill">Individuals</button>
-            <button type="submit" name="filter" value="organizations" class="pill">Organizations</button>
-            <button type="submit" name="filter" value="lapsed" class="pill">Lapsed</button>
+            <?php foreach (['all'=>'All','individuals'=>'Individuals','organizations'=>'Organizations','lapsed'=>'Lapsed'] as $v => $label): ?>
+              <button type="submit" name="filter" value="<?= $v ?>" class="pill<?= $filter === $v ? ' on' : '' ?>"><?= $label ?></button>
+            <?php endforeach; ?>
           </div>
-          <!-- NEEDS Connection to db.donors i think is the right table  -->
           <div class="tools">
-            <input type="search" name="q" value="" placeholder="Search name, email or phone...">
-            <select name="sort" onchange="this.form.submit()">
-              <option>Sort: Last gift</option>
-              <option>Sort: Name</option>
-              <option>Sort: Lifetime giving</option>
+            <input type="search" name="q" value="<?= h($q) ?>" placeholder="Search name, email or phone...">
+            <select name="sort" onchange="this.form.querySelector('button[name=filter][hidden]').click()">
+              <option value="last_gift" <?= $sort === 'last_gift' ? 'selected' : '' ?>>Sort: Last gift</option>
+              <option value="name"      <?= $sort === 'name'      ? 'selected' : '' ?>>Sort: Name</option>
+              <option value="lifetime"  <?= $sort === 'lifetime'  ? 'selected' : '' ?>>Sort: Lifetime giving</option>
             </select>
           </div>
         </form>
-<!-- NEEDS Connection to db.donors i think is the right table this is FAKE data  -->
         <div class="table-wrap">
           <table>
             <thead>
               <tr><th>Name</th><th>Type</th><th>Contact</th><th>Lifetime giving</th><th>Last gift</th><th>Status</th><th></th></tr>
             </thead>
             <tbody>
+              <?php foreach ($donors as $d): ?>
               <tr>
-                <td><span class="initials teal">MC</span><strong>Main St. Church</strong></td>
-                <td>Organization</td>
-                <td>office@mainstchurch.org</td>
-                <td>$4,250</td>
-                <td>Oct 3, 2026</td>
-                <td><span class="status active">Active</span></td>
-                <td><a href="donorProfile.php" class="select">Select</a></td>
+                <td><span class="initials <?= $colors[$d['id'] % 4] ?>"><?= h(initials($d['name'])) ?></span><strong><?= h($d['name']) ?></strong></td>
+                <td><?= h($d['type']) ?></td>
+                <td><?= h($d['contact']) ?></td>
+                <td>$<?= number_format($d['lifetime'], 2) ?></td>
+                <td><?= $d['last_gift'] ? date('M j, Y', strtotime($d['last_gift'])) : '&mdash;' ?></td>
+                <td><span class="status <?= h($d['status']) ?>"><?= $statusLabels[$d['status']] ?? '' ?></span></td>
+                <td><a href="donorProfile.php?id=<?= (int)$d['id'] ?>" class="select">Select</a></td>
               </tr>
-              <tr>
-                <td><span class="initials navy">JD</span><strong>Jhon D. Rangel Duran</strong></td>
-                <td>Individual</td>
-                <td>(540) 555-0173</td>
-                <td>$11,250.74</td>
-                <td>Oct 3, 2026</td>
-                <td><span class="status active">Active</span></td>
-                <td><a href="donorProfile.php" class="select">Select</a></td>
-              </tr>
-              <tr>
-                <td><span class="initials sage">OE</span><strong>Oak Ridge Elementary</strong></td>
-                <td>Organization</td>
-                <td>pta@oakridge.edu</td>
-                <td>$800</td>
-                <td>Oct 2, 2026</td>
-                <td><span class="status active">Active</span></td>
-                <td><a href="donorProfile.php" class="select">Select</a></td>
-              </tr>
-              <tr>
-                <td><span class="initials yellow">RP</span><strong>Ravi Patel</strong></td>
-                <td>Individual</td>
-                <td>rpatel@email.com</td>
-                <td>$640</td>
-                <td>Oct 2, 2026</td>
-                <td><span class="status active">Active</span></td>
-                <td><a href="donorProfile.php" class="select">Select</a></td>
-              </tr>
-              <tr>
-                <td><span class="initials teal">WR</span><strong>Warrenton Rotary</strong></td>
-                <td>Organization</td>
-                <td>(540) 555-0110</td>
-                <td>$9,500</td>
-                <td>Oct 1, 2026</td>
-                <td><span class="status active">Active</span></td>
-                <td><a href="donorProfile.php" class="select">Select</a></td>
-              </tr>
-              <tr>
-                <td><span class="initials navy">LC</span><strong>Lin Chen</strong></td>
-                <td>Individual</td>
-                <td>lchen@email.com</td>
-                <td>$75</td>
-                <td>Sep 30, 2026</td>
-                <td><span class="status new">New</span></td>
-                <td><a href="donorProfile.php" class="select">Select</a></td>
-              </tr>
-              <tr>
-                <td><span class="initials sage">FT</span><strong>Fauquier Thrift</strong></td>
-                <td>Organization</td>
-                <td>(540) 555-0164</td>
-                <td>$2,500</td>
-                <td>Sep 29, 2026</td>
-                <td><span class="status active">Active</span></td>
-                <td><a href="donorProfile.php" class="select">Select</a></td>
-              </tr>
-              <tr>
-                <td><span class="initials yellow">DB</span><strong>Dana Brooks</strong></td>
-                <td>Individual</td>
-                <td>(540) 555-0129</td>
-                <td>$1,050</td>
-                <td>Jul 8, 2025</td>
-                <td><span class="status lapsed">Lapsed</span></td>
-                <td><a href="donorProfile.php" class="select">Select</a></td>
-              </tr>
+              <?php endforeach; ?>
+              <?php if (!$donors): ?>
+              <tr><td colspan="7">No donors match your search.</td></tr>
+              <?php endif; ?>
             </tbody>
           </table>
         </div>
-<!-- needs to be coded does not actually work  -->
         <div class="pager">
-          <p>Showing 1&ndash;8 of 1,284 donors</p>
+          <p>Showing <?= $totalFiltered ? $offset + 1 : 0 ?>&ndash;<?= min($offset + $perPage, $totalFiltered) ?> of <?= number_format($totalFiltered) ?> donors</p>
           <div class="pages">
-            <a href="#" class="pg wide">&lsaquo; Previous</a>
-            <a href="#" class="pg on">1</a><a href="#" class="pg">2</a><a href="#" class="pg">3</a>
-            <span>&hellip;</span>
-            <a href="#" class="pg">161</a>
-            <a href="#" class="pg wide">Next &rsaquo;</a>
+            <?php if ($page > 1): ?><a href="<?= h(pageUrl($page - 1)) ?>" class="pg wide">&lsaquo; Previous</a><?php endif; ?>
+            <?php for ($p = max(1, $page - 2); $p <= min($totalPages, $page + 2); $p++): ?>
+              <a href="<?= h(pageUrl($p)) ?>" class="pg<?= $p === $page ? ' on' : '' ?>"><?= $p ?></a>
+            <?php endfor; ?>
+            <?php if ($page < $totalPages): ?><a href="<?= h(pageUrl($page + 1)) ?>" class="pg wide">Next &rsaquo;</a><?php endif; ?>
           </div>
         </div>
       </section>

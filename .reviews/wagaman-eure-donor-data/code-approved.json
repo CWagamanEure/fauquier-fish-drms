@@ -1,0 +1,35 @@
+{
+  "mode": "code",
+  "subject": "wagaman-eure-donor-data",
+  "round": 3,
+  "approved": true,
+  "reviewed_commit": "d50d2147a83d0ecd2f3f756168cdc13dc573a1f5",
+  "tree": "70c6d8ba99f73ecaa12eb3b13413004af373d913d46a1d3d5b0bf60ed23c4f14",
+  "auditors": [
+    {
+      "auditor": "security",
+      "approve": true,
+      "finding_count": 1
+    },
+    {
+      "auditor": "data",
+      "approve": true,
+      "finding_count": 2
+    },
+    {
+      "auditor": "correctness",
+      "approve": true,
+      "finding_count": 2
+    },
+    {
+      "auditor": "verification",
+      "approve": true,
+      "finding_count": 3
+    }
+  ],
+  "findings_by_severity_and_status": {
+    "low/reported": 8
+  },
+  "rounds": 3,
+  "note": "Full round records are kept locally (public repository). Rounds 1-2 fixed every high and medium; round 3 found eight lows, answered in code-round-3-responses.md. Any later edit to tracked files outside .reviews/ needs a new round."
+}

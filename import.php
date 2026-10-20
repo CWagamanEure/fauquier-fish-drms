@@ -1,9 +1,9 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(3);
 // Template for new VMS pages. Base your new page on this one
 
 // Make session information accessible
-session_cache_expire(30);
-session_start();
 
 $loggedIn = false;
 $accessLevel = 0;
@@ -236,6 +236,7 @@ if (isset($_SESSION['_id'])) {
 
             <h3 class="mb-3">Select Files</h3>
             <form action="python/ImportHandler.php" method="post" enctype="multipart/form-data" onsubmit="return validateFiles();">
+            <?php echo auth_csrf_field(); ?>
 
                 <div class="file-input-wrapper">
                     <input type="file" name="files[]" multiple onchange="displayImport(event)">

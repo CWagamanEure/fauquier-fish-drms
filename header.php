@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
 date_default_timezone_set('America/New_York');
 /*
  * Copyright 2013 by Allen Tucker. */
@@ -110,8 +111,17 @@ date_default_timezone_set('America/New_York');
       width: 300px;
     }
 
+    .side-menu .sign-out-button {
+      width: 100%;
+      background: transparent;
+      border: 0;
+      font-family: inherit;
+      cursor: pointer;
+      text-align: left;
+    }
+
     /* Menu Links */
-    .side-menu a {
+    .side-menu a, .side-menu .sign-out-button {
       padding: 15px 30px;
       text-decoration: none;
       font-size: 20px;
@@ -124,7 +134,7 @@ date_default_timezone_set('America/New_York');
       gap: 15px;
     }
 
-    .side-menu a:hover {
+    .side-menu a:hover, .side-menu .sign-out-button:hover {
       background-color: #005a9e;
       color: #fff;
       padding-left: 40px;
@@ -194,91 +204,7 @@ date_default_timezone_set('America/New_York');
 
 <header>
 
-<?php
-// Permission Logic
-$permission_array = [];
-$permission_array['index.php'] = 0;
-$permission_array['about.php'] = 0;
-$permission_array['apply.php'] = 0;
-$permission_array['logout.php'] = 0;
-$permission_array['volunteerregister.php'] = 3;
-$permission_array['leaderboard.php'] = 0;
-// Volunteers
-$permission_array['help.php'] = 1;
-$permission_array['dashboard.php'] = 1;
-$permission_array['calendar.php'] = 1;
-$permission_array['eventsearch.php'] = 1;
-$permission_array['changepassword.php'] = 1;
-$permission_array['editprofile.php'] = 1;
-$permission_array['inbox.php'] = 1;
-$permission_array['date.php'] = 1;
-$permission_array['event.php'] = 1;
-$permission_array['viewprofile.php'] = 1;
-$permission_array['viewnotification.php'] = 1;
-$permission_array['volunteerreport.php'] = 1;
-$permission_array['viewcheckinout.php'] = 1;
-$permission_array['viewresources.php'] = 1;
-$permission_array['milestonepoints.php'] = 1;
-$permission_array['selectvotm.php'] = 1;
-$permission_array['eventlist.php'] = 1;
-$permission_array['eventsignup.php'] = 1;
-$permission_array['eventfailure.php'] = 1;
-$permission_array['signupsuccess.php'] = 1;
-$permission_array['edittimes.php'] = 1;
-$permission_array['signuppending.php'] = 1;
-$permission_array['requestfailed.php'] = 1;
-$permission_array['settimes.php'] = 1;
-$permission_array['eventfailurebaddeparturetime.php'] = 1;
-$permission_array['specificevent.php'] = 1;
-// Managers
-$permission_array['viewallevents.php'] = 0;
-$permission_array['personedit.php'] = 0;
-$permission_array['viewschedule.php'] = 2;
-$permission_array['addweek.php'] = 2;
-$permission_array['log.php'] = 2;
-$permission_array['reports.php'] = 2;
-$permission_array['eventedit.php'] = 2;
-$permission_array['addevent.php'] = 2;
-$permission_array['editevent.php'] = 2;
-$permission_array['report.php'] = 2;
-$permission_array['reportspage.php'] = 2;
-$permission_array['resetpassword.php'] = 2;
-$permission_array['eventsuccess.php'] = 2;
-$permission_array['viewsignuplist.php'] = 2;
-$permission_array['vieweventsignups.php'] = 2;
-$permission_array['viewalleventsignups.php'] = 2;
-$permission_array['resources.php'] = 2;
-$permission_array['uploadresources.php'] = 2;
-$permission_array['deleteresources.php'] = 2;
-$permission_array['managemembers.php'] = 2;
-$permission_array['eventmanagement.php'] = 2;
-$permission_array['deletediscussion.php'] = 2;
-$permission_array['clockoutbulk.php'] = 2;
-$permission_array['clockOut.php'] = 2;
-$permission_array['edithours.php'] = 2;
-$permission_array['adminviewingevents.php'] = 2;
-// Super Admin
-$permission_array['import.php'] = 3;
-$permission_array['export.php'] = 3;
-$permission_array['emailgen.php'] = 3;
-$permission_array['Search.php'] = 3;
-$permission_array['adddonor.php'] = 3;
-$permission_array['donationaddedit.php'] = 3;
-$permission_array["editdonationhandler.php"] = 3;
-$permission_array["ReportGeneration.php"] = 3;
-$permission_array["VolunteerRegister.php"] = 3;
 
-// Security Redirect
-if (isset($_SESSION['access_level'])) {
-    $current_page = strtolower(substr($_SERVER['PHP_SELF'], strrpos($_SERVER['PHP_SELF'], '/') + 1));
-    $current_page = substr($current_page, strpos($current_page, "/"));
-
-    if (isset($permission_array[$current_page]) && $permission_array[$current_page] > $_SESSION['access_level']) {
-        echo "<script type=\"text/javascript\">window.location = \"index.php\";</script>";
-        die();
-    }
-}
-?>
 
 <div class="navbar">
     <div class="logo-container">
@@ -302,35 +228,24 @@ if (isset($_SESSION['access_level'])) {
 
 <div id="mySideMenu" class="side-menu">
 
-    <?php if (!isset($_SESSION['logged_in'])): ?>
-
-
-    <?php elseif ($_SESSION['logged_in']): ?>
+    <?php if (!empty($_SESSION['logged_in'])): ?>
 
         <a href="index.php">Dashboard</a>
-        <a href="calendar.php">Calendar</a>
-        <a href="viewAllEvents.php">Event Management</a>
-
-        <?php if ($_SESSION['access_level'] <= 1): ?>
-            <div class="menu-section-title">Volunteering</div>
-            <a href="viewAllEvents.php">Sign-Up for Events</a>
-            <a href="volunteerReport.php">My Hours</a>
-            <a href="editHours.php">Edit Hours</a>
-
-            <div class="menu-section-title">My Account</div>
-            <a href="viewProfile.php">View Profile</a>
-            <a href="editProfile.php">Edit Profile</a>
-            <a href="inbox.php">Notifications</a>
-        <?php endif; ?>
+        <a href="viewResources.php">Documents</a>
+        <a href="changePassword.php">Change Password</a>
 
         <?php if ($_SESSION['access_level'] >= 2): ?>
+        <a href="calendar.php">Calendar</a>
+        <a href="viewAllEvents.php">Event Management</a>
             <div class="menu-section-title">Tools</div>
-	    <a href="VolunteerRegister.php">
-                <img src="images/add-person.svg"> Add Users
-            </a>
-
             <a href="searchindex.php">
                 <img src="images/search.svg"> Search Database
+            </a>
+        <?php endif; ?>
+
+        <?php if ($_SESSION['access_level'] >= 3): ?>
+            <a href="VolunteerRegister.php">
+                <img src="images/add-person.svg"> Add Users
             </a>
             <a href="emailgen.php">
                 <img src="images/toppng.com-email-icon-vector-circle-980x980.png"> Email Gen
@@ -360,7 +275,10 @@ if (isset($_SESSION['access_level'])) {
         <?php endif; ?>
 
         <div style="margin-top: 30px; border-top: 1px solid rgba(255,255,255,0.2);">
-            <a href="logout.php" style="color: #ffcccc;">Sign Out</a>
+            <form method="post" action="logout.php">
+                <?php echo auth_csrf_field(); ?>
+                <button type="submit" class="sign-out-button" style="color: #ffcccc;">Sign Out</button>
+            </form>
         </div>
 
     <?php endif; ?>
