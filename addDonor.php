@@ -24,9 +24,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $newId = donor_create($form, auth_current_user()->get_id());
     if ($newId === false) {
       $errors[] = 'Could not save the donor. Please try again.';
+    } elseif (fish_str($_POST, 'action') === 'save_add') {
+      // "Save & add donation": open the donation form with the new donor already chosen (UF2-49).
+      header('Location: addDonation.php?donor=' . $newId, true, 303);
+      exit;
     } else {
-      // "Save & add donation" will point at the donation form once it exists on dev; until then the
-      // new profile is the only sensible destination either way.
       header('Location: donorProfile.php?id=' . $newId . '&saved=1', true, 303);
       exit;
     }
@@ -57,7 +59,7 @@ fishnet_open('Add donor', 'donor', 'forms.css');
             <h3>Tips</h3>
             <p>Only first and last name are required.</p>
             <p>Pick Organization for churches, schools and businesses.</p>
-            <p>&ldquo;Save &amp; add donation&rdquo; opens the new profile now and will open the donation form once that page exists.</p>
+            <p>Use &ldquo;Save &amp; add donation&rdquo; to record a first gift right away.</p>
           </section>
         </aside>
       </div>

@@ -3,38 +3,76 @@
   const $ = (id) => document.getElementById(id);
   const money = (n) => '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 });
   const initials = (name) => {
-    const p = name.replace(/[^A-Za-z ]/g, '').trim().split(/\s+/);
-    return (p[0][0] + p[p.length - 1][0]).toUpperCase();
+    const p = String(name).trim().split(/\s+/).filter(Boolean);
+    if (!p.length) return '?';
+    return (Array.from(p[0])[0] + (p.length > 1 ? Array.from(p[p.length - 1])[0] : '')).toUpperCase();
   };
+  // 'YYYY-MM-DD' from the database -> 'Oct 9, 2026', read as a calendar date (no time-zone shift)
+  const longDate = (iso) => new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const el = (tag, text) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; return n; };
 
   const search = $('donorSearch');
   const results = $('donorResults');
   let kind = null;
 
-  // ---- 1. Donor search ----
-  search.addEventListener('input', () => {
-    const q = search.value.trim().toLowerCase();
-    results.innerHTML = '';
-    if (!q) { results.hidden = true; return; }
-    const matches = Object.entries(DONORS).filter(([, d]) => d.name.toLowerCase().includes(q));
-    if (!matches.length) {
-      results.innerHTML = '<li class="none">No donor found. Use +Add to create one.</li>';
-    }
-    matches.forEach(([id, d]) => {
-      const li = document.createElement('li');
-      li.innerHTML = `<strong>${d.name}</strong> <small>${d.type} · ${d.town}</small>`;
-      li.addEventListener('click', () => chooseDonor(id));
-      results.appendChild(li);
-    });
-    results.hidden = false;
-  });
+  // ---- 1. Donor search (donorLookup.php, UF2-49) ----
+  let timer = null;
+  let pending = null;
 
-  function chooseDonor(id) {
-    const d = DONORS[id];
-    $('donorId').value = id;
+  function showMessage(text) {
+    results.replaceChildren(el('li', text));
+    results.firstChild.className = 'none';
+    results.hidden = false;
+  }
+
+  function showResults(donors) {
+    if (!donors.length) {
+      showMessage($('donorSearchBox').querySelector('a.link') ? 'No donor found. Use +Add to create one.' : 'No donor found.');
+      return;
+    }
+    results.replaceChildren(...donors.map((d) => {
+      const btn = el('button');
+      btn.type = 'button';
+      btn.append(el('strong', d.name), ' ', el('small', [d.type, d.town].filter(Boolean).join(' · ')));
+      btn.addEventListener('click', () => chooseDonor(d));
+      const li = el('li');
+      li.append(btn);
+      return li;
+    }));
+    results.hidden = false;
+  }
+
+  async function lookup(q) {
+    if (pending) pending.abort();
+    pending = new AbortController();
+    try {
+      const res = await fetch('donorLookup.php?q=' + encodeURIComponent(q),
+        { signal: pending.signal, headers: { Accept: 'application/json' }, credentials: 'same-origin' });
+      const data = await res.json().catch(() => ({}));
+      if (search.value.trim() !== q) return;          // the user kept typing
+      if (res.status === 401) { showMessage('Your session has ended. Reload the page to log in again.'); return; }
+      if (!res.ok || !data.success) { showMessage(data.error || 'Could not search donors. Please try again.'); return; }
+      showResults(data.donors);
+    } catch (e) {
+      if (e.name !== 'AbortError') showMessage('Could not search donors. Please try again.');
+    }
+  }
+
+  if (search) {
+    search.addEventListener('input', () => {
+      clearTimeout(timer);
+      const q = search.value.trim();
+      if (!q) { if (pending) pending.abort(); results.hidden = true; results.replaceChildren(); return; }
+      if (q.length < 2) { showMessage('Type at least 2 letters.'); return; }
+      timer = setTimeout(() => lookup(q), 250);
+    });
+  }
+
+  function chooseDonor(d) {
+    $('donorId').value = d.id;
     $('chosenInitials').textContent = initials(d.name);
     $('chosenName').textContent = d.name;
-    $('chosenMeta').textContent = `${d.type} · ${d.town} · Donor since ${d.since}`;
+    $('chosenMeta').textContent = [d.type, d.town, d.since && 'Donor since ' + d.since].filter(Boolean).join(' · ');
     $('donorSearchBox').hidden = true;
     $('donorChosen').hidden = false;
     results.hidden = true;
@@ -42,9 +80,9 @@
     $('sumName').textContent = d.name;
     $('sumCash').textContent = money(d.cash);
     $('sumItems').textContent = d.items.toLocaleString() + ' items';
-    $('sumLast').textContent = d.lastGift;
-    $('sumVol').textContent = d.volunteers;
-    $('sumProfile').href = 'viewProfile.php?donor=' + encodeURIComponent(id);
+    $('sumLast').textContent = d.last_gift ? longDate(d.last_gift) : 'None yet';
+    $('sumVol').textContent = d.hours.toLocaleString();
+    $('sumProfile').href = 'donorProfile.php?id=' + encodeURIComponent(d.id);
     $('donorSummary').hidden = false;
 
     $('stepType').disabled = false;
@@ -56,6 +94,7 @@
     $('donorChosen').hidden = true;
     $('donorSearchBox').hidden = false;
     $('donorSummary').hidden = true;
+    $('stepType').disabled = true;
     search.value = '';
     search.focus();
     refresh();
@@ -107,5 +146,6 @@
     showDetails();
     updateCampaign();
   }
+  if (CHOSEN_DONOR) chooseDonor(CHOSEN_DONOR);
   refresh();
 })();
