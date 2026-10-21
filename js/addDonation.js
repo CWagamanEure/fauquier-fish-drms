@@ -1,7 +1,9 @@
-// Add donation page: donor search, type switch, side panel.
+// Add / edit donation page: donor search, type switch, check and honoree fields, net amount, side panel
+// and campaign card. State is read from the DOM on load, so a server-chosen type, a re-rendered form with
+// errors and edit mode all start with the right sections shown.
 (function () {
   const $ = (id) => document.getElementById(id);
-  const money = (n) => '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  const money = (n) => '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const initials = (name) => {
     const p = String(name).trim().split(/\s+/).filter(Boolean);
     if (!p.length) return '?';
@@ -10,10 +12,12 @@
   // 'YYYY-MM-DD' from the database -> 'Oct 9, 2026', read as a calendar date (no time-zone shift)
   const longDate = (iso) => new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const el = (tag, text) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; return n; };
+  const num = (id) => { const v = Number($(id).value); return $(id).value.trim() !== '' && Number.isFinite(v) ? v : 0; };
 
   const search = $('donorSearch');
   const results = $('donorResults');
-  let kind = null;
+  const checkedKind = document.querySelector('input[name="kind"]:checked');
+  let kind = checkedKind ? checkedKind.value : null;
 
   // ---- 1. Donor search (donorLookup.php, UF2-49) ----
   let timer = null;
@@ -58,16 +62,15 @@
     }
   }
 
-  if (search) {
-    search.addEventListener('input', () => {
-      clearTimeout(timer);
-      const q = search.value.trim();
-      if (!q) { if (pending) pending.abort(); results.hidden = true; results.replaceChildren(); return; }
-      if (q.length < 2) { showMessage('Type at least 2 letters.'); return; }
-      timer = setTimeout(() => lookup(q), 250);
-    });
-  }
+  search.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = search.value.trim();
+    if (!q) { if (pending) pending.abort(); results.hidden = true; results.replaceChildren(); return; }
+    if (q.length < 2) { showMessage('Type at least 2 letters.'); return; }
+    timer = setTimeout(() => lookup(q), 250);
+  });
 
+  // ---- UF2-53: the side panel follows the chosen donor ----
   function chooseDonor(d) {
     $('donorId').value = d.id;
     $('chosenInitials').textContent = initials(d.name);
@@ -100,7 +103,7 @@
     refresh();
   });
 
-  // ---- 2. Donation type ----
+  // ---- 2. Donation type (UF2-50) ----
   document.querySelectorAll('input[name="kind"]').forEach((r) =>
     r.addEventListener('change', () => { kind = r.value; refresh(); })
   );
@@ -114,26 +117,42 @@
     items.disabled = items.hidden;
   }
 
-  // Check-only fields
-  $('payType').addEventListener('change', () => {
-    const isCheck = $('payType').value === 'Check';
-    ['checkNumField', 'signedField', 'depositField'].forEach((f) => ($(f).style.visibility = isCheck ? '' : 'hidden'));
-  });
+  // ---- 3. Cash details (UF2-48) ----
+  function showCheckFields() {
+    const isCheck = $('payType').value === 'check';
+    document.querySelectorAll('.check-only').forEach((f) => { f.hidden = !isCheck; });
+  }
+  function showHonoree() { $('honoreeField').hidden = !$('inHonor').checked; }
+  function showNet() {
+    const amount = $('amount').value.trim();
+    $('net').value = amount === '' ? '' : money(num('amount') - num('fee'));
+  }
+  $('payType').addEventListener('change', showCheckFields);
+  $('inHonor').addEventListener('change', showHonoree);
+  ['amount', 'fee'].forEach((id) => $(id).addEventListener('input', () => { showNet(); updateCampaign(); }));
 
-  // ---- Campaign progress card ----
+  // ---- Campaign card (UF2-52) ----
   document.querySelectorAll('.campaign-select').forEach((s) => s.addEventListener('change', updateCampaign));
-  $('quantity').addEventListener('input', updateCampaign);
+  $('estValue').addEventListener('input', updateCampaign);
 
   function updateCampaign() {
     const select = kind === 'cash' ? $('cashCampaign') : $('itemCampaign');
-    const name = select.value;
-    const [goal, sofar] = CAMPAIGNS[name] || [0, 0];
-    if (!kind || !goal) { $('campaignCard').hidden = true; return; }
-    const added = kind === 'noncash' ? Number($('quantity').value) || 0 : 0;
-    const total = sofar + added;
-    $('ctName').textContent = name;
-    $('ctFill').style.width = Math.min(100, (total / goal) * 100) + '%';
-    $('ctText').textContent = `${total.toLocaleString()} of ${goal.toLocaleString()} items${added ? ' after this gift' : ''}`;
+    const c = kind ? CAMPAIGNS[select.value] : null;
+    if (!c) { $('campaignCard').hidden = true; return; }
+    // On edit the stored gift is already in its campaign's totals: take it out before adding the form value.
+    const storedHere = STORED && String(STORED.campaign) === select.value;
+    $('ctName').textContent = c.name;
+    if (kind === 'cash') {
+      const total = c.raised - (storedHere ? STORED.value : 0) + num('amount');
+      $('ctBar').hidden = !(c.goal > 0);
+      $('ctFill').style.width = c.goal > 0 ? Math.min(100, (total / c.goal) * 100) + '%' : '0';
+      $('ctText').textContent = c.goal > 0 ? `${money(total)} of ${money(c.goal)} after this gift` : `${money(total)} raised so far`;
+    } else {
+      const gifts = c.gifts + (storedHere ? 0 : 1);
+      const value = c.item_value - (storedHere ? STORED.value : 0) + num('estValue');
+      $('ctBar').hidden = true;
+      $('ctText').textContent = `${gifts.toLocaleString()} non-cash gift${gifts === 1 ? '' : 's'}, est. ${money(value)}, after this gift`;
+    }
     $('campaignCard').hidden = false;
   }
 
@@ -141,11 +160,14 @@
   function refresh() {
     const ready = $('donorId').value && kind;
     $('saveBtn').disabled = !ready;
-    $('saveAnother').disabled = !ready;
+    if ($('saveAnother')) $('saveAnother').disabled = !ready;
     document.querySelectorAll('.choice').forEach((c) => c.classList.toggle('on', c.querySelector('input').checked));
     showDetails();
     updateCampaign();
   }
+  showCheckFields();
+  showHonoree();
+  showNet();
   if (CHOSEN_DONOR) chooseDonor(CHOSEN_DONOR);
   refresh();
 })();

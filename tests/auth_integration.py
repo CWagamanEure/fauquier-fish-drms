@@ -47,7 +47,7 @@ reportGeneration/reports/delHandler.php ai-email-gen/index.php
 """.split()
 PROTECTED_APIS = """
 search_donors.php search_multi_criteria.php getVolunteers.php send_email.php
-toggleLock.php ai-email-gen/send_email.php
+toggleLock.php ai-email-gen/send_email.php donorLookup.php
 """.split()
 # Entry points that deliberately have no login guard. Every other PHP file in the
 # scanned directories must be in one of the two lists above, so a new page that

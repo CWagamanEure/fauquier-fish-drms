@@ -208,7 +208,7 @@ function donor_history_rows($sql, $id) {
 }
 
 function donor_cash_history($id) {
-    return donor_history_rows('SELECT d.id, d.donation_date, COALESCE(d.amount, 0) AS amount, d.payment_method, d.check_number,
+    return donor_history_rows('SELECT d.id, d.donation_date, d.amount, d.payment_method, d.check_number,
                                       d.receipt_sent_at, d.send_receipt, d.thanked, e.name AS campaign
                                FROM donations d LEFT JOIN dbevents e ON e.id = d.eventID
                                WHERE d.donorID = ? ORDER BY d.donation_date IS NULL, d.donation_date DESC, d.id DESC', $id);
