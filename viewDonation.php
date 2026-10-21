@@ -10,7 +10,7 @@ $id = fish_str($_GET, 'id');
 if (!in_array($kind, ['cash', 'noncash'], true) || !ctype_digit($id)) { header('Location: donations.php', true, 303); exit; }
 
 $canView = fish_can('donations', 'view');
-$canEdit = $canView && fish_can('donations', 'edit') && fish_can('donors', 'view');
+$canEdit = fish_can_record_donations();
 $canViewDonors = fish_can('donors', 'view');
 $gift = $donor = $campaign = null;
 $loadError = false;

@@ -81,6 +81,16 @@ switch ($req['action']) {
         $run("INSERT INTO donations (donorID, eventID, amount, donation_date, payment_method, platform, thanked) VALUES (?, ?, 40.00, '2026-02-02', 'cash', 'in_person', 0)",
              'ii', $out['donor'], $out['done']);
         $out['on_done'] = (int) $con->insert_id;
+        // List donor: three gifts at known dates and values for the sort / range / search checks.
+        $out['list'] = $donor('List', $m, 1);
+        $day = function ($n) { return date('Y-m-d', strtotime("-$n days")); };
+        $run("INSERT INTO donations (donorID, amount, donation_date, payment_method, platform, thanked) VALUES (?, 10.00, ?, 'cash', 'in_person', 0)", 'is', $out['list'], $day(5));
+        $out['list_small'] = (int) $con->insert_id;
+        $run("INSERT INTO donations (donorID, amount, donation_date, payment_method, platform, thanked) VALUES (?, 300.00, ?, 'check', 'in_person', 0)", 'is', $out['list'], $day(100));
+        $out['list_big'] = (int) $con->insert_id;
+        $run("INSERT INTO non_cash_donations (donor_id, campaign_id, date_received, item_description, category, quantity, unit, estimated_value, intended_use)
+              VALUES (?, ?, ?, 'List items', 'other', 3, 'items', 50.00, 'Food pantry')", 'iis', $out['list'], $out['open'], $day(200));
+        $out['list_items'] = (int) $con->insert_id;
         break;
     case 'teardown':
         $donors = $req['donors'];
@@ -177,7 +187,7 @@ class DonationPagesTests(unittest.TestCase):
         cls.marker = "Gs" + secrets.token_hex(5)
         cls.ids = fixture("setup", marker=cls.marker, xss=XSS_DONOR, xss_campaign=XSS_CAMPAIGN)
         cls.addClassCleanup(fixture, "teardown",
-                            donors=[cls.ids[k] for k in ("donor", "xss", "inactive")],
+                            donors=[cls.ids[k] for k in ("donor", "xss", "inactive", "list")],
                             campaigns=[cls.ids[k] for k in ("open", "open_null", "done", "done_yes", "xss_campaign")])
         cls.today = fixture("expected")["today"]
         cls.timings = []
@@ -373,6 +383,7 @@ class DonationPagesTests(unittest.TestCase):
             (self.cash_form(pay_type=""), "Choose a payment type."),
             (self.cash_form(platform="paypal"), "Choose a platform."),
             (self.cash_form(in_honor="on", honoree_name=""), "Enter who the gift is in honor of."),
+            (self.cash_form(signed="maybe"), "Choose whether the check is signed."),
             (self.cash_form(date_received=(datetime.date.fromisoformat(self.today) + datetime.timedelta(days=1)).isoformat()), "Date received cannot be in the future."),
             (self.cash_form(date_received="2999-01-01"), "Enter a valid date received."),
             (self.cash_form(date_received="0026-10-21"), "Enter a valid date received."),
@@ -425,13 +436,25 @@ class DonationPagesTests(unittest.TestCase):
             amount="150", date_received=self.days_ago(400), notes="edited " + self.marker))
         self.assertEqual((status, headers["Location"]), (303, f"viewDonation.php?kind=cash&id={gift_id}&saved=1"))
         _, body = self.get(manager, headers["Location"])
-        self.timed("edit", time.monotonic() - start)
         self.assertEqual(field_value(body, "Amount"), "$150.00")
-        row = fixture("cash", id=gift_id)
-        self.assertEqual((row["amount"], row["reason"], row["recorded_by"]), ("150.00", "edited " + self.marker, self.users["staff"]["id"]))
         _, body = self.get(manager, "donations.php?range=all&q=" + urllib.parse.quote("Gift " + self.marker))
+        self.timed("edit", time.monotonic() - start)   # UF2-54: save to the donations page showing it
         self.assertIn(f"viewDonation.php?kind=cash&amp;id={gift_id}", body)
         self.assertIn("$150.00", body)
+        start = time.monotonic()
+        _, body = self.get(manager, f"donorProfile.php?id={self.ids['donor']}")
+        self.timed("profile", time.monotonic() - start)   # UF2-55: the edited gift on the donor profile
+        self.assertIn("$150.00", body)
+        row = fixture("cash", id=gift_id)
+        self.assertEqual((row["amount"], row["reason"], row["recorded_by"]), ("150.00", "edited " + self.marker, self.users["staff"]["id"]))
+
+        # Edit mode takes the kind from the URL: a posted kind=noncash still updates this cash row only.
+        before = fixture("counts")
+        status, headers, _ = self.post(manager, f"addDonation.php?kind=cash&id={gift_id}", {**self.cash_form(
+            amount="151", date_received=self.days_ago(400)), "kind": "noncash", "item_description": "x", "intended_use": "x"})
+        self.assertEqual((status, headers["Location"]), (303, f"viewDonation.php?kind=cash&id={gift_id}&saved=1"))
+        self.assertEqual(fixture("cash", id=gift_id)["amount"], "151.00")
+        self.assertEqual(fixture("counts"), before)
 
         # Edit mode ignores a posted kind and refuses to move the gift to the anonymous donor.
         status, _, body = self.post(manager, f"addDonation.php?kind=cash&id={gift_id}", {**self.noncash_form(), "kind": "noncash", "donor": "999"})
@@ -537,6 +560,28 @@ class DonationPagesTests(unittest.TestCase):
         self.assertIn(f"of {int(expected['last30']):,} donations", body)
         self.assertNotIn("FAKE", body)
 
+        gifts = lambda body: re.findall(r"viewDonation\.php\?kind=(\w+)&amp;id=(\d+)", body)
+        small, big, items = ("cash", str(self.ids["list_small"])), ("cash", str(self.ids["list_big"])), ("noncash", str(self.ids["list_items"]))
+        lq = urllib.parse.quote("List " + self.marker)
+        for sort, order in (("newest", [small, big, items]), ("oldest", [items, big, small]), ("amount", [big, items, small])):
+            with self.subTest(sort=sort):
+                _, body = self.get(staff, f"donations.php?range=all&sort={sort}&q={lq}")
+                self.assertEqual(gifts(body), order)
+        jan1 = self.today[:4] + "-01-01"
+        in_year = [g for g, days in ((small, 5), (big, 100), (items, 200)) if self.days_ago(days) >= jan1]
+        for rng, want in (("30", [small]), ("90", [small]), ("year", in_year), ("all", [small, big, items])):
+            with self.subTest(range=rng):
+                _, body = self.get(staff, f"donations.php?range={rng}&q={lq}")
+                self.assertEqual(gifts(body), want)
+        _, body = self.get(staff, "donations.php?range=all&q=" + urllib.parse.quote("Open " + self.marker))
+        self.assertIn(items, gifts(body))   # search matches the campaign name
+        _, body = self.get(staff, f"donations.php?range=all&kind=cash&sort=amount&q={lq}")
+        pager = re.findall(r'href="(\?[^"]*page=\d+[^"]*)"', body)
+        self.assertTrue(pager)
+        for link in pager:
+            params = urllib.parse.parse_qs(html.unescape(link)[1:])
+            self.assertEqual((params["kind"], params["range"], params["sort"], params["q"]), (["cash"], ["all"], ["amount"], ["List " + self.marker]))
+
         q = urllib.parse.quote("Gift " + self.marker)
         _, body = self.get(staff, f"donations.php?range=all&kind=cash&q={q}")
         self.assertNotIn("row-noncash", body)
@@ -556,10 +601,40 @@ class DonationPagesTests(unittest.TestCase):
         status, headers, _ = self.post(staff, "addDonation.php", self.cash_form(donor=str(self.ids["xss"]), campaign=str(self.ids["xss_campaign"])))
         gift_id = self.saved_id(headers, "cash")
         for path in (headers["Location"], "donations.php?range=all&q=" + self.marker, f"addDonation.php?kind=cash&id={gift_id}",
-                     f"addDonation.php?donor={self.ids['xss']}"):
+                     f"addDonation.php?donor={self.ids['xss']}", f"donorProfile.php?id={self.ids['xss']}"):
             with self.subTest(path=path):
                 _, body = self.get(staff, path)
                 self.assertNotIn("<img src=x", body)
+
+    # ---- UF2-49: donor search and "Save & add donation" ----
+
+    def test_donor_lookup_and_save_add(self):
+        status, _, body = self.login("nodonors").request("donorLookup.php?q=" + self.marker)
+        self.assertEqual((status, json.loads(body)["success"]), (403, False))
+        staff = self.login("staff")
+        lookup = lambda q: json.loads(staff.request("donorLookup.php?q=" + urllib.parse.quote(q))[2])
+        self.assertEqual(lookup("a"), {"success": True, "donors": []})
+        found = lookup(self.marker)["donors"]
+        ids = [d["id"] for d in found]
+        self.assertIn(self.ids["donor"], ids)
+        self.assertNotIn(self.ids["inactive"], ids)
+        self.assertEqual(set(found[0]), {"id", "name", "type", "town", "since", "cash", "items", "last_gift", "hours"})
+        self.assertNotIn(999, [d["id"] for d in lookup("anonymous")["donors"]])
+
+        token = staff.token("addDonor.php")
+        status, headers, _ = staff.request("addDonor.php", {
+            "csrf_token": token, "type": "Individual", "first": "Saveadd", "last": self.marker, "email": "",
+            "phone": "", "preferred": "", "street": "", "city": "", "state": "", "zip": "", "action": "save_add"})
+        self.assertEqual(status, 303)
+        match = re.fullmatch(r"addDonation\.php\?donor=(\d+)", headers["Location"])
+        self.assertIsNotNone(match, headers["Location"])
+        self.addCleanup(fixture, "teardown", donors=[int(match.group(1))], campaigns=[])
+        _, body = self.get(staff, headers["Location"])
+        self.assertEqual(embedded(body, "CHOSEN_DONOR")["name"], "Saveadd " + self.marker)
+        # Without the donation-write permission the button is not offered and the save goes to the profile.
+        noview = self.login("noview")
+        _, body = self.get(noview, "addDonor.php")
+        self.assertNotIn('value="save_add"', body)
 
     # ---- other pages touched by this change ----
 
@@ -570,12 +645,9 @@ class DonationPagesTests(unittest.TestCase):
         self.assertNotIn("newDonor.php", body)
         self.assertIn('href="addDonation.php"', body)
         # Legacy CASA pages that read fetch_donations_for_event() still load.
-        for path in (f"specificEvent.php?id={self.ids['open']}", "viewAllEvents.php"):
+        for path in (f"specificEvent.php?id={self.ids['open']}", "viewAllEvents.php", "date.php?date=2026-01-01"):
             with self.subTest(path=path):
-                status, _, body = manager.request(path)
-                self.assertIn(status, (200, 303), path)
-                self.assertNotIn("Fatal error", body)
-                self.assertNotIn("Uncaught", body)
+                self.get(manager, path)
 
 
 if __name__ == "__main__":

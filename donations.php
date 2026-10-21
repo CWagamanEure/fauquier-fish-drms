@@ -5,7 +5,7 @@ require_once 'include/fishnet-layout.php';
 require_once 'include/permissions.php';
 require_once 'database/dbDonations.php';
 $canView = fish_can('donations', 'view');
-$canEdit = $canView && fish_can('donations', 'edit') && fish_can('donors', 'view');   // same gate as addDonation.php
+$canEdit = fish_can_record_donations();
 $canViewDonors = fish_can('donors', 'view');
 $kind  = fish_str($_GET, 'kind');
 $q     = fish_str($_GET, 'q');

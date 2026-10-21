@@ -177,8 +177,8 @@ the page shows "Recorded by" only.
   - Cash form adds Fee and a read-only Net amount, Platform, "In honor of" + honoree name, and the
     Digital token / Stock / Other payment types (UF2-48).
   - Edit mode: title "Edit donation", the donor step starts with the stored donor chosen, the type step shows
-    only the stored kind (rendered as text plus a hidden marker for the JS, no radio to change it), and the
-    server never reads kind from POST.
+    only the stored kind as a single checked radio (no choice to change it), the other kind's fieldset is
+    rendered `hidden disabled` so it is never submitted, and the server never reads kind from POST.
   - `CAMPAIGNS` and `CHOSEN_DONOR` are embedded with `json_encode(..., JSON_HEX_TAG | JSON_HEX_AMP |
     JSON_HEX_APOS | JSON_HEX_QUOT)`, and on edit the page also embeds `STORED = {campaign, amount}` (the
     stored campaign id and the stored cash amount or non-cash estimated value).

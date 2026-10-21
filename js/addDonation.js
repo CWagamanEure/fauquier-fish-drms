@@ -62,6 +62,15 @@
     }
   }
 
+  // Enter searches right away instead of submitting the whole form.
+  search.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    clearTimeout(timer);
+    const q = search.value.trim();
+    if (q.length >= 2) lookup(q);
+  });
+
   search.addEventListener('input', () => {
     clearTimeout(timer);
     const q = search.value.trim();

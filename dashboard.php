@@ -14,7 +14,7 @@ fishnet_open('Dashboard', 'dashboard', 'dashboard.css');
         </div>
         <div class="actions">
           <!-- link to add a new donation (same gate as addDonation.php) -->
-          <?php if (fish_can('donations', 'view') && fish_can('donations', 'edit') && fish_can('donors', 'view')): ?>
+          <?php if (fish_can_record_donations()): ?>
           <a href="addDonation.php" class="btn btn-yellow">+Add donation</a>
           <?php endif; ?>
           <!-- link to add a new donor (UF2-99) -->

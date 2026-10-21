@@ -7,8 +7,7 @@ require_once 'include/fishnet-layout.php';
 require_once 'include/permissions.php';
 require_once 'database/dbDonations.php';
 
-// Writing a gift needs donations view and edit, and donors view to pick the donor.
-$canWrite = fish_can('donations', 'view') && fish_can('donations', 'edit') && fish_can('donors', 'view');
+$canWrite = fish_can_record_donations();
 $canAddDonors = fish_can('donors', 'edit');
 $kinds = ['cash', 'noncash'];
 
@@ -182,7 +181,7 @@ fishnet_open($title, 'donations', ['forms.css', 'donation.css']);
               <?php foreach (['cash' => ['Cash', 'Check, cash, card, online'], 'noncash' => ['Non-cash (items)', 'Food, clothing, goods']] as $v => [$label, $hint]): ?>
               <?php if (!$editing || $kind === $v): ?>
               <label class="choice">
-                <input type="radio" name="kind" value="<?= $v ?>"<?= $kind === $v ? ' checked' : '' ?><?= $editing ? ' data-fixed' : '' ?>>
+                <input type="radio" name="kind" value="<?= $v ?>"<?= $kind === $v ? ' checked' : '' ?>>
                 <span><strong><?= $label ?></strong><small><?= $editing ? 'The type of a recorded gift cannot change' : $hint ?></small></span>
               </label>
               <?php endif; ?>

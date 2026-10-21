@@ -378,7 +378,7 @@ function donation_form_validate(array &$form, $kind, ?array $stored = null) {
     }
     if ($form['pay_type'] === 'check') {
         $length('check_number', 'Check number', 32);
-        if (!in_array($form['signed'], ['', 'yes', 'no'], true)) { $form['signed'] = ''; }
+        if (!in_array($form['signed'], ['', 'yes', 'no'], true)) { $errors[] = 'Choose whether the check is signed.'; }
         if ($form['deposit_date'] !== '' && !donation_valid_date($form['deposit_date'])) {
             $errors[] = 'Enter a valid deposit date.';
         }

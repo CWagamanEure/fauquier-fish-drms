@@ -36,8 +36,7 @@ $isAnonymous = (int) $donor['is_anonymous'] === 1;
 $canEdit = fish_can('donors', 'edit') && !$isAnonymous && !$loadError;
 $canViewGifts = fish_can('donations', 'view');
 // Same gate as addDonation.php; a new gift needs an active, non-anonymous donor (UF2-87).
-$canAddGift = $canViewGifts && fish_can('donations', 'edit') && fish_can('donors', 'view')
-  && !$isAnonymous && (int) $donor['is_active'] === 1 && !$loadError;
+$canAddGift = fish_can_record_donations() && !$isAnonymous && (int) $donor['is_active'] === 1 && !$loadError;
 $giftSaved = fish_str($_GET, 'gift') === '1';
 
 // Tab footers come from the rows; the tiles come from the view so the list and the profile agree.
