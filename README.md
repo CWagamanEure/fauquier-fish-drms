@@ -61,7 +61,7 @@ before it is pushed. `make dev` installs the pre-push hook that guards against p
 a human review is the real control. Two GitHub Actions checks report on every pull request: `record`
 says whether a review-swarm record is present (advisory since 2026-10-20) and `tests`
 (`.github/workflows/ci.yml`) runs the PHP syntax check, `make test-auth`, `make test-donors`,
-`make test-users` and `make test-gate`, so a PR needs no tooling on the author's machine. Read
+`make test-users`, `make test-donations` and `make test-gate`, so a PR needs no tooling on the author's machine. Read
 `docs/process/change-review-process.md` before starting work.
 
 ## Database migrations
@@ -104,7 +104,11 @@ in again.
 
 Every signed-in account also has per-area permissions (`user_permissions`, seeded from its role's
 preset and editable per user on the Manage Users pages): the donor pages let a `viewer` read but not add
-or edit donors, `staff` edit but not deactivate, and `manager` and `admin` do both. Accounts without rows
+or edit donors, `staff` edit but not deactivate, and `manager` and `admin` do both. The donation pages
+(`donations.php`, `addDonation.php`, `viewDonation.php`) need the `donations` area: a `viewer` sees the list
+and each gift read-only, and `staff`, `manager` and `admin` also record and edit gifts (which also needs
+`donors` view, to pick the donor); without `donations` view the donor profile hides its Cash and Non-cash
+tabs. Accounts without rows
 fall back to their role's preset. Manage Users (`manageUsers.php`, `addUser.php`, `editUser.php`,
 `userPassword.php`) needs the `users` area: `manager` sees the list read-only, `admin` adds accounts, edits
 names, email, role and per-area boxes, sets passwords, and deactivates or reactivates (an inactive account
@@ -123,7 +127,12 @@ deactivate and reactivate against the real tables, plus the per-role write gate.
 `make seed-demo`) runs `tests/users_integration.py`: the Manage Users list, add, edit, permissions, role
 change, deactivate, reactivate, password change and the admin protections; it prints each write's elapsed
 time and asserts the Jira limits only when `USERS_TIMING_STRICT=1` (the Make target sets it from the
-environment, CI leaves it unset). Run them only against a local development database.
+environment, CI leaves it unset). `make test-donations` (after `make seed-demo`) runs
+`tests/donations_integration.py`: the donations list and tiles, adding, viewing and editing cash and non-cash
+gifts (including legacy rows with missing fields), validation, the campaign figures on the form, the donor
+profile shortcuts and the permission gates, on donors, campaigns and gifts it creates and removes itself; it
+asserts the Jira save-to-display limits only when `DONATIONS_TIMING_STRICT=1`. Run them only against a
+local development database.
 
 ## Purpose
 This project is the result of a semester's worth of collaboration among UMW students. The goal of the project was to create a web application that better suits the needs of Rappahannock CASA, specifically as a system to manage their donors. 
