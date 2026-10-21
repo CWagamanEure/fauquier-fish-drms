@@ -72,6 +72,10 @@ jobs:
         run: make test-auth
       - name: Donor page tests
         run: make test-donors
+      - name: Manage Users page tests
+        run: make test-users
+      - name: Donation page tests
+        run: make test-donations
       - name: Review gate tests
         run: make test-gate
       - name: Service state and logs

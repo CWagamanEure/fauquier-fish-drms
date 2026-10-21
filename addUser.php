@@ -1,6 +1,44 @@
 <?php
-// Front-end: sample data is hard-coded below; replace it with database values.
+// Add a staff account with its role, initial password and permissions (UF2-86).
 require_once 'include/fishnet-layout.php';
+require_once 'include/users-common.php';
+
+users_require_view();
+$canEdit = fish_can('users', 'edit');
+$errors = [];
+$form = ['first' => '', 'last' => '', 'username' => '', 'email' => '', 'role' => 'staff'];
+$matrix = user_matrix_normalise(role_presets()['staff'], 'staff');
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  if (!$canEdit) {                 // the form token was already checked by require_authentication()
+    http_response_code(403);
+    exit('Your account can view users but not add them.');
+  }
+  $form = user_form_from_post($_POST, $form);
+  $errors = user_form_validate($form);
+  $password = $_POST['new_password'] ?? '';
+  $errors = array_merge($errors, user_password_validate($password, $_POST['confirm_password'] ?? ''));
+  $role = isset(FISH_USER_ROLES[$form['role']]) ? $form['role'] : 'staff';
+  // The boxes were drawn for preset_role; a different role (no JavaScript) takes that role's defaults.
+  $matrix = fish_str($_POST, 'preset_role') === $role
+    ? user_matrix_from_post($_POST, $role)
+    : user_matrix_normalise(role_presets()[$role], $role);
+  if (!$errors) {
+    $result = user_create($form, password_hash($password, PASSWORD_BCRYPT), $matrix);
+    if ($result === true) {
+      header('Location: manageUsers.php?user=' . rawurlencode($form['username']) . '&did=created', true, 303);
+      exit;
+    }
+    $errors[] = $result === 'duplicate' ? 'That username or email is already in use.' : 'Could not save the user. Please try again.';
+  }
+  unset($password);
+}
+
+$readOnly = !$canEdit;
+$isNew = true;
+$lockRole = false;
+$notice = $readOnly ? 'Your account can view users but not add them.' : '';
+
 fishnet_open('Add user', 'users', 'forms.css');
 ?>
 
@@ -11,82 +49,21 @@ fishnet_open('Add user', 'users', 'forms.css');
         </div>
       </section>
 
-      <form method="post" class="single">
+      <form method="post" action="addUser.php" class="single">
         <?= auth_csrf_field() ?>
         <div class="card form-card">
-          <div class="group">
-            <p class="group-title">Account</p>
-            <div class="grid g-2">
-              <div class="field"><label for="fn">First name *</label><input id="fn" name="first_name" value="" required></div>
-              <div class="field"><label for="ln">Last name *</label><input id="ln" name="last_name" value="" required></div>
-              <div class="field"><label for="un">Username *</label><input id="un" name="username" value="" required></div>
-              <div class="field"><label for="em">Work email *</label><input type="email" id="em" name="email" value="" required></div>
-            </div>
-          </div>
-
-          <div class="group">
-            <p class="group-title">Role</p>
-            <div class="grid g-2">
-              <div class="field"><label for="role">Role</label>
-                <select id="role" name="role">
-                  <option value="" selected>Choose a role...</option>
-                  <option>Administrator</option>
-                  <option>Donor Coordinator</option>
-                  <option>Treasurer</option>
-                  <option>Volunteer Coordinator</option>
-                  <option>Read only</option>
-                </select></div>
-            </div>
-          </div>
-
-          <div class="group">
-            <p class="group-title">Permissions</p>
-            <div class="table-wrap"><table class="perms">
-              <thead><tr><th>Area</th><th>View</th><th>Add / edit</th><th>Delete</th></tr></thead>
-              <tbody>
-                <tr><td>Donors &amp; profiles</td>
-                  <td><input type="checkbox" name="perm[0][view]" aria-label="Donors &amp; profiles view"></td>
-                  <td><input type="checkbox" name="perm[0][edit]" aria-label="Donors &amp; profiles edit"></td>
-                  <td><input type="checkbox" name="perm[0][delete]" aria-label="Donors &amp; profiles delete"></td>
-                </tr>
-                <tr><td>Donations (cash &amp; non-cash)</td>
-                  <td><input type="checkbox" name="perm[1][view]" aria-label="Donations (cash &amp; non-cash) view"></td>
-                  <td><input type="checkbox" name="perm[1][edit]" aria-label="Donations (cash &amp; non-cash) edit"></td>
-                  <td><input type="checkbox" name="perm[1][delete]" aria-label="Donations (cash &amp; non-cash) delete"></td>
-                </tr>
-                <tr><td>Campaigns</td>
-                  <td><input type="checkbox" name="perm[2][view]" aria-label="Campaigns view"></td>
-                  <td><input type="checkbox" name="perm[2][edit]" aria-label="Campaigns edit"></td>
-                  <td><input type="checkbox" name="perm[2][delete]" aria-label="Campaigns delete"></td>
-                </tr>
-                <tr><td>Communications</td>
-                  <td><input type="checkbox" name="perm[3][view]" aria-label="Communications view"></td>
-                  <td><input type="checkbox" name="perm[3][edit]" aria-label="Communications edit"></td>
-                  <td><input type="checkbox" name="perm[3][delete]" aria-label="Communications delete"></td>
-                </tr>
-                <tr><td>Reports</td>
-                  <td><input type="checkbox" name="perm[4][view]" aria-label="Reports view"></td>
-                  <td><input type="checkbox" name="perm[4][edit]" aria-label="Reports edit"></td>
-                  <td><input type="checkbox" name="perm[4][delete]" aria-label="Reports delete"></td>
-                </tr>
-                <tr><td>Data imports &amp; users</td>
-                  <td><input type="checkbox" name="perm[5][view]" aria-label="Data imports &amp; users view"></td>
-                  <td><input type="checkbox" name="perm[5][edit]" aria-label="Data imports &amp; users edit"></td>
-                  <td><input type="checkbox" name="perm[5][delete]" aria-label="Data imports &amp; users delete"></td>
-                </tr>
-              </tbody>
-            </table></div>
-          </div>
-
+          <?php require 'include/userForm.php'; ?>
           <div class="spacer"></div>
           <footer class="form-foot">
             <p class="muted small-text">Changing the role resets permissions to that role&rsquo;s defaults.</p>
             <div class="foot-btns">
               <a href="manageUsers.php" class="btn btn-outline small">Cancel</a>
-              <button type="submit" class="btn btn-yellow small wide">Create user</button>
+              <?php if (!$readOnly): ?><button type="submit" class="btn btn-yellow small wide">Create user</button><?php endif; ?>
             </div>
           </footer>
         </div>
       </form>
+
+<script src="js/userForm.js"></script>
 
 <?php fishnet_close(); ?>

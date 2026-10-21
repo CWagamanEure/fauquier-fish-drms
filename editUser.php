@@ -1,89 +1,103 @@
 <?php
-// Front-end: sample data is hard-coded below; replace it with database values.
+// Edit a staff account: names, email, role, per-area permissions; deactivate or reactivate (UF2-85, UF2-97).
 require_once 'include/fishnet-layout.php';
+require_once 'include/users-common.php';
+
+users_require_view();
+$stored = users_target_or_404();
+$self = users_is_self($stored);
+$canEdit = users_may_manage($stored);       // users edit, and admin accounts only for admins
+$errors = [];
+$form = ['first' => (string) $stored['first_name'], 'last' => (string) $stored['last_name'],
+         'username' => $stored['id'], 'email' => (string) $stored['email'], 'role' => $stored['role']];
+$matrix = $stored['matrix'];
+$link = rawurlencode($stored['id']);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  $action = fish_str($_POST, 'action') ?: 'save';
+  if (!$canEdit) {                 // the form token was already checked by require_authentication()
+    http_response_code(403);
+    exit('Your account can view this user but not change them.');
+  }
+  if ($action === 'deactivate' || $action === 'reactivate') {
+    // Handled before any field validation so legacy rows with no email can still be switched.
+    if ($self && $action === 'deactivate') {
+      http_response_code(403);
+      exit('You cannot deactivate your own account.');
+    }
+    $result = user_set_status($stored, $action === 'reactivate');
+    if ($result === true) {
+      header('Location: manageUsers.php?user=' . $link . '&did=' . $action . 'd', true, 303);
+      exit;
+    }
+    if ($result === 'last_admin') {
+      http_response_code(403);
+      exit('This is the last active administrator and cannot be deactivated.');
+    }
+    $errors[] = 'Could not update the user. Please try again.';
+  } else {
+    $form = user_form_from_post($_POST, $form);
+    $form['username'] = $stored['id'];                   // never posted: the field is read-only
+    if ($self) { $form['role'] = $stored['role']; }      // own role and users row come from the record
+    $errors = user_form_validate($form, $stored);
+    // What Save writes, computed before validation so an error re-renders it. A changed role resets to
+    // its presets; so do boxes drawn for another role (preset_role, as addUser.php does: after an error
+    // page the select may have been put back without the boxes following). Otherwise the posted boxes.
+    $reset = isset(FISH_USER_ROLES[$form['role']])
+      && ($form['role'] !== $stored['role'] || fish_str($_POST, 'preset_role') !== $form['role']);
+    $matrix = $reset ? user_matrix_normalise(role_presets()[$form['role']], $form['role'])
+                     : user_matrix_from_post($_POST, $form['role']);
+    if ($self) { $matrix['users'] = $stored['matrix']['users']; }
+    if (!$errors) {
+      $result = user_update($stored, $form, $matrix);
+      if ($result === true) {
+        header('Location: manageUsers.php?user=' . $link . '&did=updated', true, 303);
+        exit;
+      }
+      if ($result === 'last_admin') {
+        http_response_code(403);
+        exit('This is the last active administrator and cannot be demoted.');
+      }
+      $errors[] = $result === 'duplicate' ? 'That email is already used by another account.' : 'Could not save the user. Please try again.';
+    }
+  }
+}
+
+$readOnly = !$canEdit;
+$isNew = false;
+$lockRole = $self;
+$storedRole = $stored['role'];
+$name = users_full_name($stored);
+$active = $stored['status'] === 'active';
+$notice = $readOnly
+  ? ($stored['role'] === 'admin' && !users_current_is_admin() ? 'Only an administrator can change an administrator account.' : 'Your account can view users but not change them.')
+  : '';
+// created_ts is UNIX_TIMESTAMP(created_at), so the date does not depend on the database session zone.
+function fmt_when($ts) {
+  return $ts ? h(date('M j, Y', (int) $ts)) : '&mdash;';
+}
+
 fishnet_open('Edit user', 'users', 'forms.css');
 ?>
 
       <section class="page-head">
         <div>
-          <p class="crumbs"><a href="manageUsers.php">Manage Users</a> &rsaquo; <strong>Charity Coleman</strong> &rsaquo; <strong>Edit</strong></p>
+          <p class="crumbs"><a href="manageUsers.php">Manage Users</a> &rsaquo; <strong><?= h($name) ?></strong> &rsaquo; <strong>Edit</strong></p>
           <h1>Edit user</h1>
         </div>
       </section>
 
-      <form class="split" method="post">
+      <form class="split" method="post" action="editUser.php?id=<?= $link ?>">
         <?= auth_csrf_field() ?>
         <div class="card form-card">
-          <div class="group">
-            <p class="group-title">Account</p>
-            <div class="grid g-2">
-              <div class="field"><label for="fn">First name *</label><input id="fn" name="first_name" value="Charity" required></div>
-              <div class="field"><label for="ln">Last name *</label><input id="ln" name="last_name" value="Coleman" required></div>
-              <div class="field"><label for="un">Username *</label><input id="un" name="username" value="ccoleman" required></div>
-              <div class="field"><label for="em">Work email *</label><input type="email" id="em" name="email" value="ccoleman@fauquierfish.org" required></div>
-            </div>
-          </div>
-
-          <div class="group">
-            <p class="group-title">Role</p>
-            <div class="grid g-2">
-              <div class="field"><label for="role">Role</label>
-                <select id="role" name="role">
-                  <option value="">Choose a role...</option>
-                  <option>Administrator</option>
-                  <option selected>Donor Coordinator</option>
-                  <option>Treasurer</option>
-                  <option>Volunteer Coordinator</option>
-                  <option>Read only</option>
-                </select></div>
-            </div>
-          </div>
-
-          <div class="group">
-            <p class="group-title">Permissions</p>
-            <div class="table-wrap"><table class="perms">
-              <thead><tr><th>Area</th><th>View</th><th>Add / edit</th><th>Delete</th></tr></thead>
-              <tbody>
-                <tr><td>Donors &amp; profiles</td>
-                  <td><input type="checkbox" name="perm[0][view]" aria-label="Donors &amp; profiles view" checked></td>
-                  <td><input type="checkbox" name="perm[0][edit]" aria-label="Donors &amp; profiles edit" checked></td>
-                  <td><input type="checkbox" name="perm[0][delete]" aria-label="Donors &amp; profiles delete"></td>
-                </tr>
-                <tr><td>Donations (cash &amp; non-cash)</td>
-                  <td><input type="checkbox" name="perm[1][view]" aria-label="Donations (cash &amp; non-cash) view" checked></td>
-                  <td><input type="checkbox" name="perm[1][edit]" aria-label="Donations (cash &amp; non-cash) edit" checked></td>
-                  <td><input type="checkbox" name="perm[1][delete]" aria-label="Donations (cash &amp; non-cash) delete"></td>
-                </tr>
-                <tr><td>Campaigns</td>
-                  <td><input type="checkbox" name="perm[2][view]" aria-label="Campaigns view" checked></td>
-                  <td><input type="checkbox" name="perm[2][edit]" aria-label="Campaigns edit" checked></td>
-                  <td><input type="checkbox" name="perm[2][delete]" aria-label="Campaigns delete"></td>
-                </tr>
-                <tr><td>Communications</td>
-                  <td><input type="checkbox" name="perm[3][view]" aria-label="Communications view" checked></td>
-                  <td><input type="checkbox" name="perm[3][edit]" aria-label="Communications edit" checked></td>
-                  <td><input type="checkbox" name="perm[3][delete]" aria-label="Communications delete"></td>
-                </tr>
-                <tr><td>Reports</td>
-                  <td><input type="checkbox" name="perm[4][view]" aria-label="Reports view" checked></td>
-                  <td><input type="checkbox" name="perm[4][edit]" aria-label="Reports edit"></td>
-                  <td><input type="checkbox" name="perm[4][delete]" aria-label="Reports delete"></td>
-                </tr>
-                <tr><td>Data imports &amp; users</td>
-                  <td><input type="checkbox" name="perm[5][view]" aria-label="Data imports &amp; users view"></td>
-                  <td><input type="checkbox" name="perm[5][edit]" aria-label="Data imports &amp; users edit"></td>
-                  <td><input type="checkbox" name="perm[5][delete]" aria-label="Data imports &amp; users delete"></td>
-                </tr>
-              </tbody>
-            </table></div>
-          </div>
-
+          <?php if (!$active): ?><div class="notice" role="status">This account is inactive: the user cannot sign in. Their records are kept.</div><?php endif; ?>
+          <?php require 'include/userForm.php'; ?>
           <div class="spacer"></div>
           <footer class="form-foot">
             <p class="muted small-text">Changing the role resets permissions to that role&rsquo;s defaults.</p>
             <div class="foot-btns">
               <a href="manageUsers.php" class="btn btn-outline small">Cancel</a>
-              <button type="submit" class="btn btn-yellow small wide">Save changes</button>
+              <?php if (!$readOnly): ?><button type="submit" name="action" value="save" class="btn btn-yellow small wide">Save changes</button><?php endif; ?>
             </div>
           </footer>
         </div>
@@ -92,22 +106,39 @@ fishnet_open('Edit user', 'users', 'forms.css');
           <div class="card panel">
             <h3>Account info</h3>
             <dl class="facts">
-              <dt>Created</dt><dd>Jan 12, 2026</dd>
-              <dt>Last login</dt><dd>Oct 3, 2026</dd>
-              <dt>Password changed</dt><dd>Aug 20, 2026</dd>
-              <dt>Created by</dt><dd>T. Chavez-Duran</dd>
+              <dt>Created</dt><dd><?= fmt_when($stored['created_ts']) ?></dd>
+              <dt>Last login</dt><dd>&mdash;</dd>
+              <dt>Password changed</dt><dd>&mdash;</dd>
+              <dt>Created by</dt><dd>&mdash;</dd>
             </dl>
           </div>
+          <?php if (!$readOnly): ?>
           <div class="card panel">
             <h3>Password</h3>
-            <a href="userPassword.php" class="btn btn-outline pill-btn">Change password &rarr;</a>
+            <a href="userPassword.php?id=<?= $link ?>" class="btn btn-outline pill-btn">Change password &rarr;</a>
           </div>
+          <?php if ($self): ?>
+          <div class="card panel">
+            <h3>Deactivate user</h3>
+            <p>You cannot deactivate your own account.</p>
+          </div>
+          <?php elseif ($active): ?>
           <div class="card panel danger">
             <h3>Deactivate user</h3>
             <p>Blocks sign-in but keeps everything they entered.</p>
-            <button type="button" class="btn btn-danger pill-btn">Deactivate</button>
+            <button type="submit" name="action" value="deactivate" class="btn btn-danger pill-btn" formnovalidate>Deactivate</button>
           </div>
+          <?php else: ?>
+          <div class="card panel">
+            <h3>Reactivate user</h3>
+            <p>Lets the user sign in again with their existing password.</p>
+            <button type="submit" name="action" value="reactivate" class="btn btn-outline pill-btn" formnovalidate>Reactivate</button>
+          </div>
+          <?php endif; ?>
+          <?php endif; ?>
         </aside>
       </form>
+
+<script src="js/userForm.js"></script>
 
 <?php fishnet_close(); ?>

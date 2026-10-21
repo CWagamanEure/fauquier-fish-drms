@@ -70,7 +70,7 @@ everyone who can read the repository). The per-auditor approve flag is informati
   them: it builds the compose stack on the runner, applies the migrations, loads the demo data, replays
   every migration file against the migrated database (they must be safe to re-run), lints every tracked
   PHP file with `php -l`, runs `make test-auth`,
-  `make test-donors` and `make test-gate`, and refuses a PR that edits or deletes a migration already on
+  `make test-donors`, `make test-users`, `make test-donations` and `make test-gate`, and refuses a PR that edits or deletes a migration already on
   the base branch. It needs nothing installed on the author's machine. `docs/process/branch-protection.json`
   names it as the required check (applied to `dev` and `main` on 2026-10-20). The job
   runs untrusted PR code, so it has no secrets, read-only permissions, and stays on `pull_request`. A PR

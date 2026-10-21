@@ -1,0 +1,40 @@
+{
+  "mode": "code",
+  "subject": "wagaman-eure-manage-users",
+  "round": 6,
+  "approved": true,
+  "reviewed_commit": "83da820",
+  "tree": "eaf8f59eeb68e8400021f5d1f35f80a9139e934145820040e6cb0f476aa1e068",
+  "auditors": [
+    {
+      "auditor": "security",
+      "approve": true,
+      "finding_count": 1
+    },
+    {
+      "auditor": "data",
+      "approve": true,
+      "finding_count": 2
+    },
+    {
+      "auditor": "correctness",
+      "approve": true,
+      "finding_count": 2
+    },
+    {
+      "auditor": "verification",
+      "approve": true,
+      "finding_count": 2
+    }
+  ],
+  "counts": {
+    "severity": {
+      "low": 5,
+      "medium": 2
+    },
+    "status": {
+      "reported": 7
+    }
+  },
+  "accepted_highs": []
+}

@@ -98,18 +98,24 @@ function retrieve_persons_by_name ($name) {
 	return $persons;	
 }
 
+// $newPass is the bcrypt hash. Values are bound, never interpolated.
 function change_password($id, $newPass) {
 	$con=connect();
-	$query = 'UPDATE dbpersons SET password = "' . $newPass . '" WHERE id = "' . $id . '"';
-	$result = mysqli_query($con,$query);
+	$stmt = $con->prepare('UPDATE dbpersons SET password = ? WHERE id = ?');
+	$stmt->bind_param('ss', $newPass, $id);
+	$result = $stmt->execute();
+	$stmt->close();
 	mysqli_close($con);
 	return $result;
 }
 
+// $newPass is the bcrypt hash. Values are bound, never interpolated.
 function reset_password($id, $newPass) {
 	$con=connect();
-	$query = 'UPDATE dbpersons SET password = "' . $newPass . '" WHERE id = "' . $id . '"';
-	$result = mysqli_query($con,$query);
+	$stmt = $con->prepare('UPDATE dbpersons SET password = ? WHERE id = ?');
+	$stmt->bind_param('ss', $newPass, $id);
+	$result = $stmt->execute();
+	$stmt->close();
 	mysqli_close($con);
 	return $result;
 }

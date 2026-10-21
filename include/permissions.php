@@ -39,3 +39,9 @@ function fish_can($area, $action) {
     }
     return $cache[$key] = ($row !== null && (int) $row[0] === 1);
 }
+
+// Recording or editing a gift (addDonation.php and every link to it): donations view and edit, plus donors
+// view to pick the donor. Edit without view must not reach the form, which shows the stored gift.
+function fish_can_record_donations() {
+    return fish_can('donations', 'view') && fish_can('donations', 'edit') && fish_can('donors', 'view');
+}
