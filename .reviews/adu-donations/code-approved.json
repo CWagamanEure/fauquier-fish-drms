@@ -1,0 +1,37 @@
+{
+ "mode": "code",
+ "subject": "adu-donations",
+ "round": 2,
+ "approved": true,
+ "reviewed_commit": "84b336c02a42454bf8e98453a03d73be43ede3c7",
+ "tree": "1c5beefc05e6d05013a55d2a8729c0de4297388ae345cb65a80a4751d616d4a4",
+ "runner": "review-swarm.js prompts run via the Agent tool (Workflow tool unavailable in this session)",
+ "auditors": [
+  {
+   "auditor": "security",
+   "approve": true,
+   "finding_count": 0
+  },
+  {
+   "auditor": "data",
+   "approve": true,
+   "finding_count": 0
+  },
+  {
+   "auditor": "correctness",
+   "approve": true,
+   "finding_count": 1
+  },
+  {
+   "auditor": "verification",
+   "approve": true,
+   "finding_count": 3
+  }
+ ],
+ "findings_by_severity": {
+  "low": 4
+ },
+ "findings_by_status": {
+  "reported": 4
+ }
+}

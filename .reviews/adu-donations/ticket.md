@@ -155,8 +155,8 @@ the page shows "Recorded by" only.
     (edit without view must not read gifts through the edit form); otherwise a notice and no form or gift
     values, and a POST is refused with no write. "+ New donation", Edit and the profile/dashboard add links
     use the same condition.
-  - Only the selected kind's fieldset is submitted: on edit only the stored kind's fieldset is rendered; on add
-    the unselected one is rendered `disabled` by the server, so a POST without JavaScript cannot mix fields.
+  - Only the selected kind's fieldset is submitted: the server renders the other kind's fieldset `hidden disabled`
+    (on edit, the stored kind is the only one enabled), so a POST without JavaScript cannot mix fields.
   - POST: `auth_csrf_field()` (already in the form; `require_authentication()` verifies it), read the form,
     validate; on errors re-render with the messages and the values entered (no write), with the chosen donor
     rebuilt server-side from the posted donor id (or the stored donor on edit); on success 303-redirect (PRG):
