@@ -15,7 +15,7 @@ fishnet_open('Dashboard', 'dashboard', 'dashboard.css');
           <!-- link to add a new donation -->
           <a href="addDonation.php" class="btn btn-yellow">+Add donation</a>
           <!-- link to add a new donor -->
-          <a href="newDonor.php" class="btn btn-outline">+Add Donor</a>
+          <a href="addDonor.php" class="btn btn-outline">+Add Donor</a>
           <!-- not working not in this sprint  (FAKE) -->
           <a href="logCommunication.php" class="btn btn-outline">+Log Communication</a>
         </div>
