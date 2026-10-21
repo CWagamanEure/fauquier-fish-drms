@@ -25,7 +25,10 @@ files already listed and stops with an error if an applied file was edited after
    and backfills guarded by `WHERE target IS NULL`. Foreign keys on existing tables need the
    `information_schema` guard used in `002_donations_cash_fields.sql`.
 3. Never edit or renumber a file after it has been pushed; add a new file instead.
-4. Run `make migrate` twice locally, then commit the file.
+4. Prove it is safe to re-run the way CI does: `make migrate` applies it, then replay the whole
+   series in order against the migrated database and expect no errors:
+   `for f in sql/migrations/[0-9][0-9][0-9]_*.sql; do scripts/db-sql.sh < "$f"; done`
+   (a second `make migrate` proves nothing, it skips applied files by checksum). Then commit.
 
 Files are run through the `mariadb` client, so `DELIMITER` works for triggers.
 
@@ -40,7 +43,7 @@ guard in `002_donations_cash_fields.sql`.
 | Table / view | Purpose | Ticket |
 |---|---|---|
 | `dbpersons` + `first_name`, `last_name`, `email`, `role`, `status` | Staff accounts; `role` is the source of truth, `accessLevel` is kept in sync for the legacy page gate | UF2-7, UF2-15 |
-| `user_permissions` | View / edit / delete per area (donors, donations, campaigns, communications, reports, data_import, users). `include/permissions.php` reads the user's row or, when none exists, the role preset. Rows override the preset and outlive a role change: code that changes `dbpersons.role` must re-apply that user's preset rows (DELETE + INSERT ... FROM `role_permission_presets`). | UF2-7, UF2-83..86 |
+| `user_permissions` | View / edit / delete per area (donors, donations, campaigns, communications, reports, data_import, users). `include/permissions.php` reads the user's row or, when none exists, the role preset. Rows override the preset and outlive a role change: code that changes `dbpersons.role` must re-apply that user's preset rows (DELETE + INSERT ... FROM `role_permission_presets`; `user_update()` in `database/dbUsers.php` does this for the Manage Users pages). | UF2-7, UF2-83..86 |
 | `role_permission_presets` (view) | Default permission rows per role; re-apply when a user's role changes | UF2-7 |
 | `donors` + type, org fields, middle name, preferred contact, preference flags, `donor_since` | Add-donor form and donor list | UF2-60, UF2-9 |
 | `donations` + `donation_date`, payment fields, platform, honoree, receipt, `recorded_by`, `net_amount` | Cash donation form and lists. Triggers keep `date` (legacy MM/DD/YYYY) and `donation_date` in sync | UF2-41, UF2-48, UF2-26 |

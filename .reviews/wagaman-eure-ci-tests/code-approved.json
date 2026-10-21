@@ -1,0 +1,40 @@
+{
+  "mode": "code",
+  "subject": "wagaman-eure-ci-tests",
+  "round": 2,
+  "approved": true,
+  "reviewed_commit": "9fb7da693ef519cb524cbc4c272deed65ecae1ba",
+  "tree": "7db51fdcbe208aa079deaa8d489c817890de9b234a3ee521906fca6a3430c34f",
+  "auditors": [
+    {
+      "auditor": "security",
+      "approve": true,
+      "finding_count": 1
+    },
+    {
+      "auditor": "data",
+      "approve": true,
+      "finding_count": 2
+    },
+    {
+      "auditor": "correctness",
+      "approve": true,
+      "finding_count": 3
+    },
+    {
+      "auditor": "verification",
+      "approve": true,
+      "finding_count": 3
+    }
+  ],
+  "counts": {
+    "severity": {
+      "low": 6,
+      "medium": 3
+    },
+    "status": {
+      "reported": 9
+    }
+  },
+  "accepted_highs": []
+}

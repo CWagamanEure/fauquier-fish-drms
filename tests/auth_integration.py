@@ -40,6 +40,8 @@ requestFailed.php resetPassword.php resources.php searchindex.php selectVOTM.php
 setTimes.php signupPending.php signupSuccess.php specificEvent.php template.php
 uploadResources.php viewAllEvents.php viewProfile.php viewResources.php
 viewSignUpList.php volunteerManagement.php volunteerReport.php
+addCampaign.php campaign.php campaigns.php addDonation.php donations.php viewDonation.php
+newDonor.php addUser.php editUser.php manageUsers.php userPassword.php
 python/ImportHandler.php python/ExportHandler.php reportGeneration/formHandler.php
 reportGeneration/reports/delHandler.php ai-email-gen/index.php
 """.split()
@@ -47,6 +49,22 @@ PROTECTED_APIS = """
 search_donors.php search_multi_criteria.php getVolunteers.php send_email.php
 toggleLock.php ai-email-gen/send_email.php
 """.split()
+# Entry points that deliberately have no login guard. Every other PHP file in the
+# scanned directories must be in one of the two lists above, so a new page that
+# forgets include/fishnet-layout.php fails test_every_entry_point_is_listed.
+KNOWN_UNGUARDED = """
+login.php logout.php
+insertAdmin.php
+header.php footer.php infoBox.php
+deleteLocation.php deleteService.php eventApproved.php profileEditForm.php
+registrationForm.php viewVolunteerProfile.php
+""".split()
+# login.php/logout.php: the login flow itself. insertAdmin.php: CLI bootstrap, 404 over HTTP
+# (tested below). header/footer/infoBox: HTML fragments included by legacy pages.
+# The last six are legacy pages with no guard; deciding guard-vs-delete is a separate ticket.
+# Directories scanned for entry points. include/, database/, tests/ and sql/ hold no entry points.
+ENTRY_POINT_GLOBS = ("*.php", "python/*.php", "reportGeneration/**/*.php", "ai-email-gen/*.php")
+GUARD_MARKER = re.compile(r"fishnet-layout\.php|require_authentication\(")
 
 FIXTURES_PHP = r"""
 require 'database/dbinfo.php';
@@ -281,6 +299,32 @@ class AuthenticationTests(unittest.TestCase):
                     self.assertEqual(headers["Location"], "/login.php")
                     self.assertEqual(body, "")
                     self.assertIn("no-store", headers["Cache-Control"])
+
+    def test_every_entry_point_is_listed(self):
+        # Runs inside the web container over the bind-mounted tree (ROOT), so untracked
+        # local .php files are scanned too; CI checks out tracked files only.
+        found = sorted(
+            str(path.relative_to(ROOT))
+            for pattern in ENTRY_POINT_GLOBS
+            for path in ROOT.glob(pattern)
+        )
+        listed = set(PROTECTED_PAGES) | set(PROTECTED_APIS) | set(KNOWN_UNGUARDED)
+        self.assertEqual(
+            [path for path in found if path not in listed], [],
+            "PHP entry points missing from PROTECTED_PAGES, PROTECTED_APIS or KNOWN_UNGUARDED",
+        )
+        self.assertEqual(
+            sorted(set(listed) - set(found)), [],
+            "listed files that no longer exist in the tree",
+        )
+        for path in found:
+            source = (ROOT / path).read_text(errors="ignore")
+            with self.subTest(path=path):
+                if path in KNOWN_UNGUARDED:
+                    self.assertIsNone(GUARD_MARKER.search(source),
+                                      "guarded page listed in KNOWN_UNGUARDED; move it to a protected list")
+                if re.search(r"""method\s*=\s*["']post""", source, re.I):
+                    self.assertTrue("auth_csrf_field(" in source, "POST form without auth_csrf_field()")
 
     def test_anonymous_api_calls_return_401_without_data(self):
         for path in PROTECTED_APIS:
