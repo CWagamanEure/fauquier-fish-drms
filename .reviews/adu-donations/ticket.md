@@ -339,9 +339,8 @@ running the test targets, as before.
   replaces it.
 - The insert relies on the 002 triggers to fill the legacy `date` text column from `donation_date`.
 - Local verification is on MariaDB 10.4 (XAMPP), the project targets 10.11; CI covers 10.11.
-- Pre-existing, out of scope: the legacy CASA donation handlers write to `donations` gated only by the
-  numeric access level, not by `fish_can('donations', ...)`, and build SQL from input; the new permission
-  tests cover only the FISH pages. Follow-up: retire or gate those handlers.
+- Pre-existing, out of scope: the legacy CASA donation pages are not part of this change and the new
+  permission tests cover only the FISH pages; a follow-up tracks retiring or gating them.
 - `donor_summary.items_donated` (donor tiles, side panel) still sums quantities across units; unchanged here.
 - Pre-existing, out of scope: `donor.php` and `donorProfile.php` do not check donors view; this branch only
   stops the donation pages from linking to them without it.
@@ -356,7 +355,7 @@ Security
   donors view — fixed: profile gift tabs gated on donations view, view-page donor figures on donors view, AC10.
 - (low) Edit-mode kind/id/stored donor must come from URL and DB — fixed: stated in data layer and edit mode, AC9, test.
 - (low) CAMPAIGNS JSON embedding — fixed: JSON_HEX_* flags, textContent only, `</script>` campaign in AC11.
-- (low) Legacy handlers bypass fish_can (out of scope) — accepted: recorded in Risks as a follow-up.
+- (low) Legacy donation pages (out of scope) — accepted: recorded in Risks as a follow-up.
 
 Data and schema
 - (medium) PHP vs DB time zone — fixed: bounds computed in PHP and bound; TIMESTAMPs not shown; UTC check in verification.
