@@ -117,6 +117,8 @@
 .campaign-tabs .p-vols, .campaign-tabs .p-comms { padding-top: 14px; }
 .tab-actions.left { justify-content: flex-start; }
 a.pill { display: inline-block; }
+a.pill { text-decoration: none; color: inherit; }
+a.pill.on { color: #fff; }
 
 .p-gifts td:nth-child(4) { white-space: normal; }
 .gifts-layout { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(240px, 1fr); gap: 28px; }
