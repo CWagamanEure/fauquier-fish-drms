@@ -1,0 +1,37 @@
+{
+ "mode": "ticket",
+ "subject": "adu-donations",
+ "round": 2,
+ "approved": true,
+ "runner": "review-swarm.js prompts run via the Agent tool (Workflow tool unavailable in this session)",
+ "auditors": [
+  {
+   "auditor": "security",
+   "approve": true,
+   "finding_count": 2
+  },
+  {
+   "auditor": "data",
+   "approve": true,
+   "finding_count": 3
+  },
+  {
+   "auditor": "correctness",
+   "approve": true,
+   "finding_count": 6
+  },
+  {
+   "auditor": "verification",
+   "approve": true,
+   "finding_count": 6
+  }
+ ],
+ "findings_by_severity": {
+  "high": 1,
+  "medium": 5,
+  "low": 11
+ },
+ "findings_by_status": {
+  "reported": 17
+ }
+}

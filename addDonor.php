@@ -5,6 +5,7 @@ require_once 'include/permissions.php';
 require_once 'database/dbDonors.php';
 
 $canEdit = fish_can('donors', 'edit');
+$canAddGift = fish_can_record_donations();   // "Save & add donation" only leads somewhere useful with this
 $errors = [];
 $form = [
   'type'=>'Individual', 'first'=>'', 'middle'=>'', 'last'=>'', 'org_name'=>'',
@@ -24,9 +25,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $newId = donor_create($form, auth_current_user()->get_id());
     if ($newId === false) {
       $errors[] = 'Could not save the donor. Please try again.';
+    } elseif (fish_str($_POST, 'action') === 'save_add' && $canAddGift) {
+      // "Save & add donation": open the donation form with the new donor already chosen (UF2-49).
+      header('Location: addDonation.php?donor=' . $newId, true, 303);
+      exit;
     } else {
-      // "Save & add donation" will point at the donation form once it exists on dev; until then the
-      // new profile is the only sensible destination either way.
       header('Location: donorProfile.php?id=' . $newId . '&saved=1', true, 303);
       exit;
     }
@@ -36,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $readOnly = !$canEdit;
 $formAction = 'addDonor.php';
 $buttons = '<a href="donor.php" class="btn btn-outline small">Cancel</a>'
-         . '<button type="submit" name="action" value="save_add" class="btn btn-outline small">Save &amp; add donation</button>'
+         . ($canAddGift ? '<button type="submit" name="action" value="save_add" class="btn btn-outline small">Save &amp; add donation</button>' : '')
          . '<button type="submit" name="action" value="save" class="btn btn-yellow small">Save donor</button>';
 
 fishnet_open('Add donor', 'donor', 'forms.css');
@@ -57,7 +60,7 @@ fishnet_open('Add donor', 'donor', 'forms.css');
             <h3>Tips</h3>
             <p>Only first and last name are required.</p>
             <p>Pick Organization for churches, schools and businesses.</p>
-            <p>&ldquo;Save &amp; add donation&rdquo; opens the new profile now and will open the donation form once that page exists.</p>
+            <?php if ($canAddGift): ?><p>Use &ldquo;Save &amp; add donation&rdquo; to record a first gift right away.</p><?php endif; ?>
           </section>
         </aside>
       </div>

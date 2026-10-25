@@ -12,8 +12,10 @@ $cash = $items = $vol = $comms = [];
 try {
   $donor = $id > 0 ? donor_get($id) : null;
   if ($donor) {
-    $cash  = donor_cash_history($id);
-    $items = donor_noncash_history($id);
+    if (fish_can('donations', 'view')) {   // gift rows need donations view (UF2-55 / AC10)
+      $cash  = donor_cash_history($id);
+      $items = donor_noncash_history($id);
+    }
     $vol   = donor_hours_history($id);
     $comms = donor_communications($id);
   }
@@ -32,11 +34,16 @@ if (!$donor) { header('Location: donor.php', true, 303); exit; }   // unknown id
 $saved = fish_str($_GET, 'saved') === '1';
 $isAnonymous = (int) $donor['is_anonymous'] === 1;
 $canEdit = fish_can('donors', 'edit') && !$isAnonymous && !$loadError;
+$canViewGifts = fish_can('donations', 'view');
+// Same gate as addDonation.php; a new gift needs an active, non-anonymous donor (UF2-87).
+$canAddGift = fish_can_record_donations() && !$isAnonymous && (int) $donor['is_active'] === 1 && !$loadError;
+$giftSaved = fish_str($_GET, 'gift') === '1';
 
 // Tab footers come from the rows; the tiles come from the view so the list and the profile agree.
 $cashTotal  = array_sum(array_column($cash, 'amount'));
 $cashCount  = count($cash);
-$cashAvg    = $cashCount ? $cashTotal / $cashCount : 0;
+$cashKnown  = count(array_filter(array_column($cash, 'amount'), function ($a) { return $a !== null; }));   // legacy rows may have no amount
+$cashAvg    = $cashKnown ? $cashTotal / $cashKnown : 0;
 $itemQty    = array_sum(array_column($items, 'quantity'));
 $itemValue  = array_sum(array_column($items, 'estimated_value'));
 $volHours   = array_sum(array_column($vol, 'hours'));
@@ -84,6 +91,7 @@ fishnet_open('Donor profile', 'donor', ['donor.css', 'forms.css']);
 
       <p class="crumbs"><a href="donor.php">Donor</a> &rsaquo; <strong><?= h($name) ?></strong></p>
       <?php if ($saved): ?><div class="notice" role="status">Donor saved.</div><?php endif; ?>
+      <?php if ($giftSaved): ?><div class="notice" role="status">Donation saved.</div><?php endif; ?>
       <?php if ($loadError): ?><div class="notice" role="alert">Could not load this donor. Please try again shortly.</div><?php endif; ?>
 
       <section class="card profile-head">
@@ -109,46 +117,54 @@ fishnet_open('Donor profile', 'donor', ['donor.css', 'forms.css']);
         <input type="radio" name="tab" id="tVol">
         <input type="radio" name="tab" id="tComm">
         <div class="tab-bar">
-          <label for="tCash">Cash <span class="count"><?= $cashCount ?></span></label>
-          <label for="tItems">Non-cash <span class="count"><?= count($items) ?></span></label>
+          <label for="tCash">Cash<?php if ($canViewGifts): ?> <span class="count"><?= $cashCount ?></span><?php endif; ?></label>
+          <label for="tItems">Non-cash<?php if ($canViewGifts): ?> <span class="count"><?= count($items) ?></span><?php endif; ?></label>
           <label for="tVol">Volunteer <span class="count"><?= $volCount ?></span></label>
           <label for="tComm">Communications <span class="count"><?= count($comms) ?></span></label>
         </div>
 
         <!-- Cash -->
         <div class="panel-tab p-cash">
-          <div class="tab-actions"><a href="addDonation.php?donor_id=<?= (int)$donor['id'] ?>" class="btn btn-outline pill-btn">+ Add cash gift</a></div>
+          <?php if (!$canViewGifts): ?>
+          <p class="muted">Your account cannot view donations.</p>
+          <?php else: ?>
+          <?php if ($canAddGift): ?><div class="tab-actions"><a href="addDonation.php?donor=<?= (int)$donor['id'] ?>&amp;kind=cash&amp;from=profile" class="btn btn-outline pill-btn">+ Add cash gift</a></div><?php endif; ?>
           <div class="table-wrap"><table>
-            <thead><tr><th>Date</th><th>Amount</th><th>Payment</th><th>Campaign</th><th>Receipt</th></tr></thead>
+            <thead><tr><th>Date</th><th>Amount</th><th>Payment</th><th>Campaign</th><th>Receipt</th><th></th></tr></thead>
             <tbody>
               <?php foreach ($cash as $g): ?>
-              <tr><td><?= fmt_date($g['donation_date']) ?></td><td><strong>$<?= number_format((float) $g['amount'], 2) ?></strong></td><td><?= payment_label($g) ?></td><td><?= $g['campaign'] !== null && $g['campaign'] !== '' ? h($g['campaign']) : '&mdash;' ?></td><td><?= receipt_badge($g) ?></td></tr>
+              <tr><td><?= fmt_date($g['donation_date']) ?></td><td><strong><?= $g['amount'] === null ? '&mdash;' : '$' . number_format((float) $g['amount'], 2) ?></strong></td><td><?= payment_label($g) ?></td><td><?= $g['campaign'] !== null && $g['campaign'] !== '' ? h($g['campaign']) : '&mdash;' ?></td><td><?= receipt_badge($g) ?></td><td><a href="viewDonation.php?kind=cash&amp;id=<?= (int) $g['id'] ?>" class="select">View</a></td></tr>
               <?php endforeach; ?>
-              <?php if (!$cash): ?><tr><td colspan="5" class="muted">No cash gifts recorded.</td></tr><?php endif; ?>
+              <?php if (!$cash): ?><tr><td colspan="6" class="muted">No cash gifts recorded.</td></tr><?php endif; ?>
             </tbody>
             <?php if ($cash): ?>
-            <tfoot><tr><td>Total cash</td><td>$<?= number_format($cashTotal, 2) ?></td><td colspan="3" class="muted"><?= $cashCount ?> gift<?= $cashCount === 1 ? '' : 's' ?> &middot; avg $<?= number_format($cashAvg, 2) ?></td></tr></tfoot>
+            <tfoot><tr><td>Total cash</td><td>$<?= number_format($cashTotal, 2) ?></td><td colspan="4" class="muted"><?= $cashCount ?> gift<?= $cashCount === 1 ? '' : 's' ?> &middot; avg $<?= number_format($cashAvg, 2) ?></td></tr></tfoot>
             <?php endif; ?>
           </table></div>
           <?= count_line($cashCount, 'cash gifts') ?>
+          <?php endif; ?>
         </div>
 
         <!-- Non-cash -->
         <div class="panel-tab p-items">
-          <div class="tab-actions"><a href="addDonation.php?donor_id=<?= (int)$donor['id'] ?>" class="btn btn-outline pill-btn">+ Add non-cash gift</a></div>
+          <?php if (!$canViewGifts): ?>
+          <p class="muted">Your account cannot view donations.</p>
+          <?php else: ?>
+          <?php if ($canAddGift): ?><div class="tab-actions"><a href="addDonation.php?donor=<?= (int)$donor['id'] ?>&amp;kind=noncash&amp;from=profile" class="btn btn-outline pill-btn">+ Add non-cash gift</a></div><?php endif; ?>
           <div class="table-wrap"><table>
-            <thead><tr><th>Date</th><th>Quantity</th><th>Item</th><th>Est. value</th><th>Campaign</th><th>Receipt</th></tr></thead>
+            <thead><tr><th>Date</th><th>Quantity</th><th>Item</th><th>Est. value</th><th>Campaign</th><th>Receipt</th><th></th></tr></thead>
             <tbody>
               <?php foreach ($items as $g): ?>
-              <tr><td><?= fmt_date($g['date_received']) ?></td><td><strong><?= h(fmt_hours($g['quantity'])) ?> <?= h($g['unit']) ?></strong></td><td><?= h($g['item_description']) ?></td><td><?= $g['estimated_value'] === null ? '&mdash;' : '$' . number_format((float) $g['estimated_value'], 2) ?></td><td><?= $g['campaign'] !== null && $g['campaign'] !== '' ? h($g['campaign']) : '&mdash;' ?></td><td><?= receipt_badge($g) ?></td></tr>
+              <tr><td><?= fmt_date($g['date_received']) ?></td><td><strong><?= h(fmt_hours($g['quantity'])) ?> <?= h($g['unit']) ?></strong></td><td><?= h($g['item_description']) ?></td><td><?= $g['estimated_value'] === null ? '&mdash;' : '$' . number_format((float) $g['estimated_value'], 2) ?></td><td><?= $g['campaign'] !== null && $g['campaign'] !== '' ? h($g['campaign']) : '&mdash;' ?></td><td><?= receipt_badge($g) ?></td><td><a href="viewDonation.php?kind=noncash&amp;id=<?= (int) $g['id'] ?>" class="select">View</a></td></tr>
               <?php endforeach; ?>
-              <?php if (!$items): ?><tr><td colspan="6" class="muted">No non-cash gifts recorded.</td></tr><?php endif; ?>
+              <?php if (!$items): ?><tr><td colspan="7" class="muted">No non-cash gifts recorded.</td></tr><?php endif; ?>
             </tbody>
             <?php if ($items): ?>
-            <tfoot><tr><td>Totals</td><td><?= h(fmt_hours($itemQty)) ?></td><td></td><td>$<?= number_format($itemValue, 2) ?></td><td colspan="2"></td></tr></tfoot>
+            <tfoot><tr><td>Totals</td><td><?= h(fmt_hours($itemQty)) ?></td><td></td><td>$<?= number_format($itemValue, 2) ?></td><td colspan="3"></td></tr></tfoot>
             <?php endif; ?>
           </table></div>
           <?= count_line(count($items), 'non-cash gifts') ?>
+          <?php endif; ?>
         </div>
 
         <!-- Volunteer -->
