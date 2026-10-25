@@ -169,7 +169,7 @@ fishnet_open('Donor profile', 'donor', ['donor.css', 'forms.css']);
 
         <!-- Volunteer -->
         <div class="panel-tab p-vol">
-          <div class="tab-actions"><a href="#" class="btn btn-outline pill-btn">+ Log hours</a></div>
+          <div class="tab-actions"><a href="addHours.php?donor_id=<?= (int)$donor['id'] ?>" class="btn btn-outline pill-btn">+ Log hours</a></div>
           <div class="table-wrap"><table>
             <thead><tr><th>Date</th><th>Hours</th><th>Job</th><th>Campaign</th></tr></thead>
             <tbody>
