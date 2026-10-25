@@ -37,7 +37,21 @@ function pageUrl($p) {
   return '?' . http_build_query($params);
 }
 $colors = ['teal', 'navy', 'sage', 'yellow'];
-$statusLabels = ['active' => 'Active', 'new' => 'New', 'lapsed' => 'Lapsed'];
+// Giving status from the last gift date (shown on this page only):
+//   gave in the last 12 months -> Active, 12-24 months ago -> LYBUNT (gave Last Year But Unfortunately Not This),
+//   24-36 months ago -> SYBUNT (gave Some Year But Unfortunately Not This), 36+ months or never -> Inactive.
+function giving_status($lastGift) {
+  if (!$lastGift) { return 'inactive'; }
+  $last = new DateTime($lastGift);
+  $today = new DateTime('today');
+  if ($last > (clone $today)->modify('-12 months')) { return 'active'; }
+  if ($last > (clone $today)->modify('-24 months')) { return 'lybunt'; }
+  if ($last > (clone $today)->modify('-36 months')) { return 'sybunt'; }
+  return 'inactive';
+}
+$statusLabels = ['active' => 'Active', 'lybunt' => 'LYBUNT', 'sybunt' => 'SYBUNT', 'inactive' => 'Inactive'];
+$statusTips = ['active' => 'Gave in the last 12 months', 'lybunt' => 'Last gift 12-24 months ago',
+               'sybunt' => 'Last gift 24-36 months ago', 'inactive' => 'No gift in 36+ months'];
 
 fishnet_open('Donors', 'donor', 'donor.css');
 ?>
@@ -93,7 +107,8 @@ fishnet_open('Donors', 'donor', 'donor.css');
                 <td><?= h($d['contact']) ?></td>
                 <td>$<?= number_format($d['lifetime'], 2) ?></td>
                 <td><?= $d['last_gift'] ? date('M j, Y', strtotime($d['last_gift'])) : '&mdash;' ?></td>
-                <td><span class="status <?= h($d['status']) ?>"><?= $statusLabels[$d['status']] ?? '' ?></span></td>
+                <?php $st = giving_status($d['last_gift']); ?>
+                <td><span class="status <?= $st ?>" title="<?= $statusTips[$st] ?>"><?= $statusLabels[$st] ?></span></td>
                 <td><a href="donorProfile.php?id=<?= (int)$d['id'] ?>" class="select">Select</a></td>
               </tr>
               <?php endforeach; ?>

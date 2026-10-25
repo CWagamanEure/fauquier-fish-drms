@@ -38,6 +38,7 @@ thead th {
 }
 tbody td { padding: 12px; border-bottom: 1px solid #e5e7e2; white-space: nowrap; }
 tbody tr:hover { background: #f7f8f5; }
+.click-row { cursor: pointer; } /* whole row opens the donor profile */
 td.empty { text-align: center; color: var(--muted); padding: 30px; }
 
 .initials {
@@ -66,6 +67,10 @@ td.empty { text-align: center; color: var(--muted); padding: 30px; }
 .status.active { background: #d5ece6; color: #1f6b5c; }
 .status.new    { background: #dbe6f3; color: #2c4f7a; }
 .status.lapsed { background: #f6d6d2; color: #9b2c22; }
+/* Giving status: active (12 mo) -> LYBUNT (12-24) -> SYBUNT (24-36) -> inactive (36+) */
+.status.lybunt   { background: #fbe9a6; color: #7a5a00; }
+.status.sybunt   { background: #f9dcc4; color: #8a4a12; }
+.status.inactive { background: #f6d6d2; color: #9b2c22; }
 
 .select { color: #2c4f9a; font-weight: bold; }
 .select:hover { text-decoration: underline; }
@@ -91,8 +96,14 @@ td.empty { text-align: center; color: var(--muted); padding: 30px; }
 
 /* ===== Donations list (shares the table styles above) ===== */
 .tiles.three { grid-template-columns: repeat(3, 1fr); }
-.tile .sub { font-size: 0.85rem; color: var(--muted); margin-top: 2px; }
 
+.donations > input { position: absolute; opacity: 0; pointer-events: none; }
+#fAll:checked   ~ .toolbar label[for="fAll"],
+#fCash:checked  ~ .toolbar label[for="fCash"],
+#fItems:checked ~ .toolbar label[for="fItems"] { background: var(--navy); color: #fff; font-weight: bold; }
+#fCash:checked  ~ .table-wrap .row-noncash,
+#fItems:checked ~ .table-wrap .row-cash { display: none; }
+.pill { display: inline-block; }
 
 .kind {
   display: inline-block;
@@ -130,6 +141,3 @@ td.actions { text-align: center; }
 td.actions .edit { display: block; width: fit-content; margin: 0 auto 4px; }
 .pw-link { font-size: 0.8rem; font-weight: bold; color: #1f6b7a; }
 .pw-link:hover { text-decoration: underline; }
-
-/* One-line page notice (saved confirmation, read-only hint) */
-.notice { background: #eef6f3; border: 1px solid #bcd9cf; color: #1c4a3f; border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; font-size: 0.95rem; }
