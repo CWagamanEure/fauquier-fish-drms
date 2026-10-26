@@ -74,8 +74,9 @@ make test-auth test-donors test-users test-donations test-hours test-gate
 ```
 
 Run on 2026-10-26 against MariaDB 10.11.14 and PHP 8.3 with Apache (Docker images were not reachable from
-the session that ran it, so the same Make targets ran against a local MariaDB/Apache with the same config):
-all pass.
+the session that ran it, so the same Make targets ran against a local MariaDB/Apache with the same config;
+the Makefile's `docker compose exec` calls were served by a local shim script that runs the same command on
+that MariaDB/Apache): all pass. CI on the PR is the authoritative run on PHP 8.2.
 
 ## Risks
 

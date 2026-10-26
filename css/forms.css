@@ -52,7 +52,8 @@
 .only-org { display: none; }
 .form-card:has(#typeOrg:checked) .only-org { display: block; }
 .form-card:has(#typeOrg:checked) .only-ind { display: none; }
-/* Foundation uses the same fields as Organization; only the name label changes */
+/* Foundation uses the same fields as Organization; only the name label changes.
+   Inactive while the Foundation option is disabled; kept for the Foundation persistence ticket. */
 .form-card:has(#typeFdn:checked) .only-org { display: block; }
 .form-card:has(#typeFdn:checked) .only-ind { display: none; }
 .only-fdn { display: none; }
@@ -186,7 +187,7 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; display: conten
 .contacts-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .contacts-head .lbl { font-weight: bold; font-size: 0.9rem; }
 .contacts-note { margin: 0; font-size: 0.85rem; color: #7a5a00; background: #fdf6dc; border-radius: 8px; padding: 8px 12px; }
-.seg input:disabled + label { opacity: 0.55; cursor: not-allowed; }
+#typeFdn[disabled] + label { opacity: 0.55; cursor: not-allowed; }   /* only the coming-soon option, not read-only forms */
 .contact-list { display: flex; flex-direction: column; gap: 10px; }
 .contact-row {
   display: grid;

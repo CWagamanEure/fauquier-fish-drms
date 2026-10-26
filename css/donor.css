@@ -64,8 +64,6 @@ td.empty { text-align: center; color: var(--muted); padding: 30px; }
   font-weight: bold;
 }
 .status.active { background: #d5ece6; color: #1f6b5c; }
-.status.new    { background: #dbe6f3; color: #2c4f7a; }
-.status.lapsed { background: #f6d6d2; color: #9b2c22; }
 /* Giving status: active (12 mo) -> LYBUNT (12-24) -> SYBUNT (24-36) -> inactive (36+) */
 .status.lybunt   { background: #fbe9a6; color: #7a5a00; }
 .status.sybunt   { background: #f9dcc4; color: #8a4a12; }
