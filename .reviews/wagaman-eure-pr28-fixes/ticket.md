@@ -196,3 +196,15 @@ merges into it. The local runs below are the evidence and go in the PR descripti
 - Low, "moved rows not covered by the seed's reset and markers": fixed by the reset and the header line.
 - Low, "the legacy events code is reachable by URL and not 'nothing calls it'": wording corrected; that code
   is out of scope and tracked separately.
+
+## Verification results (2026-10-26, fresh volume, compose project `fish-pr28`)
+
+1. Merged with `origin/wagaman-eure-donor-test-lookup` (trial branch, conflict kept both helpers), after
+   `make seed-demo`: test-auth 21 OK, test-donors 5 OK, test-users 8 OK, test-donations 12 OK, test-gate
+   18 passed. The trial merge was discarded.
+2. This branch alone: test-donors fails 3 tests, all on the name lookup that the other branch fixes (two
+   "Maria Lopez" rows, wrong "Grace Community Church" opened); none on deactivate/reactivate.
+3. `make migrate` alone: `dbevents.date` still exists, 009 has no INSERT, `demo-seed` marker counts 0.
+4. `make seed-demo` twice: identical counts (donors 12, gifts 18, noncash 10, hours 17, comms 4, campaigns 6)
+   and identical `campaign_summary`; 0 seed gifts with an unlinked campaign.
+5. Migration replay loop: no failures.
