@@ -104,7 +104,8 @@ in again.
 
 Every signed-in account also has per-area permissions (`user_permissions`, seeded from its role's
 preset and editable per user on the Manage Users pages): the donor pages let a `viewer` read but not add
-or edit donors, `staff` edit but not deactivate, and `manager` and `admin` do both. The donation pages
+or edit donors, and `staff`, `manager` and `admin` edit them. Donors cannot be deactivated from the UI (the
+action was removed); donors deactivated earlier stay hidden from the list. The donation pages
 (`donations.php`, `addDonation.php`, `viewDonation.php`) need the `donations` area: a `viewer` sees the list
 and each gift read-only, and `staff`, `manager` and `admin` also record and edit gifts (which also needs
 `donors` view, to pick the donor); without `donations` view the donor profile hides its Cash and Non-cash
@@ -122,8 +123,8 @@ afterwards, covering anonymous access, credential validation, registration-to-lo
 account migration, role-appropriate navigation, private downloads, session rotation, form
 tokens, Unicode boundaries, concurrent sign-out and session reuse after logout, and that every PHP
 entry point is listed as protected or explicitly unguarded. `make test-donors`
-(after `make seed-demo`) runs `tests/donors_integration.py`: the donor list, profile tabs, add, edit,
-deactivate and reactivate against the real tables, plus the per-role write gate. `make test-users` (after
+(after `make seed-demo`) runs `tests/donors_integration.py`: the donor list, profile tabs, add and edit
+against the real tables (and that a stray deactivate request changes nothing), plus the per-role write gate. `make test-users` (after
 `make seed-demo`) runs `tests/users_integration.py`: the Manage Users list, add, edit, permissions, role
 change, deactivate, reactivate, password change and the admin protections; it prints each write's elapsed
 time and asserts the Jira limits only when `USERS_TIMING_STRICT=1` (the Make target sets it from the
