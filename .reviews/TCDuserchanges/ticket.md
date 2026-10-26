@@ -29,21 +29,22 @@ In:
 - `database/dbDonors.php`: the "Lapsed (12+ months)" tile and the `lapsed` filter count every donor whose
   status is not `active` (lybunt, sybunt or inactive). Filter keys and tile keys are unchanged.
 - `donor.php`: render `donor_summary.status` with labels and a tooltip on the cell; no PHP date logic.
-- `css/donor.css`: badge colours for lybunt / sybunt / inactive; `.click-row`; donations filter styles.
+- `css/donor.css`: badge colours for lybunt / sybunt / inactive.
   `.notice` and `.tile .sub`, which an earlier merge on this branch had dropped, are kept as on dev.
 - `tests/donors_integration.py`: the tile fixture counts `status <> 'active'`; a newly added donor with no
   gifts reads `inactive` (was `new`).
 - `sql/README.md`: the donor_summary row names the new statuses and migration 011.
-- Front end only: `include/donorForm.php` Foundation radio and contact-people rows, `css/forms.css`,
-  `js/donorForm.js` (add / remove contact rows).
+- Front end only: `include/donorForm.php` shows a disabled "Foundation (coming soon)" option and a
+  contact-people block with a visible note that contacts are not saved yet; contact labels are tied to their
+  inputs (unique ids, renumbered by `js/donorForm.js` when a row is added); `css/forms.css`.
 
 Out (known, follow-up work, not claimed by this branch):
 - Persisting the Foundation type and the contact people. The form shows them, but `donor_form_from_post()`,
   `donor_create()` and `donor_update()` do not read or save them yet, and `donors.donor_type` has no
   `foundation` value; `donor_form_from_post()` turns an unknown type into Individual, so a Foundation
-  submission is rejected asking for first and last name (fields hidden for Foundation) and nothing is saved. Needs a schema change
+  submission would be rejected, so the option is disabled until that ticket. The follow-up migration must also
+  widen donor_summary.display_name (org_name is used only for donor_type = 'organization'). Needs a schema change
   (contacts table, donor_type value) in its own ticket. The form markup carries a comment saying so.
-- Label/for association for the contact-row inputs (CodeRabbit, minor).
 
 ## Approach
 
@@ -53,7 +54,10 @@ read the same value. New migration file rather than editing 008 (applied files a
 ## Acceptance criteria
 
 - `donor_summary.status` is one of active / lybunt / sybunt / inactive for every row, using the 12 / 24 / 36
-  month boundaries on `last_gift_date`; NULL last gift is inactive.
+  month boundaries on `last_gift_date`; NULL last gift is inactive. Boundaries are exclusive of the newer
+  group: a gift exactly 12 months ago is lybunt, exactly 24 is sybunt, exactly 36 is inactive
+  (tested by `test_giving_status_boundaries_and_lapsed_filter`).
+- The Foundation option cannot be selected, and the contacts block says it is not saved.
 - `donor.php` shows the matching label (Active, LYBUNT, SYBUNT, Inactive) with a tooltip, and the
   test's `<span class="status X">` parser reads X equal to `donor_summary.status`.
 - Lapsed tile = count of active, non-anonymous donors whose status is not active; Lapsed filter lists them.
@@ -77,4 +81,9 @@ all pass.
 
 - Behaviour change: donors added in the last 90 days with no gift used to read "new"; they now read
   "inactive" and count toward Lapsed. "New this month" tile is unchanged (donor_since_date).
+- 008 kept a gift exactly 12 months ago active; 011 makes it lybunt (one day earlier).
+- "Inactive" on the list means no dated gift in 36 months; the profile's "Inactive" badge means a
+  deactivated record. Kept as requested by the author; the list tooltip spells out the giving meaning.
+- After pulling, teammates run `make migrate` (or `make dev`); until then the list shows the 008 values
+  mapped to Inactive.
 - Any other branch that also adds a migration numbered 011 will conflict by number.

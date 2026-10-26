@@ -185,6 +185,8 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; display: conten
 .contacts { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
 .contacts-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .contacts-head .lbl { font-weight: bold; font-size: 0.9rem; }
+.contacts-note { margin: 0; font-size: 0.85rem; color: #7a5a00; background: #fdf6dc; border-radius: 8px; padding: 8px 12px; }
+.seg input:disabled + label { opacity: 0.55; cursor: not-allowed; }
 .contact-list { display: flex; flex-direction: column; gap: 10px; }
 .contact-row {
   display: grid;

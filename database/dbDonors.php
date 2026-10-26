@@ -310,7 +310,7 @@ function donor_bind_values(array $form) {
 }
 
 // Inserts a donor from the validated form; returns the new id or false. donor_since and created_at are
-// left to their column defaults so the donor reads as "new" from today.
+// left to their column defaults; with no gifts yet its giving status (donor_summary.status) is "inactive".
 function donor_create(array $form, $byUser) {
     try {
         $con = connect();

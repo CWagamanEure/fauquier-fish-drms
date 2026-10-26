@@ -15,7 +15,11 @@
       } else {
         input.value = '';
         input.name = input.name.replace(/contacts\[\d+\]/, 'contacts[' + next + ']');
+        input.id = input.id.replace(/^contact\d+_/, 'contact' + next + '_');
       }
+    });
+    Array.prototype.forEach.call(row.querySelectorAll('label[for]'), function (label) {
+      label.htmlFor = label.htmlFor.replace(/^contact\d+_/, 'contact' + next + '_');
     });
     next++;
     list.appendChild(row);
