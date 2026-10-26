@@ -82,6 +82,7 @@ a { color: inherit; text-decoration: none; }
 
 .content {
   flex: 1;
+  min-width: 0; /* let wide tables scroll inside .table-wrap instead of pushing the page past the window */
   padding: 44px 56px 48px;
   display: flex;
   flex-direction: column;

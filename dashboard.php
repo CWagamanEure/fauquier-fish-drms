@@ -1,6 +1,7 @@
 <?php
 // this is used to pull the css for the dash and the layout for the website (i.e the logo the title serach bar and profile logo also the side bar and links to the other main pages)
 require_once 'include/fishnet-layout.php';
+require_once 'include/permissions.php';
 fishnet_open('Dashboard', 'dashboard', 'dashboard.css');
 ?>
 <!-- Html Section -->
@@ -12,10 +13,14 @@ fishnet_open('Dashboard', 'dashboard', 'dashboard.css');
           <h1>Welcome back, Charity!</h1>
         </div>
         <div class="actions">
-          <!-- link to add a new donation -->
+          <!-- link to add a new donation (same gate as addDonation.php) -->
+          <?php if (fish_can_record_donations()): ?>
           <a href="addDonation.php" class="btn btn-yellow">+Add donation</a>
-          <!-- link to add a new donor -->
+          <?php endif; ?>
+          <!-- link to add a new donor (UF2-99) -->
+          <?php if (fish_can('donors', 'edit')): ?>
           <a href="addDonor.php" class="btn btn-outline">+Add Donor</a>
+          <?php endif; ?>
           <!-- not working not in this sprint  (FAKE) -->
           <a href="logCommunication.php" class="btn btn-outline">+Log Communication</a>
         </div>

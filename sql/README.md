@@ -54,7 +54,7 @@ guard in `002_donations_cash_fields.sql`.
 | `donors` + `is_active`, `updated_by`, `deactivated_at`, `deactivated_by` (008) | Soft delete from updateDonor.php and an audit of who last changed the row; 008 also backfills `user_permissions` for accounts created since 001 | UF2-26, UF2-27, UF2-60, UF2-81 |
 
 `dbevents` doubles as the campaigns table: `donations.eventID` and every `campaign_id` column
-point at it. Anonymous gifts use donor id 999 (migration 003 guarantees the row exists). Demo rows
+point at it. A `completed` value of `'1'` or `'yes'` hides a campaign from the donation form. Anonymous gifts use donor id 999 (migration 003 guarantees the row exists). Demo rows
 from `make seed-demo` carry markers instead of fixed ids: activity rows are `recorded_by` a
 `fish.*` demo user and demo donors/campaigns have notes starting with `[demo]`; the seed deletes
 and re-inserts them on every run. Deleting a donor who has cash gifts, non-cash gifts, hours or
