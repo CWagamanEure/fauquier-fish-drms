@@ -3,6 +3,7 @@ Run via `make test-hours` (needs `make seed-demo` first). The suite creates and 
 campaigns, entries and users; demo rows are never asserted on. Dates are today, so the "this year" figures
 never straddle a new year."""
 
+import datetime
 import html
 import json
 import re
@@ -78,6 +79,26 @@ switch ($req['action']) {
         $out['on_xss'] = $entry($out['xss'], 1.00, null, null, $req['xss'] . $m, $req['xss'], $req['xss'], null);
         $out['quarter'] = $entry($out['tabdonor'], 2.25, null, null, 'Office help', null, null, null);
         $out['anon'] = $entry(999, 1.50, null, null, 'Office help', null, 'hours suite ' . $m, null);
+        // Imported shapes: surrounding whitespace, and hours above the form's 24-hour cap.
+        $out['padded'] = $entry($out['tabdonor'], 1.00, null, null, 'Padded job ' . $m . ' ', ' Annex', "line1\nline2\n", null);
+        $out['big'] = $entry($out['tabdonor'], 120.00, null, null, 'Office help', null, null, null);
+        $run('UPDATE volunteer_hours SET activity_date = CURDATE() - INTERVAL 3 DAY WHERE id IN (?, ?)', 'ii', $out['padded'], $out['big']);
+        break;
+    case 'reset':
+        // Back to the setup values, for tests that edit the shared fixtures.
+        $run("UPDATE volunteer_hours SET hours = 4.00, start_time = NULL, end_time = NULL, job = ?, location = NULL, notes = 'line one\nline two',
+                                         campaign_id = NULL, is_verified = 0, counts_for_letter = 0, activity_date = CURDATE() WHERE id = ?",
+             'si', 'Legacy job ' . $req['marker'], $req['legacy']);
+        $run("UPDATE volunteer_hours SET hours = 3.00, start_time = '09:00:00', end_time = '12:00:00', job = 'Pantry sorting', location = 'Hall',
+                                         notes = NULL, campaign_id = NULL, is_verified = 0, counts_for_letter = 0, activity_date = CURDATE() WHERE id = ?",
+             'i', $req['timed']);
+        $run('DELETE FROM volunteer_hours_changes WHERE volunteer_hours_id IN (?, ?)', 'ii', $req['legacy'], $req['timed']);
+        break;
+    case 'summary':
+        // The side panel's figures, computed independently with PHP's calendar year.
+        $first = date('Y-01-01'); $last = date('Y-12-31');
+        $out = $run('SELECT COALESCE(SUM(hours), 0) AS hours, COUNT(*) AS shifts, MAX(activity_date) AS last_shift
+                     FROM volunteer_hours WHERE donor_id = ? AND activity_date BETWEEN ? AND ?', 'iss', $req['donor'], $first, $last)[0];
         break;
     case 'teardown':
         foreach ($req['entries'] as $id) { $run('DELETE FROM volunteer_hours WHERE id = ?', 'i', $id); }
@@ -115,6 +136,10 @@ def fixture(action, **payload):
     result = subprocess.run(["php", "-r", FIXTURES_PHP], input=json.dumps({"action": action, **payload}),
                             text=True, check=True, cwd=ROOT, capture_output=True)
     return json.loads(result.stdout)
+
+
+def hours_label(value):
+    return f"{float(value):,.2f}".rstrip("0").rstrip(".")
 
 
 def input_value(body, name):
@@ -210,6 +235,7 @@ class VolunteerHoursTests(unittest.TestCase):
         extra = [r["id"] for d in ("main", "extra1", "extra2") for r in fixture("rows", donor=self.ids[d]) if r["id"] not in keep]
         if extra:
             fixture("teardown", entries=extra, donors=[], campaigns=[])
+        fixture("reset", marker=self.marker, legacy=self.ids["legacy"], timed=self.ids["timed"])
 
     # ---- access ----
 
@@ -401,9 +427,21 @@ class VolunteerHoursTests(unittest.TestCase):
         self.assertIn("Change history", body)
         self.assertIn("Entry logged", body)
         self.assertIn("Test M.", body)   # recorder = the manager fixture user
-        self.assertIn("<dt>Usual role</dt>", body)
+        expected = fixture("summary", donor=self.ids["main"])
+        last = datetime.date.fromisoformat(expected["last_shift"])
+        facts = dict(re.findall(r"<dt>(.*?)</dt><dd>(.*?)</dd>", body))
+        # legacy (4 h, Legacy job) and timed (3 h, Pantry sorting) tie on count and date; the later id wins.
+        self.assertEqual(facts, {"Hours this year": hours_label(expected["hours"]), "Shifts this year": str(expected["shifts"]),
+                                 "Last shift": f"{last:%b} {last.day}, {last.year}", "Usual role": "Pantry sorting"})
+        self.assertEqual(facts["Hours this year"], "7")
         _, body = self.get(staff, f"hours.php?id={self.ids['legacy']}")
         self.assertIn("Legacy job " + self.marker, body)
+        timeline = re.findall(r"<li><strong>(.*?)</strong><span>(.*?)</span></li>", body)
+        self.assertEqual(timeline[-1][0], "Entry logged")
+        self.assertNotIn("·", timeline[-1][1])   # no recorder on the legacy row
+        # The summary also comes back on the add page after a validation error.
+        _, _, body = self.post(staff, self.add_url(), self.hours_form(date=""))
+        self.assertIn("<dt>Hours this year</dt><dd>7</dd>", body)
         for bad in ("", "0", "abc", "99999999", "1e3"):
             with self.subTest(id=bad):
                 status, headers, _ = staff.request(f"hours.php?id={bad}")
@@ -422,6 +460,22 @@ class VolunteerHoursTests(unittest.TestCase):
                 self.assertEqual(fixture("changes", id=entry), [])
                 self.assertEqual(fixture("entry", id=entry), before)
         self.assertEqual(fixture("entry", id=legacy), stored)
+        # Imported shapes save untouched too: surrounding whitespace, and hours over the 24-hour cap.
+        for entry in (self.ids["padded"], self.ids["big"]):
+            with self.subTest(entry=entry):
+                before = fixture("entry", id=entry)
+                status, _, body = self.post(staff, f"hours.php?id={entry}", self.edit_form(entry))
+                self.assertEqual(status, 303, body[:3000])
+                self.assertEqual(fixture("changes", id=entry), [])
+                self.assertEqual(fixture("entry", id=entry), before)
+        status, _, _ = self.post(staff, f"hours.php?id={self.ids['big']}", self.edit_form(self.ids["big"], verified="on"))
+        self.assertEqual(status, 303)
+        self.assertEqual(fixture("changes", id=self.ids["big"])[-1]["summary"], "Marked verified")
+        # A crafted "07" is the same campaign as 7, not a change.
+        self.post(staff, f"hours.php?id={timed}", self.edit_form(timed, campaign_id=str(self.ids["open"])))
+        self.post(staff, f"hours.php?id={timed}", self.edit_form(timed, campaign_id="0" + str(self.ids["open"])))
+        self.assertEqual(len(fixture("changes", id=timed)), 1)
+        fixture("reset", marker=self.marker, legacy=legacy, timed=timed)
 
         # A real change: one change row, only this row updated, posted id and donor ignored.
         other = fixture("entry", id=timed)
@@ -448,9 +502,6 @@ class VolunteerHoursTests(unittest.TestCase):
         status, _, _ = self.post(staff, f"hours.php?id={self.ids['on_inactive']}", self.edit_form(self.ids["on_inactive"], hours="2.5"))
         self.assertEqual(status, 303)
         self.assertEqual(fixture("entry", id=self.ids["on_inactive"])["hours"], "2.50")
-        # Restore the fixtures for the other tests.
-        self.post(staff, f"hours.php?id={legacy}", self.edit_form(legacy, hours="4", job="Pantry sorting", verified=None))
-        self.post(staff, f"hours.php?id={timed}", self.edit_form(timed, service_letter=None, location="Hall"))
 
     def test_delete(self):
         staff, manager = self.login("staff"), self.login("manager")
@@ -480,6 +531,7 @@ class VolunteerHoursTests(unittest.TestCase):
         self.assertIn('<fieldset class="plain" disabled>', body)
         self.assertNotIn("Save changes", body)
         self.assertNotIn("Delete entry", body)
+        self.assertIn("Entries of the anonymous donor cannot be changed.", body)
         form = {"date": self.today, "hours": "2", "job": "Office help", "action": "save"}
         self.assertEqual(self.post(manager, f"hours.php?id={anon}", form)[0], 403)
         self.assertEqual(self.post(manager, f"hours.php?id={anon}", {"action": "delete"})[0], 403)
@@ -493,9 +545,11 @@ class VolunteerHoursTests(unittest.TestCase):
         _, body = self.get(staff, f"donorProfile.php?id={self.ids['tabdonor']}&tab=vol")
         self.assertIn('id="tVol" checked', body)
         self.assertIn("<strong>2.25</strong>", body)
-        self.assertIn('<p class="num">2.25</p>', body)   # the Volunteer hours tile
+        self.assertIn('<p class="num">123.25</p>', body)   # the Volunteer hours tile: 2.25 + 1 + 120
         self.assertIn(f'href="hours.php?id={self.ids["quarter"]}" class="select">Edit</a>', body)
         self.assertIn("+ Log hours", body)
+        order = [int(i) for i in re.findall(r'href="hours\.php\?id=(\d+)"', body)]
+        self.assertLess(order.index(self.ids["quarter"]), order.index(self.ids["padded"]))   # today before 3 days ago
         _, body = self.get(staff, f"donorProfile.php?id={self.ids['inactive']}&tab=vol")
         self.assertNotIn("+ Log hours", body)                                                       # inactive donor
         self.assertIn(f'href="hours.php?id={self.ids["on_inactive"]}" class="select">Edit</a>', body)  # still editable

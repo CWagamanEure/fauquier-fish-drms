@@ -110,7 +110,9 @@ fishnet_open($title, 'donor', ['forms.css', 'volunteer.css']);
       <?php hours_form_render(['edit' => true, 'action' => $action, 'donor' => ['id' => $entry['donor_id'], 'name' => (string) $entry['donor_name']],
                                'form' => $form, 'errors' => $errors, 'jobs' => $jobs, 'campaigns' => $campaigns, 'summary' => $summary,
                                'history' => $history, 'readonly' => !$canWrite, 'delete_action' => $canDelete ? $action : '',
-                               'entry_hours' => hours_label($entry['hours'])]); ?>
+                               'entry_hours' => hours_label($entry['hours']),
+                               'readonly_notice' => $isAnonymous ? 'Entries of the anonymous donor cannot be changed.'
+                                                                 : 'Your account can view volunteer hours but not change them.']); ?>
 <script src="js/volunteerHours.js"></script>
       <?php endif; ?>
 

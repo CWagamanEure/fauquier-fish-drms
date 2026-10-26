@@ -114,7 +114,7 @@ function hours_summary($donorId) {
 // PR #26's list, then every other non-empty job already stored, so seeded and legacy values stay selectable.
 function hours_job_options() {
     $con = connect();
-    $stmt = $con->prepare("SELECT DISTINCT job FROM volunteer_hours WHERE job IS NOT NULL AND TRIM(job) <> '' ORDER BY job");
+    $stmt = $con->prepare("SELECT DISTINCT TRIM(job) AS job FROM volunteer_hours WHERE job IS NOT NULL AND TRIM(job) <> '' ORDER BY job");
     $stmt->execute();
     $stored = array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'job');
     $stmt->close();
@@ -134,12 +134,13 @@ function hours_form_blank() {
             'location' => 'FISH pantry', 'notes' => '', 'verified' => 0, 'letter' => 0, 'extra' => []];
 }
 
-// The form-shaped, normalised values of a stored entry (NULL -> '', TIME -> HH:MM, hours trimmed).
+// The form-shaped, normalised values of a stored entry (NULL -> '', TIME -> HH:MM, hours and text trimmed),
+// matching hours_form_from_post() so an untouched save compares equal.
 function hours_form_from_row(array $row) {
     return ['date' => (string) $row['activity_date'], 'start' => (string) hours_norm_time($row['start_time']),
             'end' => (string) hours_norm_time($row['end_time']), 'hours' => hours_label($row['hours']),
-            'job' => (string) $row['job'], 'campaign' => $row['campaign_id'] === null ? '' : (string) (int) $row['campaign_id'],
-            'location' => (string) $row['location'], 'notes' => str_replace("\r\n", "\n", (string) $row['notes']),
+            'job' => trim((string) $row['job']), 'campaign' => $row['campaign_id'] === null ? '' : (string) (int) $row['campaign_id'],
+            'location' => trim((string) $row['location']), 'notes' => trim(str_replace("\r\n", "\n", (string) $row['notes'])),
             'verified' => (int) $row['is_verified'], 'letter' => (int) $row['counts_for_letter'], 'extra' => []];
 }
 
@@ -188,8 +189,9 @@ function hours_form_validate(array &$form, ?array $stored, array $jobs, array $c
     if ($form['hours'] === '' && $span !== null) {
         $form['hours'] = hours_label(round($span / 60, 2));   // the same rounding as js/volunteerHours.js
     }
-    $hundredths = hours_hundredths($form['hours']);
-    $hoursSame = $old !== null && $hundredths !== null && $hundredths === hours_hundredths($old['hours']);
+    $hundredths = $old !== null && $form['hours'] === $old['hours'] ? (int) round((float) $stored['hours'] * 100) : hours_hundredths($form['hours']);
+    // Compared with the stored DECIMAL itself, so a legacy value outside the form's rules (100+) still passes.
+    $hoursSame = $old !== null && $hundredths !== null && $hundredths === (int) round((float) $stored['hours'] * 100);
     if ($hoursSame) {
         $form['hours'] = $old['hours'];
     } elseif ($form['hours'] === '') {
@@ -213,6 +215,8 @@ function hours_form_validate(array &$form, ?array $stored, array $jobs, array $c
     }
     if ($form['campaign'] !== '' && !(ctype_digit($form['campaign']) && isset($campaigns[(int) $form['campaign']])) && !$same('campaign')) {
         $errors[] = 'Choose an open campaign, or None.';
+    } elseif ($form['campaign'] !== '' && ctype_digit($form['campaign'])) {
+        $form['campaign'] = (string) (int) $form['campaign'];   // "07" and "7" are the same campaign
     }
     foreach (HOURS_TEXT_MAX as $k => $max) {
         if (mb_strlen($form[$k], 'UTF-8') > $max && !$same($k)) { $errors[] = ucfirst($k) . " can be at most $max characters."; }

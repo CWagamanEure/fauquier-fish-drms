@@ -59,12 +59,14 @@ if ($isPost) {
   $form = array_merge($form, hours_form_from_post($_POST));
   if ($loadError) {
     $errors[] = 'Could not load everything this form needs. Please try again shortly.';
+    $form['extra'] = [];   // only validation turns the posted ids into named chips
   } else {
     try {
       $errors = hours_form_validate($form, null, $jobs, $campaigns, $donorId);
     } catch (mysqli_sql_exception $e) {
       error_log('addHours.php: ' . $e->getMessage());
       $errors = ['Could not save the hours. Please try again.'];
+      $form['extra'] = [];
     }
   }
   if (!$errors) {
@@ -96,7 +98,8 @@ fishnet_open($title, 'donor', ['forms.css', 'volunteer.css']);
       <?php if ($loadError && !$isPost): ?><div class="notice" role="alert">Could not load everything this form needs. Please try again shortly.</div><?php endif; ?>
       <?php hours_form_render(['edit' => false, 'action' => $action, 'donor' => ['id' => $donorId, 'name' => (string) $donor['display_name']],
                                'form' => $form, 'errors' => $errors, 'jobs' => $jobs, 'campaigns' => $campaigns, 'summary' => $summary,
-                               'history' => [], 'readonly' => false, 'delete_action' => '', 'entry_hours' => '']); ?>
+                               'history' => [], 'readonly' => false, 'delete_action' => '', 'entry_hours' => '',
+                               'readonly_notice' => '']); ?>
 <script src="js/volunteerHours.js"></script>
       <?php endif; ?>
 

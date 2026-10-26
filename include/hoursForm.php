@@ -5,7 +5,7 @@
 //   edit (bool), action (form URL), donor ['id', 'name'], form (hours_form_* array), errors (list),
 //   jobs (hours_job_options()), campaigns (id => name), summary (label => value), history (list of
 //   [what, when]; edit only), readonly (bool), delete_action (URL, or '' when the account cannot delete),
-//   entry_hours (stored hours label; edit only).
+//   entry_hours (stored hours label; edit only), readonly_notice (text shown when readonly).
 
 function hours_form_render(array $v) {
   $form = $v['form'];
@@ -25,7 +25,7 @@ function hours_form_render(array $v) {
           <?php endif; ?>
 
           <?php if ($readonly): ?>
-          <div class="notice" role="status">Your account can view volunteer hours but not change them.</div>
+          <div class="notice" role="status"><?= h($v['readonly_notice']) ?></div>
           <?php endif; ?>
           <?php if ($v['errors']): ?>
           <div class="form-errors" role="alert">
