@@ -1,0 +1,37 @@
+{
+ "mode": "code",
+ "subject": "adu-volunteer-hours",
+ "round": 2,
+ "approved": true,
+ "reviewed_commit": "ce641475f3626439ff9bb03d343fae4c5f0d52af",
+ "tree": "f83fc70abf83cda161a74c895c4a44987509dc7f4aad3290e101184513c10d32",
+ "runner": "review-swarm.js prompts run via the Agent tool (Workflow tool unavailable in this session)",
+ "auditors": [
+  {
+   "auditor": "security",
+   "approve": true,
+   "finding_count": 0
+  },
+  {
+   "auditor": "data",
+   "approve": true,
+   "finding_count": 1
+  },
+  {
+   "auditor": "correctness",
+   "approve": true,
+   "finding_count": 1
+  },
+  {
+   "auditor": "verification",
+   "approve": true,
+   "finding_count": 2
+  }
+ ],
+ "findings_by_severity": {
+  "low": 4
+ },
+ "findings_by_status": {
+  "reported": 4
+ }
+}

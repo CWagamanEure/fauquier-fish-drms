@@ -1,0 +1,41 @@
+{
+  "mode": "ticket",
+  "subject": "adu-volunteer-hours",
+  "round": 2,
+  "approved": true,
+  "runner": "Agent tool (Workflow tool unavailable); prompts from .claude/workflows/review-swarm.js",
+  "auditors": [
+    {
+      "auditor": "security",
+      "approve": true,
+      "finding_count": 2
+    },
+    {
+      "auditor": "data",
+      "approve": true,
+      "finding_count": 4
+    },
+    {
+      "auditor": "correctness",
+      "approve": true,
+      "finding_count": 8
+    },
+    {
+      "auditor": "verification",
+      "approve": true,
+      "finding_count": 4
+    }
+  ],
+  "counts": {
+    "by_severity": {
+      "critical": 0,
+      "high": 0,
+      "medium": 4,
+      "low": 14
+    },
+    "by_status": {
+      "reported": 18
+    }
+  },
+  "ticket_commit": "bc9139a"
+}
