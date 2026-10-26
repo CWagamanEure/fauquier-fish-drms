@@ -373,3 +373,53 @@ re-checks the revisions.
 - **Small spec gaps** (verification low): fixed. Unknown extra id in AC3, the saved notice, the inactive
   rule, communications under Out, and the time zone (history times read as `UNIX_TIMESTAMP` and formatted in
   PHP's America/New_York).
+
+## Responses to round 2
+
+Round 2 approved the ticket with no critical and no high finding. Every finding is taken into the
+implementation as follows, and the code round checks it.
+
+- **Anonymous-donor (999) entries read-only only in the UI** (security low, data medium, correctness low):
+  fixed. Save and delete POSTs on an entry whose stored donor is 999 get 403 and write nothing.
+  `hours_update()` and `hours_delete()` also carry `AND donor_id <> 999` on the locked row. The suite
+  posts both against a 999 entry.
+- **`changed_by` source; no trace of a delete** (security low): fixed. `changed_by` and `recorded_by`
+  are always `auth_current_user()->get_id()`. A delete writes an `error_log()` line with the entry id,
+  donor, date, hours and the deleting user before the row is removed.
+- **Read-only rule and delete gate disagree** (correctness low): fixed.
+  `fish_can_delete_hours()` = donors view && edit && delete, and the panel and the POST use the same check.
+- **No stored-value exemption on edit** (data low, correctness low): fixed. As in
+  `donation_form_validate()`, a field whose normalised posted value equals the normalised stored value
+  passes unchanged: date, times, hours, job, campaign, location and notes.
+- **"Entry logged" date source** (data, correctness and verification low): fixed. It is
+  `UNIX_TIMESTAMP(created_at)`, formatted in PHP like the change rows.
+- **Auto-fill can overwrite stored or re-rendered hours** (correctness medium): fixed. The script never
+  computes on load. It recomputes only on a start or end input event, and only while the hours box is
+  empty or still holds the script's own last value. A server-rendered value counts as typed.
+- **Extra volunteers lost after a validation error** (correctness medium): fixed. On error the page
+  rebuilds a chip and hidden input for each valid posted id, with the display name read server-side. Ids
+  that are not valid are dropped, and the error names how many could not be added. The suite asserts that
+  the hidden inputs survive a date error.
+- **JS behaviour untested** (verification medium): accepted for the Python suite, which has no browser.
+  Verification step 3 adds a headless Chrome check of the auto-fill (4.67, a typed value kept, a stored
+  value not overwritten), an XSS-named chip shown as text, two chips saving three rows, and a cancelled
+  delete confirmation keeping the row.
+- **`fmt_hours()` also formats non-cash quantities** (correctness low): fixed. `fmt_hours()` stays for the
+  Items tab. Only the Volunteer tab, its footer and the Volunteer hours tile switch to `hours_label()`.
+- **viewDonation.php still rounds to 1 decimal** (correctness low): reworded. `hours_label()` covers the
+  hours pages and the donor profile, and the donation pages' side panel is out of scope.
+- **Process doc lists CI targets** (verification low): fixed. `docs/process/change-review-process.md`
+  gains `make test-hours`.
+- **Check order** (verification low): fixed. The order is authentication and token, then donors view
+  (notice, or 403 on POST), then id or donor resolution (303 to `donor.php`), then log or delete permission
+  (403). On `addHours.php` the donor comes only from the URL's `donor_id`. The form posts to
+  `addHours.php?donor_id=N`, and no hidden donor field is read.
+- **PR #28's 009 inserts demo hours rows** (data low): Risks corrected. The refused job in the suite is a
+  random token, and the fixture is described as "a job not in PR #26's list".
+- **Small spec gaps** (verification low): fixed.
+  - More than 20 extra volunteers is an error.
+  - Flag wording: "Marked verified" / "Unmarked verified" and "Counts toward service letter" / "No longer
+    counts toward service letter".
+  - Time and location changes read as "Start time changed — → 09:00" and "Location changed A → B".
+  - Suite dates are today or relative to today, and the expected summary comes from a PHP fixture, so the
+    suite does not break at the new year.
