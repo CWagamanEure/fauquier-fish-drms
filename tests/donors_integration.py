@@ -76,7 +76,7 @@ switch ($req['action']) {
                      WHERE s.display_name = ? AND s.is_anonymous = 0 AND d.notes LIKE '[demo]%' ORDER BY s.id", 's', $req['name']);
         break;
     case 'counts':
-        $tiles = $run("SELECT COUNT(*) AS total, SUM(donor_since_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')) AS new_month, SUM(status = 'lapsed') AS lapsed
+        $tiles = $run("SELECT COUNT(*) AS total, SUM(donor_since_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')) AS new_month, SUM(status <> 'active') AS lapsed
                        FROM donor_summary WHERE is_anonymous = 0 AND is_active = 1")[0];
         $dupes = $run("SELECT COUNT(*) AS n FROM donors d WHERE d.is_active = 1 AND d.id <> 999 AND (
                         (COALESCE(d.email,'') <> '' AND EXISTS (SELECT 1 FROM donors o WHERE o.id <> d.id AND o.is_active = 1 AND o.id <> 999 AND LOWER(o.email) = LOWER(d.email)))
@@ -321,7 +321,7 @@ class DonorPagesTests(unittest.TestCase):
         self.assertEqual((read["donor"]["donor_type"], read["donor"]["middle_name"], read["donor"]["preferred_contact"],
                           read["donor"]["email_updates"], read["donor"]["mail_receipts"], read["donor"]["updated_by"]),
                          ("individual", "Q", "text", 1, 0, self.users["manager"]["id"]))
-        self.assertEqual(read["summary"]["status"], "new")
+        self.assertEqual(read["summary"]["status"], "inactive")   # no gifts yet
         _, body = self.get(manager, headers["Location"])
         self.assertIn("Donor saved.", body)
 
