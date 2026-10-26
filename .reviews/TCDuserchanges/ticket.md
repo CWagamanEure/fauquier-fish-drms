@@ -40,7 +40,8 @@ In:
 Out (known, follow-up work, not claimed by this branch):
 - Persisting the Foundation type and the contact people. The form shows them, but `donor_form_from_post()`,
   `donor_create()` and `donor_update()` do not read or save them yet, and `donors.donor_type` has no
-  `foundation` value; a Foundation submission is saved as the existing default type. Needs a schema change
+  `foundation` value; `donor_form_from_post()` turns an unknown type into Individual, so a Foundation
+  submission is rejected asking for first and last name (fields hidden for Foundation) and nothing is saved. Needs a schema change
   (contacts table, donor_type value) in its own ticket. The form markup carries a comment saying so.
 - Label/for association for the contact-row inputs (CodeRabbit, minor).
 
