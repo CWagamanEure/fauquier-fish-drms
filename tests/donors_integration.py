@@ -70,8 +70,10 @@ switch ($req['action']) {
         $out = ['donor' => $run('SELECT * FROM donors WHERE id = ?', 'i', $req['id'])[0] ?? null,
                 'summary' => $run('SELECT * FROM donor_summary WHERE id = ?', 'i', $req['id'])[0] ?? null];
         break;
-    case 'view_rows':
-        $out = $run('SELECT * FROM donor_summary WHERE display_name = ? AND is_anonymous = 0 ORDER BY id', 's', $req['name']);
+    case 'demo_rows':
+        // Seed donors only: other rows may share a seed name (names are not unique; see sql/seed/demo_fish.sql).
+        $out = $run("SELECT s.* FROM donor_summary s JOIN donors d ON d.id = s.id
+                     WHERE s.display_name = ? AND s.is_anonymous = 0 AND d.notes LIKE '[demo]%' ORDER BY s.id", 's', $req['name']);
         break;
     case 'counts':
         $tiles = $run("SELECT COUNT(*) AS total, SUM(donor_since_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')) AS new_month, SUM(status = 'lapsed') AS lapsed
@@ -83,6 +85,10 @@ switch ($req['action']) {
         $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $req['q']) . '%';
         $nameOnly = $run("SELECT COUNT(*) AS n FROM donor_summary WHERE is_anonymous = 0 AND is_active = 1 AND (display_name LIKE ? ESCAPE '\\\\' OR email LIKE ? ESCAPE '\\\\')", 'ss', $like, $like)[0]['n'];
         $out = ['total' => (int) $tiles['total'], 'new_month' => (int) $tiles['new_month'], 'lapsed' => (int) $tiles['lapsed'], 'dupes' => (int) $dupes, 'name_only' => (int) $nameOnly];
+        break;
+    case 'search_ids':
+        $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $req['q']) . '%';
+        $out = array_map('intval', array_column($run("SELECT id FROM donor_summary WHERE is_anonymous = 0 AND is_active = 1 AND (display_name LIKE ? ESCAPE '\\\\' OR email LIKE ? ESCAPE '\\\\') ORDER BY id", 'ss', $like, $like), 'id'));
         break;
     case 'seed_check':
         $out = ['demo' => (int) $run("SELECT COUNT(*) AS n FROM donors WHERE notes LIKE '[demo]%'")[0]['n']];
@@ -104,13 +110,14 @@ def fixture(action, **payload):
 
 
 def rows_in(body):
-    """(name, type, contact, lifetime, last_gift, status) for every donor row in a list page."""
+    """(name, type, contact, lifetime, last_gift, status, id) for every donor row in a list page."""
     out = []
     for tr in re.findall(r"<tr>\s*<td><span class=\"initials[^\"]*\">.*?</tr>", body, re.S):
         cells = re.findall(r"<td[^>]*>(.*?)</td>", tr, re.S)
         name = html.unescape(re.search(r"<strong>(.*?)</strong>", cells[0]).group(1))
-        status = re.search(r'<span class="status (\w+)">', cells[5]).group(1)
-        out.append((name, html.unescape(cells[1]), html.unescape(cells[2]), cells[3], html.unescape(cells[4]), status))
+        status = re.search(r'<span class="status (\w+)"[^>]*>', cells[5]).group(1)
+        donor_id = int(re.search(r"donorProfile\.php\?id=(\d+)", tr).group(1))
+        out.append((name, html.unescape(cells[1]), html.unescape(cells[2]), cells[3], html.unescape(cells[4]), status, donor_id))
     return out
 
 
@@ -209,6 +216,19 @@ class DonorPagesTests(unittest.TestCase):
         self.assertEqual(status, 303)
         self.assertEqual(fixture("donor_read", id=self.donor_id)["donor"]["city"], "Viewerville")
 
+    def demo_donor(self, name):
+        """The seed donor with this display name; other donors may share the name."""
+        rows = fixture("demo_rows", name=name)
+        self.assertEqual(len(rows), 1, f"expected one [demo] donor named {name!r} from sql/seed/demo_fish.sql, found {len(rows)}")
+        return rows[0]
+
+    def list_row(self, body, donor):
+        """The list row for this donor_summary row, matched by id; its rendered name must match too."""
+        row = next((r for r in rows_in(body) if r[6] == int(donor["id"])), None)
+        self.assertIsNotNone(row, f"donor {donor['display_name']!r} (id {donor['id']}) not in the donor.php list; it may be inactive")
+        self.assertEqual(row[0], donor["display_name"])
+        return row
+
     # ---- list ----
 
     def test_list_reads_the_database(self):
@@ -219,16 +239,19 @@ class DonorPagesTests(unittest.TestCase):
         self.assertEqual(nums[:4], [counts["total"], counts["new_month"], counts["lapsed"], counts["dupes"]])
         for name in DEMO_NAMES:
             with self.subTest(name=name):
-                expected = fixture("view_rows", name=name)[0]
+                expected = self.demo_donor(name)
                 _, body = self.get(manager, "donor.php?q=" + urllib.parse.quote(name))
-                row = next(r for r in rows_in(body) if r[0] == name)
+                row = self.list_row(body, expected)
                 self.assertEqual(row[1], "Organization" if expected["donor_type"] == "organization" else "Individual")
                 self.assertEqual(row[2], expected["email"] or expected["phone"])
                 self.assertEqual(row[3], "$" + f"{float(expected['lifetime_cash']):,.2f}")
                 self.assertEqual(row[4], fmt_date(expected["last_gift_date"]))
                 self.assertEqual(row[5], expected["status"])
         _, body = self.get(manager, "donor.php?q=Maria+Lopez")
-        self.assertEqual(sorted(r[0] for r in rows_in(body)), ["Maria Lopez", "Maria Lopez-Hernandez"])
+        expected_ids = fixture("search_ids", q="Maria Lopez")
+        self.assertLessEqual(len(expected_ids), 8, "more Maria Lopez matches than one page (DONORS_PER_PAGE); clean up test rows")
+        self.assertTrue({int(self.demo_donor(n)["id"]) for n in ("Maria Lopez", "Maria Lopez-Hernandez")} <= set(expected_ids))
+        self.assertEqual(sorted(r[6] for r in rows_in(body)), expected_ids)
         self.assertEqual(len(rows_in(body)), counts["name_only"])
         _, body = self.get(manager, "donor.php?filter=organizations&sort=name")
         types = [r[1] for r in rows_in(body)]
@@ -260,16 +283,16 @@ class DonorPagesTests(unittest.TestCase):
         self.assertIn("3 hours served on avg", body)   # 3.5 + 2.5 over two shifts: the frequency reading for UF2-27
         self.assertIn('Volunteer <span class="count">2</span>', body)
 
-        maria = fixture("view_rows", name="Maria Lopez")[0]
+        maria = self.demo_donor("Maria Lopez")
         _, body = self.get(manager, f"donorProfile.php?id={maria['id']}")
         for panel in ("p-cash", "p-vol", "p-comm"):
             with self.subTest(panel=panel):
                 section = body.split(f'class="panel-tab {panel}"')[1].split('class="panel-tab')[0]
                 self.assertIn("Fall Food Drive 2026", section)
 
-        grace = fixture("view_rows", name="Grace Community Church")[0]
+        grace = self.demo_donor("Grace Community Church")
         _, listing = self.get(manager, "donor.php?q=" + urllib.parse.quote("Grace Community Church"))
-        row = next(r for r in rows_in(listing) if r[0] == "Grace Community Church")
+        row = self.list_row(listing, grace)
         _, profile = self.get(manager, f"donorProfile.php?id={grace['id']}")
         self.assertIn(f'Last gift</p><p class="num">{row[4]}</p>', profile)
         self.assertIn("Holiday Meals 2025", profile.split('class="panel-tab p-cash"')[1].split('class="panel-tab')[0])
