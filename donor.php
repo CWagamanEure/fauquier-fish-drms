@@ -108,7 +108,7 @@ fishnet_open('Donors', 'donor', 'donor.css');
                 <td>$<?= number_format($d['lifetime'], 2) ?></td>
                 <td><?= $d['last_gift'] ? date('M j, Y', strtotime($d['last_gift'])) : '&mdash;' ?></td>
                 <?php $st = giving_status($d['last_gift']); ?>
-                <td><span class="status <?= $st ?>" title="<?= $statusTips[$st] ?>"><?= $statusLabels[$st] ?></span></td>
+                <td title="<?= $statusTips[$st] ?>"><span class="status <?= $st ?>"><?= $statusLabels[$st] ?></span></td>
                 <td><a href="donorProfile.php?id=<?= (int)$d['id'] ?>" class="select">Select</a></td>
               </tr>
               <?php endforeach; ?>
