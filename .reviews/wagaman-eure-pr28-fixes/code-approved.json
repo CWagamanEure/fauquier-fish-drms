@@ -1,0 +1,37 @@
+{
+ "mode": "code",
+ "subject": "wagaman-eure-pr28-fixes (worktree /Users/corywagamaneure/projects/fish-pr28-fixes; read every file from that directory, not the main checkout, which is on a different branch)",
+ "round": 1,
+ "approved": true,
+ "reviewed_commit": "4f622469dbfb63f46bfc9b5809f0f9ed541a4802",
+ "tree": "c24198e82edac2462e7ff00ef67b8f0b97ce6652fc92a93dfb4344c1d07615c9",
+ "auditors": [
+  {
+   "auditor": "security",
+   "approve": true,
+   "finding_count": 1
+  },
+  {
+   "auditor": "data",
+   "approve": true,
+   "finding_count": 2
+  },
+  {
+   "auditor": "correctness",
+   "approve": true,
+   "finding_count": 1
+  },
+  {
+   "auditor": "verification",
+   "approve": true,
+   "finding_count": 3
+  }
+ ],
+ "findings_by_severity": {
+  "low": 6,
+  "medium": 1
+ },
+ "findings_by_status": {
+  "reported": 7
+ }
+}
