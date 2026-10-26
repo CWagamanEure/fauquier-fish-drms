@@ -1,4 +1,4 @@
-/* Volunteer hours form (volunteerHours.php). Loaded after fishnet.css and forms.css. */
+/* Volunteer hours form (addHours.php, hours.php via include/hoursForm.php). Loaded after fishnet.css and forms.css. */
 
 .g-vol-when { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .g-vol-what { grid-template-columns: 1.2fr 1.2fr 1fr; }
@@ -47,6 +47,25 @@
   cursor: pointer;
   padding: 0 4px;
 }
+
+/* Search results under the people box (js/volunteerHours.js); each result is a button for keyboard use */
+.vol-results {
+  list-style: none;
+  margin-top: 6px;
+  background: #fff;
+  border: 1px solid #c9ccd1;
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(0,0,0,.12);
+  max-height: 260px;
+  overflow-y: auto;
+}
+.vol-results li.none { padding: 10px 16px; color: var(--muted); }
+.vol-results li button {
+  display: block; width: 100%; padding: 10px 16px;
+  border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer;
+}
+.vol-results li button:hover, .vol-results li button:focus-visible { background: #eef5f6; outline: none; }
+.vol-results li small { color: var(--muted); margin-left: 6px; }
 
 /* Side panels */
 .panel-link { margin-top: 14px; }

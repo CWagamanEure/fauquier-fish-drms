@@ -45,3 +45,15 @@ function fish_can($area, $action) {
 function fish_can_record_donations() {
     return fish_can('donations', 'view') && fish_can('donations', 'edit') && fish_can('donors', 'view');
 }
+
+// Logging or editing volunteer hours (addHours.php, hours.php and the profile's "+ Log hours"): donors view
+// and edit. The users enum has no volunteers area, so donor permissions govern volunteer records.
+function fish_can_log_hours() {
+    return fish_can('donors', 'view') && fish_can('donors', 'edit');
+}
+
+// Deleting a volunteer hours entry: the edit page's rights plus donors delete, so the delete panel only
+// appears on a page that is not read-only.
+function fish_can_delete_hours() {
+    return fish_can_log_hours() && fish_can('donors', 'delete');
+}

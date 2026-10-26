@@ -1,143 +1,117 @@
 <?php
-// Edit one volunteer hours entry (hours.php?id=N). FRONT END ONLY: the data below is fake and nothing is saved.
-// Backend TODO: handle the POST (check fish_can('donors', 'edit'), validate, write volunteer_hours), load the entry
-// when ?id= is given, and fill $volunteers / $jobs / $campaigns / $summary / $history from the database.
+// View or edit one volunteer hours entry (hours.php?id=N), from the profile's Volunteer tab (UF2-119/120).
+// The entry id comes only from the URL and the donor only from the stored row; forms post back to the same
+// URL, and any posted id or donor is ignored. Without the right to log hours the page is read-only.
+// Entries of the anonymous donor (999) are always read-only. Delete is a separate form (action=delete).
 require_once 'include/fishnet-layout.php';
+require_once 'include/permissions.php';
+require_once 'database/dbVolunteerHours.php';
+require_once 'include/hoursForm.php';
 
-$isEdit = true;    // hours.php edits one entry (hours.php?id=N&donor_id=N); logging new hours lives in addHours.php
-// Which donor's profile to go back to: donorProfile.php needs ?id=, or it sends you back to the donor list.
-$donorId = (int) ($_GET['donor_id'] ?? 1);   // Backend TODO: use the entry's donor_id when editing
+$isPost = $_SERVER['REQUEST_METHOD'] === 'POST';
 
-// ---------- fake data ----------
-$jobs       = ['Pantry sorting', 'Pantry intake', 'Drop-off table', 'Delivery driver', 'Office help', 'Other'];
-$campaigns  = ['None', 'Thanksgiving Food Drive', 'Winter Coat Collection', 'Fall Volunteer Push'];
-$form = $isEdit
-  ? ['volunteer' => 'Jhon D. Rangel Duran', 'date' => '2026-10-22', 'start' => '09:00', 'end' => '13:30', 'hours' => '4.5',
-     'job' => 'Pantry sorting', 'campaign' => 'Thanksgiving Food Drive', 'location' => 'FISH pantry',
-     'notes' => 'Sorted ~300 cans from Main St. Church drop-off. Trained 2 new volunteers.', 'verified' => true, 'letter' => false]
-  : ['volunteer' => 'Jhon D. Rangel Duran', 'date' => date('Y-m-d'), 'start' => '', 'end' => '', 'hours' => '',
-     'job' => 'Pantry sorting', 'campaign' => 'None', 'location' => 'FISH pantry', 'notes' => '', 'verified' => false, 'letter' => false];
-$summary = ['Hours this year' => '42', 'Shifts this year' => '11', 'Last shift' => 'Oct 15, 2026', 'Usual role' => 'Pantry sorting'];
-$history = [['Hours changed 4 → 4.5', 'Oct 23 · James A.'], ['Entry logged', 'Oct 22 · Charity C.']];
-$extraPeople = [];
-// ---------- end fake data ----------
+// Order: donors view, then the entry, then the right to save or delete.
+if (!fish_can('donors', 'view')) {
+  if ($isPost) { http_response_code(403); exit('Your account cannot view donors.'); }
+  fishnet_open('Volunteer hours', 'donor', ['forms.css', 'volunteer.css']);
+  echo '<div class="notice" role="status">Your account cannot view donors or their volunteer hours.</div>';
+  fishnet_close();
+  exit;
+}
 
-$title = $isEdit ? 'Edit volunteer hours' : 'Log volunteer hours';
-$sel = fn($a, $b) => $a === $b ? 'selected' : '';
+$id = fish_str($_GET, 'id');
+if (!ctype_digit($id) || (int) $id === 0) { header('Location: donor.php', true, 303); exit; }
+$id = (int) $id;
+$entry = null;
+$loadError = false;
+try {
+  $entry = hours_get($id);
+} catch (mysqli_sql_exception $e) {
+  error_log('hours.php: ' . $e->getMessage());
+  $loadError = true;
+}
+if (!$entry && !$loadError) { header('Location: donor.php', true, 303); exit; }
 
+$isAnonymous = $entry && $entry['donor_id'] === DONOR_ANONYMOUS_ID;
+$canWrite = fish_can_log_hours() && !$isAnonymous && !$loadError;
+$canDelete = fish_can_delete_hours() && !$isAnonymous && !$loadError;
+$action = 'hours.php?id=' . $id;
+$form = $entry ? hours_form_from_row($entry) : hours_form_blank();
+$errors = [];
+$jobs = $campaigns = $summary = $changes = [];
+if ($entry) {
+  try {
+    $jobs = hours_job_options();
+    $campaigns = hours_campaign_names($entry['campaign_id']);
+    $summary = hours_summary($entry['donor_id']);
+    $changes = hours_changes($id);
+  } catch (mysqli_sql_exception $e) {
+    error_log('hours.php: ' . $e->getMessage());
+    $loadError = true;
+    $canWrite = $canDelete = false;
+  }
+}
+
+if ($isPost) {
+  $doDelete = fish_str($_POST, 'action') === 'delete';
+  if (!($doDelete ? $canDelete : $canWrite)) {
+    http_response_code($loadError ? 503 : 403);
+    exit($loadError ? 'Could not load this entry. Please try again shortly.'
+                    : ($doDelete ? 'Your account cannot delete volunteer hours.' : 'Your account cannot change volunteer hours.'));
+  }
+  $byUser = auth_current_user()->get_id();
+  if ($doDelete) {
+    if (hours_delete($id, $byUser)) {
+      header('Location: donorProfile.php?id=' . $entry['donor_id'] . '&tab=vol&hours_deleted=1', true, 303);
+      exit;
+    }
+    $errors[] = 'Could not delete the entry. Please try again.';
+  } else {
+    $form = array_merge($form, hours_form_from_post($_POST));
+    try {
+      $errors = hours_form_validate($form, $entry, $jobs, $campaigns);
+    } catch (mysqli_sql_exception $e) {
+      error_log('hours.php: ' . $e->getMessage());
+      $errors = ['Could not save the changes. Please try again.'];
+    }
+    if (!$errors) {
+      if (hours_update($id, $form, $byUser, $campaigns)) {
+        header('Location: ' . $action . '&saved=1', true, 303);
+        exit;
+      }
+      $errors[] = 'Could not save the changes. Please try again.';
+    }
+  }
+}
+
+// Change history, newest first, ending with the entry being logged.
+$when = function ($ts, $by) { return date('M j, Y', $ts) . ($by !== '' ? ' · ' . $by : ''); };
+$history = [];
+foreach ($changes as $c) { $history[] = [$c['summary'], $when($c['ts'], $c['by'])]; }
+if ($entry) { $history[] = ['Entry logged', $when((int) $entry['created_ts'], $entry['recorder'])]; }
+
+$title = $canWrite ? 'Edit volunteer hours' : 'Volunteer hours';
+$saved = fish_str($_GET, 'saved') === '1';
 fishnet_open($title, 'donor', ['forms.css', 'volunteer.css']);
 ?>
 
       <section class="page-head">
         <div>
-          <p class="crumbs"><a href="donor.php">Donor</a> &rsaquo; <a href="donorProfile.php?id=<?= $donorId ?>"><?= h($form['volunteer']) ?></a> &rsaquo; <?= $title ?></p>
+          <p class="crumbs"><a href="donor.php">Donor</a> &rsaquo; <?php if ($entry): ?><a href="donorProfile.php?id=<?= $entry['donor_id'] ?>&amp;tab=vol"><?= h($entry['donor_name']) ?></a> &rsaquo; <?php endif; ?><?= $title ?></p>
           <h1><?= $title ?></h1>
         </div>
       </section>
 
-      <div class="split">
-        <form class="card form-card" method="post" novalidate>
-          <?= auth_csrf_field() ?>
-
-          <div>
-            <div class="group-title">1 &middot; Volunteer</div>
-            <div class="vol-who">
-              <span class="vol-initials"><?= h(initials($form['volunteer'])) ?></span>
-              <strong><?= h($form['volunteer']) ?></strong>
-              <input type="hidden" name="donor_id" value="<?= $donorId ?>">
-            </div>
-          </div>
-
-          <div>
-            <div class="group-title">2 &middot; When</div>
-            <div class="grid g-vol-when">
-              <div class="field"><label for="date">Date *</label><input type="date" id="date" name="date" required value="<?= h($form['date']) ?>"></div>
-              <div class="field"><label for="start">Start time</label><input type="time" id="start" name="start_time" value="<?= h($form['start']) ?>"></div>
-              <div class="field"><label for="end">End time</label><input type="time" id="end" name="end_time" value="<?= h($form['end']) ?>"></div>
-              <div class="field hours-field">
-                <label for="hours">Hours *</label>
-                <input id="hours" name="hours" inputmode="decimal" required value="<?= h($form['hours']) ?>" placeholder="e.g. 4.5">
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <div class="group-title">3 &middot; What they did</div>
-            <div class="grid g-vol-what">
-              <div class="field">
-                <label for="job">Job / role</label>
-                <select id="job" name="job"><?php foreach ($jobs as $j): ?><option <?= $sel($j, $form['job']) ?>><?= h($j) ?></option><?php endforeach; ?></select>
-              </div>
-              <div class="field">
-                <label for="campaign">Campaign (optional)</label>
-                <select id="campaign" name="campaign_id"><?php foreach ($campaigns as $c): ?><option <?= $sel($c, $form['campaign']) ?>><?= h($c) ?></option><?php endforeach; ?></select>
-              </div>
-              <div class="field"><label for="location">Location</label><input id="location" name="location" value="<?= h($form['location']) ?>"></div>
-            </div>
-            <div class="field top-gap">
-              <label for="notes">Notes</label>
-              <textarea id="notes" name="notes" rows="3" placeholder="e.g. Sorted canned goods from the church drop-off"><?= h($form['notes']) ?></textarea>
-            </div>
-          </div>
-
-          <?php if (!$isEdit): ?>
-          <div>
-            <div class="group-title">4 &middot; Same shift for more people? <span class="muted">(optional)</span></div>
-            <div class="people-box">
-              <?php foreach ($extraPeople as $p): ?>
-              <span class="person-chip"><?= h($p) ?> <button type="button" aria-label="Remove <?= h($p) ?>">&times;</button></span>
-              <?php endforeach; ?>
-              <input type="text" name="extra_volunteers" placeholder="Add volunteer..." aria-label="Add volunteer">
-            </div>
-            <p class="hint">Each person gets their own entry with the same date and hours.</p>
-          </div>
-          <?php else: ?>
-          <div>
-            <div class="group-title">Status</div>
-            <div class="checks">
-              <label><input type="checkbox" name="verified" <?= $form['verified'] ? 'checked' : '' ?>> Hours verified by coordinator</label>
-              <label><input type="checkbox" name="service_letter" <?= $form['letter'] ? 'checked' : '' ?>> Counts toward service-hour letter</label>
-            </div>
-          </div>
-          <?php endif; ?>
-
-          <div class="spacer"></div>
-          <div class="form-foot">
-            <span class="req">* Required</span>
-            <div class="foot-btns">
-              <a href="donorProfile.php?id=<?= $donorId ?>" class="btn btn-outline small">Cancel</a>
-              <?php if ($isEdit): ?>
-              <button type="submit" class="btn btn-yellow small">Save changes</button>
-              <?php else: ?>
-              <button type="submit" class="btn btn-yellow small">Save hours</button>
-              <?php endif; ?>
-            </div>
-          </div>
-        </form>
-
-        <aside class="side">
-          <section class="card panel">
-            <h3><?= h($form['volunteer']) ?></h3>
-            <dl class="facts">
-              <?php foreach ($summary as $k => $v): ?><dt><?= h($k) ?></dt><dd><?= h($v) ?></dd><?php endforeach; ?>
-            </dl>
-            <p class="panel-link"><a href="donorProfile.php?id=<?= $donorId ?>" class="link">View volunteer tab &rarr;</a></p>
-          </section>
-
-          <?php if ($isEdit): ?>
-          <section class="card panel">
-            <h3>Change history</h3>
-            <ul class="timeline">
-              <?php foreach ($history as [$what, $when]): ?><li><strong><?= h($what) ?></strong><span><?= h($when) ?></span></li><?php endforeach; ?>
-            </ul>
-          </section>
-          <section class="card panel danger">
-            <h3>Delete this entry</h3>
-            <p>Removes these <?= h($form['hours']) ?> hours from the volunteer&rsquo;s total and the campaign.</p>
-            <button type="button" class="btn btn-danger small">Delete entry</button>
-          </section>
-          <?php endif; ?>
-        </aside>
-      </div>
+      <?php if ($saved && !$isPost): ?><div class="notice" role="status">Hours saved.</div><?php endif; ?>
+      <?php if (!$entry): ?>
+      <div class="notice" role="alert">Could not load this entry. Please try again shortly.</div>
+      <?php else: ?>
+      <?php if ($loadError): ?><div class="notice" role="alert">Could not load everything this page needs. Please try again shortly.</div><?php endif; ?>
+      <?php hours_form_render(['edit' => true, 'action' => $action, 'donor' => ['id' => $entry['donor_id'], 'name' => (string) $entry['donor_name']],
+                               'form' => $form, 'errors' => $errors, 'jobs' => $jobs, 'campaigns' => $campaigns, 'summary' => $summary,
+                               'history' => $history, 'readonly' => !$canWrite, 'delete_action' => $canDelete ? $action : '',
+                               'entry_hours' => hours_label($entry['hours'])]); ?>
+<script src="js/volunteerHours.js"></script>
+      <?php endif; ?>
 
 <?php fishnet_close(); ?>

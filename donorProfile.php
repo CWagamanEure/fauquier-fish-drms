@@ -4,6 +4,7 @@
 require_once 'include/fishnet-layout.php';
 require_once 'include/permissions.php';
 require_once 'database/dbDonors.php';
+require_once 'database/dbVolunteerHours.php';   // hours_label()
 
 $id = (int) ($_GET['id'] ?? 0);
 $loadError = false;
@@ -38,6 +39,13 @@ $canViewGifts = fish_can('donations', 'view');
 // Same gate as addDonation.php; a new gift needs an active, non-anonymous donor (UF2-87).
 $canAddGift = fish_can_record_donations() && !$isAnonymous && (int) $donor['is_active'] === 1 && !$loadError;
 $giftSaved = fish_str($_GET, 'gift') === '1';
+// Volunteer tab (UF2-116/117/119): new hours need an active, non-anonymous donor; existing entries open
+// for editing unless the donor is anonymous, otherwise read-only.
+$canLogHours = fish_can_log_hours() && !$isAnonymous && (int) $donor['is_active'] === 1 && !$loadError;
+$hoursLink = fish_can_log_hours() && !$isAnonymous ? 'Edit' : 'View';
+$hoursSaved = (int) fish_str($_GET, 'hours');
+$hoursDeleted = fish_str($_GET, 'hours_deleted') === '1';
+$openTab = fish_str($_GET, 'tab') === 'vol' ? 'tVol' : 'tCash';
 
 // Tab footers come from the rows; the tiles come from the view so the list and the profile agree.
 $cashTotal  = array_sum(array_column($cash, 'amount'));
@@ -92,6 +100,8 @@ fishnet_open('Donor profile', 'donor', ['donor.css', 'forms.css']);
       <p class="crumbs"><a href="donor.php">Donor</a> &rsaquo; <strong><?= h($name) ?></strong></p>
       <?php if ($saved): ?><div class="notice" role="status">Donor saved.</div><?php endif; ?>
       <?php if ($giftSaved): ?><div class="notice" role="status">Donation saved.</div><?php endif; ?>
+      <?php if ($hoursSaved >= 1): ?><div class="notice" role="status"><?= $hoursSaved === 1 ? 'Hours saved.' : 'Hours saved for ' . $hoursSaved . ' volunteers.' ?></div><?php endif; ?>
+      <?php if ($hoursDeleted): ?><div class="notice" role="status">Hours entry deleted.</div><?php endif; ?>
       <?php if ($loadError): ?><div class="notice" role="alert">Could not load this donor. Please try again shortly.</div><?php endif; ?>
 
       <section class="card profile-head">
@@ -107,14 +117,14 @@ fishnet_open('Donor profile', 'donor', ['donor.css', 'forms.css']);
       <section class="tiles">
         <div class="tile"><p class="label">Lifetime cash</p><p class="num">$<?= number_format((float) $donor['lifetime_cash'], 2) ?></p></div>
         <div class="tile"><p class="label">Items donated</p><p class="num"><?= number_format((float) $donor['items_donated']) ?></p></div>
-        <div class="tile"><p class="label">Volunteer hours</p><p class="num"><?= fmt_hours($donor['volunteer_hours']) ?></p></div>
+        <div class="tile"><p class="label">Volunteer hours</p><p class="num"><?= h(hours_label($donor['volunteer_hours'])) ?></p></div>
         <div class="tile"><p class="label">Last gift</p><p class="num"><?= fmt_date($donor['last_gift_date']) ?></p></div>
       </section>
 
       <section class="card tabs-card">
-        <input type="radio" name="tab" id="tCash" checked>
+        <input type="radio" name="tab" id="tCash"<?= $openTab === 'tCash' ? ' checked' : '' ?>>
         <input type="radio" name="tab" id="tItems">
-        <input type="radio" name="tab" id="tVol">
+        <input type="radio" name="tab" id="tVol"<?= $openTab === 'tVol' ? ' checked' : '' ?>>
         <input type="radio" name="tab" id="tComm">
         <div class="tab-bar">
           <label for="tCash">Cash<?php if ($canViewGifts): ?> <span class="count"><?= $cashCount ?></span><?php endif; ?></label>
@@ -169,17 +179,17 @@ fishnet_open('Donor profile', 'donor', ['donor.css', 'forms.css']);
 
         <!-- Volunteer -->
         <div class="panel-tab p-vol">
-          <div class="tab-actions"><a href="addHours.php?donor_id=<?= (int)$donor['id'] ?>" class="btn btn-outline pill-btn">+ Log hours</a></div>
+          <?php if ($canLogHours): ?><div class="tab-actions"><a href="addHours.php?donor_id=<?= (int)$donor['id'] ?>" class="btn btn-outline pill-btn">+ Log hours</a></div><?php endif; ?>
           <div class="table-wrap"><table>
-            <thead><tr><th>Date</th><th>Hours</th><th>Job</th><th>Campaign</th></tr></thead>
+            <thead><tr><th>Date</th><th>Hours</th><th>Job</th><th>Campaign</th><th></th></tr></thead>
             <tbody>
               <?php foreach ($vol as $v): ?>
-              <tr><td><?= fmt_date($v['activity_date']) ?></td><td><strong><?= h(fmt_hours($v['hours'])) ?></strong></td><td><?= h($v['job']) ?></td><td><?= $v['campaign'] !== null && $v['campaign'] !== '' ? h($v['campaign']) : '&mdash;' ?></td></tr>
+              <tr><td><?= fmt_date($v['activity_date']) ?></td><td><strong><?= h(hours_label($v['hours'])) ?></strong></td><td><?= $v['job'] !== null && $v['job'] !== '' ? h($v['job']) : '&mdash;' ?></td><td><?= $v['campaign'] !== null && $v['campaign'] !== '' ? h($v['campaign']) : '&mdash;' ?></td><td><a href="hours.php?id=<?= (int) $v['id'] ?>" class="select"><?= $hoursLink ?></a></td></tr>
               <?php endforeach; ?>
-              <?php if (!$vol): ?><tr><td colspan="4" class="muted">No volunteer shifts recorded.</td></tr><?php endif; ?>
+              <?php if (!$vol): ?><tr><td colspan="5" class="muted">No volunteer shifts recorded.</td></tr><?php endif; ?>
             </tbody>
             <?php if ($vol): ?>
-            <tfoot><tr><td>Total hours</td><td><?= h(fmt_hours($volHours)) ?></td><td colspan="2" class="muted"><?= h(fmt_hours($volAvg)) ?> hours served on avg</td></tr></tfoot>
+            <tfoot><tr><td>Total hours</td><td><?= h(hours_label($volHours)) ?></td><td colspan="3" class="muted"><?= h(hours_label($volAvg)) ?> hours served on avg</td></tr></tfoot>
             <?php endif; ?>
           </table></div>
           <?= count_line($volCount, 'volunteer shifts') ?>
