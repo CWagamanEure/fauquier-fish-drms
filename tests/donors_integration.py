@@ -76,7 +76,7 @@ switch ($req['action']) {
                      WHERE s.display_name = ? AND s.is_anonymous = 0 AND d.notes LIKE '[demo]%' ORDER BY s.id", 's', $req['name']);
         break;
     case 'counts':
-        $tiles = $run("SELECT COUNT(*) AS total, SUM(donor_since_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')) AS new_month, SUM(status = 'lapsed') AS lapsed
+        $tiles = $run("SELECT COUNT(*) AS total, SUM(donor_since_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')) AS new_month, SUM(status <> 'active') AS lapsed
                        FROM donor_summary WHERE is_anonymous = 0 AND is_active = 1")[0];
         $dupes = $run("SELECT COUNT(*) AS n FROM donors d WHERE d.is_active = 1 AND d.id <> 999 AND (
                         (COALESCE(d.email,'') <> '' AND EXISTS (SELECT 1 FROM donors o WHERE o.id <> d.id AND o.is_active = 1 AND o.id <> 999 AND LOWER(o.email) = LOWER(d.email)))
@@ -89,6 +89,20 @@ switch ($req['action']) {
     case 'search_ids':
         $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $req['q']) . '%';
         $out = array_map('intval', array_column($run("SELECT id FROM donor_summary WHERE is_anonymous = 0 AND is_active = 1 AND (display_name LIKE ? ESCAPE '\\\\' OR email LIKE ? ESCAPE '\\\\') ORDER BY id", 'ss', $like, $like), 'id'));
+        break;
+    case 'status_donors_create':
+        // One throwaway donor per giving-status case; months_ago null means no gift at all.
+        $ids = [];
+        foreach ($req['cases'] as $label => $monthsAgo) {
+            $run("INSERT INTO donors (donor_type, `first`, `last`, notes) VALUES ('individual', 'Status', ?, 'status suite')", 's', $req['marker'] . $label);
+            $id = (int) $con->insert_id;
+            if ($monthsAgo !== null) {
+                $run("INSERT INTO donations (donorID, amount, donation_date, payment_method, send_receipt, thanked, reason)
+                      VALUES (?, 10.00, CURDATE() - INTERVAL ? MONTH, 'cash', 0, 0, 'status suite')", 'ii', $id, $monthsAgo);
+            }
+            $ids[$label] = $id;
+        }
+        $out = $ids;
         break;
     case 'seed_check':
         $out = ['demo' => (int) $run("SELECT COUNT(*) AS n FROM donors WHERE notes LIKE '[demo]%'")[0]['n']];
@@ -263,6 +277,27 @@ class DonorPagesTests(unittest.TestCase):
         self.assertIn('class="pill on">All</button>', body)
         self.get(manager, "donor.php?page=2")
 
+    def test_giving_status_boundaries_and_lapsed_filter(self):
+        # Active: gift in the last 12 months; LYBUNT 12-24; SYBUNT 24-36; inactive 36+ or never.
+        # A gift exactly 12 / 24 / 36 months ago falls into the older group.
+        cases = {"A11": 11, "B12": 12, "C13": 13, "D24": 24, "E25": 25, "F36": 36, "G37": 37, "Hnone": None}
+        expected = {"A11": "active", "B12": "lybunt", "C13": "lybunt", "D24": "sybunt", "E25": "sybunt",
+                    "F36": "inactive", "G37": "inactive", "Hnone": "inactive"}
+        marker = "Gs" + secrets.token_hex(5)
+        ids = fixture("status_donors_create", marker=marker, cases=cases)
+        for donor_id in ids.values():
+            self.addCleanup(fixture, "donor_delete", id=donor_id)
+        manager = self.login("manager")
+        for label, donor_id in ids.items():
+            with self.subTest(case=label):
+                self.assertEqual(fixture("donor_read", id=donor_id)["summary"]["status"], expected[label])
+        _, body = self.get(manager, "donor.php?sort=name&q=" + marker)
+        shown = {r[0].split(marker)[1]: r[5] for r in rows_in(body)}
+        self.assertEqual(shown, expected)
+        _, body = self.get(manager, "donor.php?filter=lapsed&sort=name&q=" + marker)
+        lapsed = sorted(r[0].split(marker)[1] for r in rows_in(body))
+        self.assertEqual(lapsed, sorted(k for k, v in expected.items() if v != "active"))
+
     # ---- profile ----
 
     def test_profile_reads_every_tab(self):
@@ -321,7 +356,7 @@ class DonorPagesTests(unittest.TestCase):
         self.assertEqual((read["donor"]["donor_type"], read["donor"]["middle_name"], read["donor"]["preferred_contact"],
                           read["donor"]["email_updates"], read["donor"]["mail_receipts"], read["donor"]["updated_by"]),
                          ("individual", "Q", "text", 1, 0, self.users["manager"]["id"]))
-        self.assertEqual(read["summary"]["status"], "new")
+        self.assertEqual(read["summary"]["status"], "inactive")   # no gifts yet
         _, body = self.get(manager, headers["Location"])
         self.assertIn("Donor saved.", body)
 

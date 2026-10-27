@@ -34,11 +34,12 @@ function donor_like_escape($s) {
 // ---------- reads ----------
 
 // The four tiles on donor.php, all over the same set: active, non-anonymous donors.
+// "Lapsed" is every donor without a gift in the last 12 months (status lybunt, sybunt or inactive).
 function donors_tiles() {
     $con = connect();
     $stmt = $con->prepare("SELECT COUNT(*) AS total,
                                   SUM(donor_since_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')) AS new_month,
-                                  SUM(status = 'lapsed') AS lapsed
+                                  SUM(status <> 'active') AS lapsed
                            FROM donor_summary WHERE is_anonymous = 0 AND is_active = 1");
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
@@ -70,7 +71,7 @@ function donors_list_where($filter, $q) {
     $values = [];
     if ($filter === 'individuals') { $where[] = "donor_type = 'individual'"; }
     if ($filter === 'organizations') { $where[] = "donor_type = 'organization'"; }
-    if ($filter === 'lapsed') { $where[] = "status = 'lapsed'"; }
+    if ($filter === 'lapsed') { $where[] = "status <> 'active'"; }   // LYBUNT, SYBUNT and inactive
     if ($q !== '') {
         $like = '%' . donor_like_escape($q) . '%';
         $clauses = ["display_name LIKE ? ESCAPE '\\\\'", "email LIKE ? ESCAPE '\\\\'"];
@@ -309,7 +310,7 @@ function donor_bind_values(array $form) {
 }
 
 // Inserts a donor from the validated form; returns the new id or false. donor_since and created_at are
-// left to their column defaults so the donor reads as "new" from today.
+// left to their column defaults; with no gifts yet its giving status (donor_summary.status) is "inactive".
 function donor_create(array $form, $byUser) {
     try {
         $con = connect();

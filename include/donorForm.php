@@ -32,6 +32,9 @@ $preferredOptions = array_values(DONOR_PREFERRED_LABELS);
               <label for="typeInd">Individual</label>
               <input type="radio" name="type" id="typeOrg" value="Organization" <?= $form['type'] === 'Organization' ? 'checked' : '' ?>>
               <label for="typeOrg">Organization</label>
+              <!-- Foundation is not saved yet (donors.donor_type has no foundation value); enabled with that ticket. -->
+              <input type="radio" name="type" id="typeFdn" value="Foundation" disabled>
+              <label for="typeFdn" title="Coming soon: foundations cannot be saved yet">Foundation (coming soon)</label>
             </div>
           </div>
 
@@ -43,7 +46,27 @@ $preferredOptions = array_values(DONOR_PREFERRED_LABELS);
               <div class="form-field"><label for="last">Last name *</label><input type="text" id="last" name="last" value="<?= h($form['last']) ?>" placeholder="Last name"></div>
             </div>
             <div class="only-org">
-              <div class="form-field"><label for="org_name">Organization name *</label><input type="text" id="org_name" name="org_name" value="<?= h($form['org_name']) ?>" placeholder="Organization name"></div>
+              <div class="form-field"><label for="org_name"><span class="only-orgtype">Organization</span><span class="only-fdn">Foundation</span> name *</label><input type="text" id="org_name" name="org_name" value="<?= h($form['org_name']) ?>" placeholder="Name"></div>
+
+              <!-- Contact people for an organization or foundation. Front end only: the backend still needs a
+                   table for these (one donor can have many contacts) and to read contacts[n][...] from the POST. -->
+              <div class="contacts">
+                <div class="contacts-head">
+                  <span class="lbl" id="contactsLbl">Contact people</span>
+                  <button type="button" class="btn btn-outline pill-btn" id="addContact">+ Add contact person</button>
+                </div>
+                <p class="contacts-note" id="contactsNote">Contact people are not saved yet. Until they are, put the main contact's email and phone in the Contact fields below.</p>
+                <div class="contact-list" id="contactList" aria-labelledby="contactsLbl" aria-describedby="contactsNote">
+                  <div class="contact-row">
+                    <div class="form-field"><label for="contact0_name">Name</label><input id="contact0_name" type="text" name="contacts[0][name]" placeholder="Full name"></div>
+                    <div class="form-field"><label for="contact0_title">Title / role</label><input id="contact0_title" type="text" name="contacts[0][title]" placeholder="e.g. Pastor, Grants manager"></div>
+                    <div class="form-field"><label for="contact0_email">Email</label><input id="contact0_email" type="email" name="contacts[0][email]" placeholder="name@email.com"></div>
+                    <div class="form-field"><label for="contact0_phone">Phone</label><input id="contact0_phone" type="tel" name="contacts[0][phone]" placeholder="(540) 555-0000"></div>
+                    <label class="primary"><input type="radio" name="primary_contact" value="0" checked> Main contact</label>
+                    <button type="button" class="remove-contact" aria-label="Remove this contact">&times;</button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -102,3 +125,4 @@ $preferredOptions = array_values(DONOR_PREFERRED_LABELS);
           </div>
           <?php endif; ?>
         </form>
+        <script src="js/donorForm.js"></script>

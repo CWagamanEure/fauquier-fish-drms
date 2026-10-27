@@ -1,0 +1,17 @@
+{
+ "mode": "code",
+ "subject": "TCDuserchanges",
+ "round": 3,
+ "approved": true,
+ "reviewed_commit": "bee0cbe5a02c9841d08a854ce2afe4ef2543b50e",
+ "tree": "9e9ba9ce3cd98b83a881034cb14886c7f582f6ed642969091907e0e8b01d4c6b",
+ "runner": "review-swarm.js prompts run via the Agent tool (Workflow tool unavailable in this session)",
+ "auditors": [
+  {"auditor": "security", "approve": true, "finding_count": 0},
+  {"auditor": "data", "approve": true, "finding_count": 0},
+  {"auditor": "correctness", "approve": true, "finding_count": 0},
+  {"auditor": "verification", "approve": true, "finding_count": 1}
+ ],
+ "findings_by_severity": {"low": 1},
+ "findings_by_status": {"reported": 1}
+}
