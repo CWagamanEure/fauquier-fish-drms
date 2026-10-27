@@ -37,7 +37,10 @@ function pageUrl($p) {
   return '?' . http_build_query($params);
 }
 $colors = ['teal', 'navy', 'sage', 'yellow'];
-$statusLabels = ['active' => 'Active', 'new' => 'New', 'lapsed' => 'Lapsed'];
+// Giving status comes from donor_summary.status (migration 011).
+$statusLabels = ['active' => 'Active', 'lybunt' => 'LYBUNT', 'sybunt' => 'SYBUNT', 'inactive' => 'Inactive'];
+$statusTips = ['active' => 'Gave in the last 12 months', 'lybunt' => 'Last gift 12-24 months ago',
+               'sybunt' => 'Last gift 24-36 months ago', 'inactive' => 'No dated gift in the last 36 months'];
 
 fishnet_open('Donors', 'donor', 'donor.css');
 ?>
@@ -93,7 +96,8 @@ fishnet_open('Donors', 'donor', 'donor.css');
                 <td><?= h($d['contact']) ?></td>
                 <td>$<?= number_format($d['lifetime'], 2) ?></td>
                 <td><?= $d['last_gift'] ? date('M j, Y', strtotime($d['last_gift'])) : '&mdash;' ?></td>
-                <td><span class="status <?= h($d['status']) ?>"><?= $statusLabels[$d['status']] ?? '' ?></span></td>
+                <?php $st = isset($statusLabels[$d['status']]) ? $d['status'] : 'inactive'; ?>
+                <td title="<?= $statusTips[$st] ?>"><span class="status <?= $st ?>"><?= $statusLabels[$st] ?></span></td>
                 <td><a href="donorProfile.php?id=<?= (int)$d['id'] ?>" class="select">Select</a></td>
               </tr>
               <?php endforeach; ?>

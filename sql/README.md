@@ -38,7 +38,7 @@ Files are run through the `mariadb` client, so `DELIMITER` works for triggers.
 `IF NOT EXISTS` guards need rewriting with `information_schema` checks like the foreign-key
 guard in `002_donations_cash_fields.sql`.
 
-## Sprint 1 schema (migrations 001-008)
+## Sprint 1 schema (migrations 001-008, plus 010)
 
 | Table / view | Purpose | Ticket |
 |---|---|---|
@@ -49,9 +49,11 @@ guard in `002_donations_cash_fields.sql`.
 | `donations` + `donation_date`, payment fields, platform, honoree, receipt, `recorded_by`, `net_amount` | Cash donation form and lists. Triggers keep `date` (legacy MM/DD/YYYY) and `donation_date` in sync | UF2-41, UF2-48, UF2-26 |
 | `non_cash_donations`, `non_cash_distributions` | In-kind gifts and where they went | UF2-16, UF2-18 |
 | `volunteer_hours` | Hours per supporter | UF2-27 |
+| `volunteer_hours` + `start_time`, `end_time`, `location`, `is_verified`, `counts_for_letter` (010) | Shift times, place and the two coordinator flags on addHours.php / hours.php | UF2-116..120 |
+| `volunteer_hours_changes` (010) | One plain-text summary per saved edit of an hours entry (who and when); cascades with its entry. The entry's own `created_at` / `recorded_by` stand for "Entry logged" | UF2-120 |
 | `communications` | Contact log per supporter | UF2-11, UF2-21, UF2-23, UF2-27 |
-| `donor_summary` (view) | One row per donor with lifetime totals, last gift, derived status (new / active / lapsed), last contact and `is_active`, for donor.php and donorProfile.php (recreated by 008) | UF2-26, UF2-27 |
-| `donors` + `is_active`, `updated_by`, `deactivated_at`, `deactivated_by` (008) | Soft-delete flag (no longer settable from the UI; updateDonor.php's deactivate action was removed, so donors deactivated earlier stay hidden) and an audit of who last changed the row; 008 also backfills `user_permissions` for accounts created since 001 | UF2-26, UF2-27, UF2-60, UF2-81 |
+| `donor_summary` (view) | One row per donor with lifetime totals, last gift, derived status (active / lybunt / sybunt / inactive since 011; new / active / lapsed before), last contact and `is_active`, for donor.php and donorProfile.php (recreated by 008 and 011) | UF2-26, UF2-27 |
+| `donors` + `is_active`, `updated_by`, `deactivated_at`, `deactivated_by` (008) | Soft delete from updateDonor.php and an audit of who last changed the row; 008 also backfills `user_permissions` for accounts created since 001 | UF2-26, UF2-27, UF2-60, UF2-81 |
 
 `dbevents` doubles as the campaigns table: `donations.eventID` and every `campaign_id` column
 point at it. A `completed` value of `'1'` or `'yes'` hides a campaign from the donation form. Anonymous gifts use donor id 999 (migration 003 guarantees the row exists). Demo rows

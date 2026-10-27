@@ -61,7 +61,7 @@ before it is pushed. `make dev` installs the pre-push hook that guards against p
 a human review is the real control. Two GitHub Actions checks report on every pull request: `record`
 says whether a review-swarm record is present (advisory since 2026-10-20) and `tests`
 (`.github/workflows/ci.yml`) runs the PHP syntax check, `make test-auth`, `make test-donors`,
-`make test-users`, `make test-donations` and `make test-gate`, so a PR needs no tooling on the author's machine. Read
+`make test-users`, `make test-donations`, `make test-hours` and `make test-gate`, so a PR needs no tooling on the author's machine. Read
 `docs/process/change-review-process.md` before starting work.
 
 ## Database migrations
@@ -109,7 +109,9 @@ action was removed); donors deactivated earlier stay hidden from the list. The d
 (`donations.php`, `addDonation.php`, `viewDonation.php`) need the `donations` area: a `viewer` sees the list
 and each gift read-only, and `staff`, `manager` and `admin` also record and edit gifts (which also needs
 `donors` view, to pick the donor); without `donations` view the donor profile hides its Cash and Non-cash
-tabs. Accounts without rows
+tabs. Volunteer hours (`addHours.php`, `hours.php`, the profile's Volunteer tab) use the `donors` area:
+logging and editing hours needs `donors` view and edit (`staff`, `manager`, `admin`), deleting an entry also
+needs `donors` delete (`manager`, `admin`), and a `viewer` sees each entry read-only. Accounts without rows
 fall back to their role's preset. Manage Users (`manageUsers.php`, `addUser.php`, `editUser.php`,
 `userPassword.php`) needs the `users` area: `manager` sees the list read-only, `admin` adds accounts, edits
 names, email, role and per-area boxes, sets passwords, and deactivates or reactivates (an inactive account
@@ -132,7 +134,11 @@ environment, CI leaves it unset). `make test-donations` (after `make seed-demo`)
 `tests/donations_integration.py`: the donations list and tiles, adding, viewing and editing cash and non-cash
 gifts (including legacy rows with missing fields), validation, the campaign figures on the form, the donor
 profile shortcuts and the permission gates, on donors, campaigns and gifts it creates and removes itself; it
-asserts the Jira save-to-display limits only when `DONATIONS_TIMING_STRICT=1`. Run them only against a
+asserts the Jira save-to-display limits only when `DONATIONS_TIMING_STRICT=1`. `make test-hours` (after
+`make seed-demo`) runs `tests/volunteer_hours_integration.py`: logging hours (including hours from the
+shift times and the same shift for several volunteers), validation, viewing and editing an entry with its
+change history, delete, the profile's Volunteer tab and the permission gates, on donors, campaigns and
+entries it creates and removes itself. Run them only against a
 local development database.
 
 ## Purpose

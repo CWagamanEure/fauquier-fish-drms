@@ -41,6 +41,7 @@ setTimes.php signupPending.php signupSuccess.php specificEvent.php template.php
 uploadResources.php viewAllEvents.php viewProfile.php viewResources.php
 viewSignUpList.php volunteerManagement.php volunteerReport.php
 addCampaign.php campaign.php campaigns.php addDonation.php donations.php viewDonation.php
+addHours.php hours.php
 newDonor.php addUser.php editUser.php manageUsers.php userPassword.php
 python/ImportHandler.php python/ExportHandler.php reportGeneration/formHandler.php
 reportGeneration/reports/delHandler.php ai-email-gen/index.php

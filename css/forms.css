@@ -52,6 +52,13 @@
 .only-org { display: none; }
 .form-card:has(#typeOrg:checked) .only-org { display: block; }
 .form-card:has(#typeOrg:checked) .only-ind { display: none; }
+/* Foundation uses the same fields as Organization; only the name label changes.
+   Inactive while the Foundation option is disabled; kept for the Foundation persistence ticket. */
+.form-card:has(#typeFdn:checked) .only-org { display: block; }
+.form-card:has(#typeFdn:checked) .only-ind { display: none; }
+.only-fdn { display: none; }
+.form-card:has(#typeFdn:checked) .only-fdn { display: inline; }
+.form-card:has(#typeFdn:checked) .only-orgtype { display: none; }
 
 /* ===== Checkboxes ===== */
 .checks { display: flex; flex-wrap: wrap; gap: 14px 40px; }
@@ -174,3 +181,35 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; display: conten
 
 .form-errors { background: #fdecea; border: 1px solid #e3a49c; border-radius: 8px; padding: 12px 16px; color: #b42318; font-size: 0.92rem; }
 .form-errors ul { margin: 6px 0 0 18px; }
+
+/* ===== Contact people (organizations and foundations) ===== */
+.contacts { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+.contacts-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.contacts-head .lbl { font-weight: bold; font-size: 0.9rem; }
+.contacts-note { margin: 0; font-size: 0.85rem; color: #7a5a00; background: #fdf6dc; border-radius: 8px; padding: 8px 12px; }
+#typeFdn[disabled] + label { opacity: 0.55; cursor: not-allowed; }   /* only the coming-soon option, not read-only forms */
+.contact-list { display: flex; flex-direction: column; gap: 10px; }
+.contact-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1.1fr 1.3fr 1fr auto auto;
+  gap: 12px;
+  align-items: end;
+  background: #f4f5f1;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.contact-row .primary { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; padding-bottom: 10px; white-space: nowrap; cursor: pointer; }
+.contact-row .primary input { accent-color: var(--teal); }
+.remove-contact {
+  width: 34px; height: 34px;
+  margin-bottom: 4px;
+  border: 1.5px solid #b9bec5;
+  border-radius: 50%;
+  background: #fff;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--muted);
+}
+.remove-contact:hover { border-color: #b42318; color: #b42318; }
+@media (max-width: 1100px) { .contact-row { grid-template-columns: 1fr 1fr; } }
