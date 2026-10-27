@@ -189,7 +189,7 @@ class DonorPagesTests(unittest.TestCase):
         self.assertNotIn('value="deactivate"', body)
         self.assertIn("Save changes", body)
         token = staff.token(f"updateDonor.php?id={self.donor_id}")
-        self.assertEqual(staff.request(f"updateDonor.php?id={self.donor_id}", {"csrf_token": token, "action": "deactivate"})[0], 403)
+        self.assert_deactivate_ignored(staff, token)
         stored = fixture("donor_read", id=self.donor_id)["donor"]
         status, headers, _ = staff.request(f"updateDonor.php?id={self.donor_id}", {
             "csrf_token": token, "type": "Individual", "first": stored["first"], "middle": "", "last": stored["last"],
@@ -208,6 +208,16 @@ class DonorPagesTests(unittest.TestCase):
             "city": "Viewerville", "state": "DC", "zip": stored["zip"], "action": "save"})
         self.assertEqual(status, 303)
         self.assertEqual(fixture("donor_read", id=self.donor_id)["donor"]["city"], "Viewerville")
+
+    def assert_deactivate_ignored(self, session, token):
+        """A bare action=deactivate POST leaves the whole donor row as it was (updated_at aside)."""
+        before = fixture("donor_read", id=self.donor_id)["donor"]
+        session.request(f"updateDonor.php?id={self.donor_id}", {"csrf_token": token, "action": "deactivate"})
+        after = fixture("donor_read", id=self.donor_id)["donor"]
+        before.pop("updated_at", None)
+        after.pop("updated_at", None)
+        self.assertEqual(after, before)
+        self.assertEqual((after["is_active"], after["deactivated_at"], after["deactivated_by"]), (1, None, None))
 
     # ---- list ----
 
@@ -281,7 +291,7 @@ class DonorPagesTests(unittest.TestCase):
 
     # ---- writes ----
 
-    def test_add_update_deactivate_reactivate(self):
+    def test_add_and_update(self):
         manager = self.login("manager")
         token = manager.token("addDonor.php")
         status, _, body = manager.request("addDonor.php", {"csrf_token": token, **self.donor_form(street="x" * 101)})
@@ -325,21 +335,11 @@ class DonorPagesTests(unittest.TestCase):
         self.assertEqual((after["city"], after["notes"], after["preferred_contact"], after["state"], after["updated_by"]),
                          ("Edited", "suite notes", "text", "DC", self.users["manager"]["id"]))
 
-        status, headers, _ = manager.request(f"updateDonor.php?id={self.donor_id}", {"csrf_token": token, "action": "deactivate"})
-        self.assertEqual((status, headers["Location"]), (303, "donor.php"))
-        read = fixture("donor_read", id=self.donor_id)
-        self.assertEqual((read["donor"]["is_active"], read["donor"]["deactivated_by"]), (0, self.users["manager"]["id"]))
-        self.assertIsNotNone(read["donor"]["deactivated_at"])
-        _, body = self.get(manager, "donor.php?q=" + urllib.parse.quote("Suite " + self.marker))
-        self.assertEqual([r for r in rows_in(body) if r[0] == "Suite " + self.marker], [])
-        _, body = self.get(manager, f"donorProfile.php?id={self.donor_id}")
-        self.assertIn('<span class="status off">Inactive</span>', body)
+        # Deactivate/reactivate were removed from the UI (PR #28): no button, and a stray action changes nothing.
         _, body = self.get(manager, f"updateDonor.php?id={self.donor_id}")
-        self.assertIn('value="reactivate"', body)
-        status, _, _ = manager.request(f"updateDonor.php?id={self.donor_id}", {"csrf_token": token, "action": "reactivate"})
-        self.assertEqual(status, 303)
-        read = fixture("donor_read", id=self.donor_id)["donor"]
-        self.assertEqual((read["is_active"], read["deactivated_at"], read["deactivated_by"]), (1, None, None))
+        self.assertNotIn('value="deactivate"', body)
+        self.assertNotIn('value="reactivate"', body)
+        self.assert_deactivate_ignored(manager, token)
 
         before = fixture("donor_read", id=999)["donor"]
         status, headers, _ = manager.request("updateDonor.php?id=999", {"csrf_token": token, **self.donor_form()})
