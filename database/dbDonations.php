@@ -22,6 +22,7 @@ function fetch_donations_for_event($id) {
 // the list reads both as one set. Donor names come from donor_summary (see CLAUDE.md). "Today" and the
 // date windows are computed in PHP (America/New_York) and bound, because the database may run in UTC.
 require_once __DIR__ . '/dbDonors.php';   // donor_like_escape(), donor_get(), DONOR_ANONYMOUS_ID
+require_once __DIR__ . '/nonCashFormat.php';   // donation_qty_text()
 
 const DONATIONS_PER_PAGE = 10;
 const DONATION_KINDS = ['all', 'cash', 'noncash'];
@@ -37,7 +38,6 @@ const DONATION_CATEGORY_LABELS = ['canned_food' => 'Canned food', 'dry_goods' =>
                                   'household_items' => 'Household items', 'hygiene_products' => 'Hygiene products',
                                   'other' => 'Other'];
 const DONATION_CONDITION_LABELS = ['new' => 'New / unopened', 'gently_used' => 'Gently used', 'used' => 'Used'];
-const DONATION_UNITS = ['items', 'lbs', 'bags', 'boxes'];
 // Two decimals at most and no sign, exponent or separators, so the DECIMAL columns never round silently.
 const DONATION_NUMBER_PATTERN = '/^\d{1,10}(\.\d{1,2})?$/';
 const DONATION_MONEY_MAX = 9999999999.99;     // DECIMAL(12,2)
@@ -80,11 +80,11 @@ function donations_range_start($range) {
 // already validated.
 function donations_list_sql($kind, $q, $range) {
     $from = "(SELECT 'cash' AS kind, d.id, d.donation_date AS gift_date, d.donorID AS donor_id, d.amount AS value,
-                     NULL AS quantity, NULL AS unit, d.payment_method AS detail, d.eventID AS campaign_id, d.recorded_by
+                     NULL AS quantity, NULL AS weight_lbs, d.payment_method AS detail, d.eventID AS campaign_id, d.recorded_by
               FROM donations d
               UNION ALL
               SELECT 'noncash', n.id, n.date_received, n.donor_id, n.estimated_value,
-                     n.quantity, n.unit, n.item_description, n.campaign_id, n.recorded_by
+                     n.quantity, n.weight_lbs, n.item_description, n.campaign_id, n.recorded_by
               FROM non_cash_donations n) g
              LEFT JOIN donor_summary s ON s.id = g.donor_id
              LEFT JOIN dbevents e ON e.id = g.campaign_id
@@ -132,7 +132,7 @@ function donations_list($kind, $q, $range, $sort, $page) {
     $offset = ($page - 1) * DONATIONS_PER_PAGE;
     $limit = DONATIONS_PER_PAGE;
 
-    $stmt = $con->prepare("SELECT g.kind, g.id, g.gift_date, g.donor_id, g.value, g.quantity, g.unit, g.detail,
+    $stmt = $con->prepare("SELECT g.kind, g.id, g.gift_date, g.donor_id, g.value, g.quantity, g.weight_lbs, g.detail,
                                   s.display_name, e.name AS campaign, p.first_name, p.last_name
                            FROM $from WHERE $where ORDER BY $orderBy LIMIT ? OFFSET ?");
     $allTypes = $types . 'ii';
@@ -145,7 +145,7 @@ function donations_list($kind, $q, $range, $sort, $page) {
                    'donor_id' => (int) $r['donor_id'], 'donor' => (string) $r['display_name'],
                    'value' => $r['value'] === null ? null : (float) $r['value'],
                    'quantity' => $r['quantity'] === null ? null : (float) $r['quantity'],
-                   'unit' => (string) $r['unit'], 'detail' => (string) $r['detail'],
+                   'weight_lbs' => $r['weight_lbs'] === null ? null : (float) $r['weight_lbs'], 'detail' => (string) $r['detail'],
                    'campaign' => (string) $r['campaign'],
                    'recorded_by' => donation_recorder_name($r['first_name'], $r['last_name'])];
     }
@@ -201,7 +201,7 @@ function donation_get($kind, $id) {
                 LEFT JOIN dbpersons p ON p.id = d.recorded_by
                 WHERE d.id = ?";
     } elseif ($kind === 'noncash') {
-        $sql = "SELECT n.id, n.donor_id, n.date_received, n.item_description, n.category, n.quantity, n.unit,
+        $sql = "SELECT n.id, n.donor_id, n.date_received, n.item_description, n.category, n.quantity, n.weight_lbs,
                        n.estimated_value, n.item_condition, n.intended_use, n.campaign_id, n.notes, n.send_receipt,
                        n.receipt_sent_at, n.recorded_by, e.name AS campaign, p.first_name, p.last_name,
                        (SELECT COALESCE(SUM(x.quantity), 0) FROM non_cash_distributions x WHERE x.non_cash_donation_id = n.id) AS distributed
@@ -228,11 +228,11 @@ function donation_get($kind, $id) {
 
 // ---------- form handling (addDonation.php) ----------
 
-// The empty form for a new gift of $kind; date defaults to today, unit to items.
+// The empty form for a new gift of $kind; date defaults to today.
 function donation_form_blank($kind) {
     $form = ['donor' => '', 'date_received' => donation_today(), 'campaign' => '', 'notes' => '', 'send_receipt' => 1];
     if ($kind === 'noncash') {
-        return $form + ['item_description' => '', 'category' => '', 'quantity' => '', 'unit' => 'items',
+        return $form + ['item_description' => '', 'category' => '', 'quantity' => '', 'weight_lbs' => '',
                         'estimated_value' => '', 'condition' => '', 'intended_use' => ''];
     }
     return $form + ['amount' => '', 'fee' => '', 'pay_type' => '', 'platform' => '', 'check_number' => '',
@@ -247,7 +247,7 @@ function donation_form_from_row(array $row) {
              'send_receipt' => (int) $row['send_receipt']];
     if ($row['kind'] === 'noncash') {
         return $form + ['item_description' => $s($row['item_description']), 'category' => $s($row['category']),
-                        'quantity' => $s($row['quantity']), 'unit' => $s($row['unit']),
+                        'quantity' => $s($row['quantity']), 'weight_lbs' => $s($row['weight_lbs']),
                         'estimated_value' => $s($row['estimated_value']), 'condition' => $s($row['item_condition']),
                         'intended_use' => $s($row['intended_use'])];
     }
@@ -266,7 +266,7 @@ function donation_form_from_post(array $post, $kind) {
              'notes' => $str('notes'), 'send_receipt' => isset($post['send_receipt']) ? 1 : 0];
     if ($kind === 'noncash') {
         return $form + ['item_description' => $str('item_description'), 'category' => $str('category'),
-                        'quantity' => $str('quantity'), 'unit' => $str('unit'),
+                        'quantity' => $str('quantity'), 'weight_lbs' => $str('weight_lbs'),
                         'estimated_value' => $str('estimated_value'), 'condition' => $str('condition'),
                         'intended_use' => $str('intended_use')];
     }
@@ -287,7 +287,8 @@ function donation_valid_date($s) {
 // donation_get() row when editing (null when adding). On edit, a value left exactly as stored passes
 // unchanged, including NULL (legacy CASA rows have no payment method or platform, and some have no amount
 // or date, or an amount of 0.00), and the stored donor is accepted even if anonymous or inactive; the
-// stored donor id comes from the database, never from the form.
+// stored donor id comes from the database, never from the form. Exception: Pounds (weight_lbs) is required on
+// every non-cash save, so editing a gift recorded before UF2-124 (weight NULL) needs a weight.
 function donation_form_validate(array &$form, $kind, ?array $stored = null) {
     $errors = [];
     $unchanged = function ($field, $column) use (&$form, $stored) {
@@ -351,7 +352,7 @@ function donation_form_validate(array &$form, $kind, ?array $stored = null) {
             $errors[] = 'Quantity cannot be less than the ' . rtrim(rtrim(number_format((float) $stored['distributed'], 2), '0'), '.')
                       . ' already given out.';
         }
-        if (!in_array($form['unit'], DONATION_UNITS, true)) { $errors[] = 'Choose a unit.'; }
+        $number('weight_lbs', 'Pounds', 0.01, DONATION_QUANTITY_MAX, true);
         $number('estimated_value', 'Estimated value', 0, DONATION_MONEY_MAX, false);
         if ($form['condition'] !== '' && !array_key_exists($form['condition'], DONATION_CONDITION_LABELS)) {
             $errors[] = 'Choose a condition from the list.';
@@ -402,7 +403,7 @@ function donation_bind_values($kind, array $form) {
                $form['campaign'] === '' ? null : (int) $form['campaign'], $nullable($form['notes']),
                (int) $form['send_receipt']];
     if ($kind === 'noncash') {
-        return array_merge($common, [$form['item_description'], $form['category'], $form['quantity'], $form['unit'],
+        return array_merge($common, [$form['item_description'], $form['category'], $form['quantity'], $form['weight_lbs'],
                                      $nullable($form['estimated_value']), $nullable($form['condition']), $form['intended_use']]);
     }
     return array_merge($common, [$nullable($form['amount']), $nullable($form['fee']), $nullable($form['pay_type']),
@@ -416,7 +417,7 @@ const DONATION_CASH_COLUMNS = 'donorID = ?, donation_date = ?, eventID = ?, reas
                                in_honor_of = ?, honoree_name = ?';
 const DONATION_CASH_TYPES = 'isisisssssisis';
 const DONATION_NONCASH_COLUMNS = 'donor_id = ?, date_received = ?, campaign_id = ?, notes = ?, send_receipt = ?,
-                                  item_description = ?, category = ?, quantity = ?, unit = ?, estimated_value = ?,
+                                  item_description = ?, category = ?, quantity = ?, weight_lbs = ?, estimated_value = ?,
                                   item_condition = ?, intended_use = ?';
 const DONATION_NONCASH_TYPES = 'isisisssssss';
 

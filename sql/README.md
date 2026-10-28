@@ -47,7 +47,7 @@ guard in `002_donations_cash_fields.sql`.
 | `role_permission_presets` (view) | Default permission rows per role; re-apply when a user's role changes | UF2-7 |
 | `donors` + type, org fields, middle name, preferred contact, preference flags, `donor_since` | Add-donor form and donor list | UF2-60, UF2-9 |
 | `donations` + `donation_date`, payment fields, platform, honoree, receipt, `recorded_by`, `net_amount` | Cash donation form and lists. Triggers keep `date` (legacy MM/DD/YYYY) and `donation_date` in sync | UF2-41, UF2-48, UF2-26 |
-| `non_cash_donations`, `non_cash_distributions` | In-kind gifts and where they went | UF2-16, UF2-18 |
+| `non_cash_donations`, `non_cash_distributions` | In-kind gifts (quantity in items plus `weight_lbs`, required on save since 012, which dropped `unit`) and where they went | UF2-16, UF2-18, UF2-124 |
 | `volunteer_hours` | Hours per supporter | UF2-27 |
 | `volunteer_hours` + `start_time`, `end_time`, `location`, `is_verified`, `counts_for_letter` (010) | Shift times, place and the two coordinator flags on addHours.php / hours.php | UF2-116..120 |
 | `volunteer_hours_changes` (010) | One plain-text summary per saved edit of an hours entry (who and when); cascades with its entry. The entry's own `created_at` / `recorded_by` stand for "Entry logged" | UF2-120 |

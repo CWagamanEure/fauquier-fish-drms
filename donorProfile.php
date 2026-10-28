@@ -165,7 +165,7 @@ fishnet_open('Donor profile', 'donor', ['donor.css', 'forms.css']);
             <thead><tr><th>Date</th><th>Quantity</th><th>Item</th><th>Est. value</th><th>Campaign</th><th>Receipt</th><th></th></tr></thead>
             <tbody>
               <?php foreach ($items as $g): ?>
-              <tr><td><?= fmt_date($g['date_received']) ?></td><td><strong><?= h(fmt_hours($g['quantity'])) ?> <?= h($g['unit']) ?></strong></td><td><?= h($g['item_description']) ?></td><td><?= $g['estimated_value'] === null ? '&mdash;' : '$' . number_format((float) $g['estimated_value'], 2) ?></td><td><?= $g['campaign'] !== null && $g['campaign'] !== '' ? h($g['campaign']) : '&mdash;' ?></td><td><?= receipt_badge($g) ?></td><td><a href="viewDonation.php?kind=noncash&amp;id=<?= (int) $g['id'] ?>" class="select">View</a></td></tr>
+              <tr><td><?= fmt_date($g['date_received']) ?></td><td><strong><?= h(donation_qty_text($g['quantity'], $g['weight_lbs'])) ?></strong></td><td><?= h($g['item_description']) ?></td><td><?= $g['estimated_value'] === null ? '&mdash;' : '$' . number_format((float) $g['estimated_value'], 2) ?></td><td><?= $g['campaign'] !== null && $g['campaign'] !== '' ? h($g['campaign']) : '&mdash;' ?></td><td><?= receipt_badge($g) ?></td><td><a href="viewDonation.php?kind=noncash&amp;id=<?= (int) $g['id'] ?>" class="select">View</a></td></tr>
               <?php endforeach; ?>
               <?php if (!$items): ?><tr><td colspan="7" class="muted">No non-cash gifts recorded.</td></tr><?php endif; ?>
             </tbody>

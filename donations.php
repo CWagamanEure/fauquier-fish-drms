@@ -43,15 +43,13 @@ function pageUrl($p) {
   $params['page'] = $p;
   return '?' . http_build_query($params);
 }
-// "320 items · est. $500" / "$250.00 · Check"
+// "320 items · 150 lbs · est. $500" / "$250.00 · Check"
 function amountText(array $r) {
   if ($r['kind'] === 'cash') {
     $method = DONATION_PAYMENT_LABELS[$r['detail']] ?? '';
     return ($r['value'] === null ? '&mdash;' : '$' . number_format($r['value'], 2)) . ($method ? ' &middot; ' . h($method) : '');
   }
-  $qty = (float) $r['quantity'];
-  $qtyText = rtrim(rtrim(number_format($qty, 2), '0'), '.') . ' ' . h($r['unit'] ?: 'items');
-  return $qtyText . ($r['value'] === null ? '' : ' &middot; est. $' . number_format($r['value'], 2));
+  return h(donation_qty_text($r['quantity'], $r['weight_lbs'])) . ($r['value'] === null ? '' : ' &middot; est. $' . number_format($r['value'], 2));
 }
 fishnet_open('Donations', 'donations', 'donor.css');
 ?>

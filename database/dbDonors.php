@@ -3,6 +3,7 @@
 // donor_summary view (migration 007/008), writes go to donors. The anonymous donor (id 999) is never
 // written. Write functions return false (and log) on a database error.
 require_once __DIR__ . '/dbinfo.php';
+require_once __DIR__ . '/nonCashFormat.php';   // donation_qty_text()
 
 const DONORS_PER_PAGE = 8;
 const DONOR_ANONYMOUS_ID = 999;
@@ -216,7 +217,7 @@ function donor_cash_history($id) {
 }
 
 function donor_noncash_history($id) {
-    return donor_history_rows('SELECT n.id, n.date_received, n.quantity, n.unit, n.item_description, n.estimated_value,
+    return donor_history_rows('SELECT n.id, n.date_received, n.quantity, n.weight_lbs, n.item_description, n.estimated_value,
                                       n.receipt_sent_at, n.send_receipt, e.name AS campaign
                                FROM non_cash_donations n LEFT JOIN dbevents e ON e.id = n.campaign_id
                                WHERE n.donor_id = ? ORDER BY n.date_received DESC, n.id DESC', $id);

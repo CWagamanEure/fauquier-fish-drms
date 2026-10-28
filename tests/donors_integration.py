@@ -55,7 +55,7 @@ switch ($req['action']) {
         $id = (int) $con->insert_id;
         $run("INSERT INTO donations (donorID, amount, donation_date, payment_method, check_number, send_receipt, thanked, reason) VALUES (?, 25.00, '2024-05-05', 'check', '<1042', 0, 0, 'suite')", 'i', $id);
         $run("INSERT INTO communications (donor_id, occurred_at, comm_type, subject, status) VALUES (?, NOW(), 'email', 'Suite bounce', 'bounced')", 'i', $id);
-        $run("INSERT INTO non_cash_donations (donor_id, date_received, item_description, category, quantity, unit, estimated_value, intended_use, send_receipt) VALUES (?, '2024-06-06', 'Suite cans', 'canned_food', 5, 'items', 10.00, 'Food pantry', 0)", 'i', $id);
+        $run("INSERT INTO non_cash_donations (donor_id, date_received, item_description, category, quantity, weight_lbs, estimated_value, intended_use, send_receipt) VALUES (?, '2024-06-06', 'Suite cans', 'canned_food', 5, 4.50, 10.00, 'Food pantry', 0)", 'i', $id);
         $run("INSERT INTO volunteer_hours (donor_id, activity_date, hours, job) VALUES (?, '2024-07-07', 3.5, 'Suite sorting'), (?, '2024-07-08', 2.5, 'Suite packing')", 'ii', $id, $id);
         $out = ['id' => $id];
         break;

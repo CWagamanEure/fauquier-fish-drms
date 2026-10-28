@@ -88,9 +88,12 @@ switch ($req['action']) {
         $out['list_small'] = (int) $con->insert_id;
         $run("INSERT INTO donations (donorID, amount, donation_date, payment_method, platform, thanked) VALUES (?, 300.00, ?, 'check', 'in_person', 0)", 'is', $out['list'], $day(100));
         $out['list_big'] = (int) $con->insert_id;
-        $run("INSERT INTO non_cash_donations (donor_id, campaign_id, date_received, item_description, category, quantity, unit, estimated_value, intended_use)
-              VALUES (?, ?, ?, 'List items', 'other', 3, 'items', 50.00, 'Food pantry')", 'iis', $out['list'], $out['open'], $day(200));
-        $out['list_items'] = (int) $con->insert_id;
+        $run("INSERT INTO non_cash_donations (donor_id, campaign_id, date_received, item_description, category, quantity, estimated_value, intended_use)
+              VALUES (?, ?, ?, 'List items', 'other', 3, 50.00, 'Food pantry')", 'iis', $out['list'], $out['open'], $day(200));
+        $out['list_items'] = (int) $con->insert_id;   // legacy shape: no weight_lbs
+        // An items campaign, for the gifts tab and top-donors format (UF2-124).
+        $out['items_campaign'] = $campaign('Items ' . $m, 0, '0');
+        $run("UPDATE dbevents SET campaign_type = 'items' WHERE id = ?", 'i', $out['items_campaign']);
         break;
     case 'teardown':
         $donors = $req['donors'];
@@ -110,7 +113,7 @@ switch ($req['action']) {
                             deposit_date, in_honor_of, honoree_name, send_receipt, thanked, recorded_by FROM donations WHERE id = ?', 'i', $req['id'])[0] ?? null;
         break;
     case 'noncash':
-        $out = $run('SELECT donor_id, campaign_id, date_received, item_description, category, quantity, unit, estimated_value, item_condition,
+        $out = $run('SELECT donor_id, campaign_id, date_received, item_description, category, quantity, weight_lbs, estimated_value, item_condition,
                             intended_use, notes, send_receipt, recorded_by FROM non_cash_donations WHERE id = ?', 'i', $req['id'])[0] ?? null;
         break;
     case 'distribute':
@@ -188,7 +191,7 @@ class DonationPagesTests(unittest.TestCase):
         cls.ids = fixture("setup", marker=cls.marker, xss=XSS_DONOR, xss_campaign=XSS_CAMPAIGN)
         cls.addClassCleanup(fixture, "teardown",
                             donors=[cls.ids[k] for k in ("donor", "xss", "inactive", "list")],
-                            campaigns=[cls.ids[k] for k in ("open", "open_null", "done", "done_yes", "xss_campaign")])
+                            campaigns=[cls.ids[k] for k in ("open", "open_null", "done", "done_yes", "xss_campaign", "items_campaign")])
         cls.today = fixture("expected")["today"]
         cls.timings = []
 
@@ -235,7 +238,7 @@ class DonationPagesTests(unittest.TestCase):
 
     def noncash_form(self, **overrides):
         form = {"donor": str(self.ids["donor"]), "kind": "noncash", "item_description": "Suite cans " + self.marker,
-                "category": "canned_food", "quantity": "24", "unit": "items", "estimated_value": "36.00",
+                "category": "canned_food", "quantity": "24", "weight_lbs": "18.5", "estimated_value": "36.00",
                 "condition": "new", "intended_use": "Food pantry", "date_received": self.today,
                 "campaign": str(self.ids["open"]), "notes": "Suite items", "send_receipt": "on", "next": "done"}
         form.update(overrides)
@@ -357,19 +360,19 @@ class DonationPagesTests(unittest.TestCase):
         gift_id = self.saved_id(headers, "noncash")
         self.assertEqual(fixture("noncash", id=gift_id), {
             "donor_id": self.ids["donor"], "campaign_id": self.ids["open"], "date_received": self.today,
-            "item_description": "Suite cans " + self.marker, "category": "canned_food", "quantity": "24.00", "unit": "items",
+            "item_description": "Suite cans " + self.marker, "category": "canned_food", "quantity": "24.00", "weight_lbs": "18.50",
             "estimated_value": "36.00", "item_condition": "new", "intended_use": "Food pantry", "notes": "Suite items",
             "send_receipt": 1, "recorded_by": self.users["staff"]["id"]})
         _, body = self.get(staff, headers["Location"])
         self.assertEqual(field_value(body, "Intended use / program"), "Food pantry")
-        self.assertEqual(field_value(body, "Quantity"), "24 items")
+        self.assertEqual(field_value(body, "Quantity"), "24 items · 18.5 lbs")
 
         status, headers, _ = self.post(staff, "addDonation.php", self.noncash_form(
-            estimated_value="", condition="", campaign="", notes="", send_receipt=None, unit="lbs", quantity="2.5"))
+            estimated_value="", condition="", campaign="", notes="", send_receipt=None, weight_lbs="7", quantity="2.5"))
         self.assertEqual(status, 303)
         row = fixture("noncash", id=self.saved_id(headers, "noncash"))
-        self.assertEqual((row["estimated_value"], row["item_condition"], row["campaign_id"], row["notes"], row["send_receipt"], row["unit"], row["quantity"]),
-                         (None, None, None, None, 0, "lbs", "2.50"))
+        self.assertEqual((row["estimated_value"], row["item_condition"], row["campaign_id"], row["notes"], row["send_receipt"], row["weight_lbs"], row["quantity"]),
+                         (None, None, None, None, 0, "7.00", "2.50"))
 
     def test_validation_writes_nothing(self):
         staff = self.login("staff")
@@ -399,7 +402,12 @@ class DonationPagesTests(unittest.TestCase):
             (self.noncash_form(category=""), "Choose a category."),
             (self.noncash_form(quantity="0.004"), "Quantity must be a number with at most two decimal places."),
             (self.noncash_form(quantity="0"), "Quantity must be at least 0.01."),
-            (self.noncash_form(unit="tons"), "Choose a unit."),
+            (self.noncash_form(weight_lbs=None), "Pounds is required."),
+            (self.noncash_form(weight_lbs=""), "Pounds is required."),
+            (self.noncash_form(weight_lbs="0"), "Pounds must be at least 0.01."),
+            (self.noncash_form(weight_lbs="-1"), "Pounds must be a number with at most two decimal places."),
+            (self.noncash_form(weight_lbs="abc"), "Pounds must be a number with at most two decimal places."),
+            (self.noncash_form(weight_lbs="1.234"), "Pounds must be a number with at most two decimal places."),
         ]
         for form, message in cases:
             with self.subTest(message=message, form={k: form[k] for k in form if k in ("amount", "fee", "date_received", "donor", "kind", "quantity")}):
@@ -488,6 +496,42 @@ class DonationPagesTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn("Quantity cannot be less than the 6 already given out.", body)
         self.assertEqual(fixture("noncash", id=nc_id)["quantity"], "10.00")
+
+    # ---- pounds (UF2-124) ----
+
+    def test_noncash_pounds(self):
+        manager = self.login("manager")
+        staff = self.login("staff")
+        _, body = self.get(staff, "addDonation.php?kind=noncash")
+        self.assertNotIn('name="unit"', body)
+        self.assertIn('name="weight_lbs"', body)
+
+        # A row recorded before UF2-124 has no weight: it shows items only.
+        legacy = self.ids["list_items"]
+        _, body = self.get(staff, "donations.php?range=all&q=" + urllib.parse.quote("List " + self.marker))
+        self.assertIn("3 items &middot; est. $50.00", body)
+        _, body = self.get(staff, f"viewDonation.php?kind=noncash&id={legacy}")
+        self.assertEqual(field_value(body, "Quantity"), "3 items")
+        # Editing it requires Pounds; with Pounds it saves.
+        edit = self.noncash_form(donor=str(self.ids["list"]), item_description="List items", category="other", quantity="3",
+                                 estimated_value="50.00", date_received=self.days_ago(200), weight_lbs=None)
+        status, _, body = self.post(manager, f"addDonation.php?kind=noncash&id={legacy}", edit)
+        self.assertEqual(status, 200)
+        self.assertIn("Pounds is required.", body)
+        self.assertIsNone(fixture("noncash", id=legacy)["weight_lbs"])
+        status, headers, _ = self.post(manager, f"addDonation.php?kind=noncash&id={legacy}", {**edit, "weight_lbs": "6"})
+        self.assertEqual((status, headers["Location"]), (303, f"viewDonation.php?kind=noncash&id={legacy}&saved=1"))
+        self.assertEqual(fixture("noncash", id=legacy)["weight_lbs"], "6.00")
+
+        # The donor profile and an items campaign show the same format.
+        status, headers, _ = self.post(staff, "addDonation.php", self.noncash_form(campaign=str(self.ids["items_campaign"])))
+        self.assertEqual(status, 303)
+        _, body = self.get(staff, f"donorProfile.php?id={self.ids['donor']}")
+        self.assertIn("<strong>24 items · 18.5 lbs</strong>", body)
+        _, body = self.get(staff, f"campaign.php?id={self.ids['items_campaign']}&kind=noncash")
+        self.assertIn("<td>24 items · 18.5 lbs · Suite cans " + self.marker + "</td>", body)
+        top = body[body.index("<h3>Top donors</h3>"):]
+        self.assertIn("<strong>24 items</strong>", top)
 
     # ---- from the donor profile (UF2-87, UF2-55) ----
 
