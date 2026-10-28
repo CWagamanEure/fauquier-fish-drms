@@ -1,0 +1,32 @@
+{
+  "mode": "ticket",
+  "subject": "wagaman-eure-pr28-restore-helper",
+  "round": 1,
+  "approved": true,
+  "auditors": [
+    {
+      "auditor": "security",
+      "approve": true,
+      "finding_count": 0
+    },
+    {
+      "auditor": "data",
+      "approve": true,
+      "finding_count": 0
+    },
+    {
+      "auditor": "correctness",
+      "approve": true,
+      "finding_count": 1
+    },
+    {
+      "auditor": "verification",
+      "approve": true,
+      "finding_count": 4
+    }
+  ],
+  "counts": {
+    "low/reported": 3,
+    "medium/reported": 2
+  }
+}

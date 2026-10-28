@@ -230,6 +230,16 @@ class DonorPagesTests(unittest.TestCase):
         self.assertEqual(status, 303)
         self.assertEqual(fixture("donor_read", id=self.donor_id)["donor"]["city"], "Viewerville")
 
+    def assert_deactivate_ignored(self, session, token):
+        """A bare action=deactivate POST leaves the whole donor row as it was (updated_at aside)."""
+        before = fixture("donor_read", id=self.donor_id)["donor"]
+        session.request(f"updateDonor.php?id={self.donor_id}", {"csrf_token": token, "action": "deactivate"})
+        after = fixture("donor_read", id=self.donor_id)["donor"]
+        before.pop("updated_at", None)
+        after.pop("updated_at", None)
+        self.assertEqual(after, before)
+        self.assertEqual((after["is_active"], after["deactivated_at"], after["deactivated_by"]), (1, None, None))
+
     def demo_donor(self, name):
         """The seed donor with this display name; other donors may share the name."""
         rows = fixture("demo_rows", name=name)
