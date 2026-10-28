@@ -1,0 +1,17 @@
+{
+ "mode": "code",
+ "subject": "TCD-communications-frontend",
+ "round": 1,
+ "approved": true,
+ "reviewed_commit": "64dad51e45c6cde311af3eea596b0cc7903cda53",
+ "tree": "4694d168d1a914952a05b6f2754d9e274260b9fff7fcb4336c496427b45bbf55",
+ "runner": "review-swarm.js auditor prompts run via the Agent tool (Workflow tool unavailable in this session); no criticals, so no skeptic round",
+ "auditors": [
+  {"auditor": "security", "approve": true, "finding_count": 2},
+  {"auditor": "data", "approve": true, "finding_count": 3},
+  {"auditor": "correctness", "approve": true, "finding_count": 5},
+  {"auditor": "verification", "approve": true, "finding_count": 5}
+ ],
+ "findings_by_severity": {"medium": 5, "low": 10},
+ "findings_by_status": {"reported": 15}
+}
