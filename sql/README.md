@@ -58,8 +58,9 @@ guard in `002_donations_cash_fields.sql`.
 `dbevents` doubles as the campaigns table: `donations.eventID` and every `campaign_id` column
 point at it. A `completed` value of `'1'` or `'yes'` hides a campaign from the donation form. Anonymous gifts use donor id 999 (migration 003 guarantees the row exists). Demo rows
 from `make seed-demo` carry markers instead of fixed ids: activity rows are `recorded_by` a
-`fish.*` demo user and demo donors/campaigns have notes starting with `[demo]`; the seed deletes
-and re-inserts them on every run. Deleting a donor who has cash gifts, non-cash gifts, hours or
-communications is blocked by foreign keys; deactivate through updateDonor.php (`is_active`) instead,
-which keeps the history. Deleting is still blocked. `donor_summary` freezes its column list when created, so a migration
+`fish.*` demo user and demo donors/campaigns have notes starting with `[demo]`; the campaign demo
+(seed section 9) marks its donors and activity `demo-seed` and its campaigns `[demo]`. The seed deletes
+and re-inserts all of them on every run. Deleting a donor who has cash gifts, non-cash gifts, hours or
+communications is blocked by foreign keys, which keeps the history; there is currently no UI to
+deactivate a donor instead. Deleting is still blocked. `donor_summary` freezes its column list when created, so a migration
 that adds a `donors` column must also recreate the view.

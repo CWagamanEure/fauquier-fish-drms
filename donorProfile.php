@@ -107,7 +107,7 @@ fishnet_open('Donor profile', 'donor', ['donor.css', 'forms.css']);
       <section class="card profile-head">
         <span class="big-initials"><?= h(initials($name)) ?></span>
         <div class="who">
-          <h1><?= h($name) ?><?php if (!(int) $donor['is_active']): ?> <span class="status off">Inactive</span><?php endif; ?></h1>
+          <h1><?= h($name) ?></h1>
           <p><?= $contactLine ? h(implode(' · ', $contactLine)) : '&mdash;' ?></p>
           <p><?= $metaLine ? h(implode(' · ', $metaLine)) : '&nbsp;' ?></p>
         </div>
