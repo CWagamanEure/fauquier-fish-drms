@@ -124,6 +124,7 @@ switch ($req['action']) {
                 'primary_two' => $try($id, 'Fifth', null, null, null, 2),
                 'all_null' => $try($id, null, null, null, null, 0),
                 'all_blank' => $try($id, ' ', '', '  ', '', 0),
+                'all_whitespace' => $try($id, "\t", "\n", " \r\n ", "\t ", 0),
                 'title_phone' => $try($id, null, 'Accountant', null, '540-555-0100', 0),
                 'anonymous' => $try(999, 'Nobody', null, null, null, 0),
                 'missing_donor' => $try(-1, 'Nobody', null, null, null, 0)];
@@ -137,7 +138,7 @@ switch ($req['action']) {
         // the backfill to every donor, which only repeats what the migration itself did.
         $ids = [];
         try {
-            foreach ([['organization', '  Pat Doe '], ['organization', '   '], ['individual', 'Lee Roe']] as [$type, $contact]) {
+            foreach ([['organization', "\t Pat Doe \n"], ['organization', " \t\n "], ['individual', 'Lee Roe']] as [$type, $contact]) {
                 $run("INSERT INTO donors (donor_type, org_name, `first`, org_contact, notes) VALUES (?, ?, 'Backfill', ?, 'contacts suite')",
                      'sss', $type, $req['marker'], $contact);
                 $ids[] = (int) $con->insert_id;
@@ -367,7 +368,7 @@ class DonorPagesTests(unittest.TestCase):
     def test_contact_constraints(self):
         got = fixture("contacts_constraints", marker="Contacts" + secrets.token_hex(5))
         self.assertEqual(got, {"primary": True, "second_primary": False, "non_primary_a": True, "non_primary_b": True,
-                               "primary_two": False, "all_null": False, "all_blank": False, "title_phone": True,
+                               "primary_two": False, "all_null": False, "all_blank": False, "all_whitespace": False, "title_phone": True,
                                "anonymous": False, "missing_donor": False, "kept": 4, "after_delete": 0})
 
     def test_contact_backfill_from_org_contact(self):

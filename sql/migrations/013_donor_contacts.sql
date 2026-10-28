@@ -31,15 +31,16 @@ CREATE TABLE IF NOT EXISTS donor_contacts (
     ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT chk_donor_contacts_primary CHECK (is_primary IN (0, 1)),
   CONSTRAINT chk_donor_contacts_not_anonymous CHECK (donor_id <> 999),
+  -- Blank means empty or whitespace only (TRIM() strips spaces but not tabs or newlines).
   CONSTRAINT chk_donor_contacts_not_blank CHECK (
-    NULLIF(TRIM(name), '') IS NOT NULL OR NULLIF(TRIM(title), '') IS NOT NULL
-    OR NULLIF(TRIM(email), '') IS NOT NULL OR NULLIF(TRIM(phone), '') IS NOT NULL)
+    COALESCE(name, '') REGEXP '[^[:space:]]' OR COALESCE(title, '') REGEXP '[^[:space:]]'
+    OR COALESCE(email, '') REGEXP '[^[:space:]]' OR COALESCE(phone, '') REGEXP '[^[:space:]]')
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Copy each organization's legacy org_contact in as its main contact. Only donors with no contacts at all, so a
 -- replay inserts nothing; UF2-130 clears org_contact when it saves contacts, so a deleted contact never returns.
 INSERT INTO donor_contacts (donor_id, name, is_primary, sort_order)
-SELECT d.id, TRIM(d.org_contact), 1, 0
+SELECT d.id, REGEXP_REPLACE(d.org_contact, '^[[:space:]]+|[[:space:]]+$', ''), 1, 0
   FROM donors d
- WHERE d.donor_type = 'organization' AND d.id <> 999 AND TRIM(COALESCE(d.org_contact, '')) <> ''
+ WHERE d.donor_type = 'organization' AND d.id <> 999 AND COALESCE(d.org_contact, '') REGEXP '[^[:space:]]'
    AND NOT EXISTS (SELECT 1 FROM donor_contacts c WHERE c.donor_id = d.id);
