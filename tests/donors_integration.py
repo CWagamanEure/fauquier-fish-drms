@@ -104,6 +104,61 @@ switch ($req['action']) {
         }
         $out = $ids;
         break;
+    case 'contacts_constraints':
+        // UF2-129: try each donor_contacts insert on a throwaway organization; true = accepted.
+        $run("INSERT INTO donors (donor_type, org_name, notes) VALUES ('organization', ?, 'contacts suite')", 's', $req['marker']);
+        $id = (int) $con->insert_id;
+        $try = function ($donorId, $name, $title, $email, $phone, $primary) use ($run) {
+            try {
+                $run('INSERT INTO donor_contacts (donor_id, name, title, email, phone, is_primary) VALUES (?, ?, ?, ?, ?, ?)',
+                     'issssi', $donorId, $name, $title, $email, $phone, $primary);
+                return true;
+            } catch (mysqli_sql_exception $e) {
+                return false;
+            }
+        };
+        $out = ['primary' => $try($id, 'First', null, null, null, 1),
+                'second_primary' => $try($id, 'Second', null, null, null, 1),
+                'non_primary_a' => $try($id, 'Third', null, null, null, 0),
+                'non_primary_b' => $try($id, 'Fourth', null, null, null, 0),
+                'primary_two' => $try($id, 'Fifth', null, null, null, 2),
+                'all_null' => $try($id, null, null, null, null, 0),
+                'all_blank' => $try($id, ' ', '', '  ', '', 0),
+                'all_whitespace' => $try($id, "\t", "\n", " \r\n ", "\t ", 0),
+                'title_phone' => $try($id, null, 'Accountant', null, '540-555-0100', 0),
+                'anonymous' => $try(999, 'Nobody', null, null, null, 0),
+                'missing_donor' => $try(-1, 'Nobody', null, null, null, 0)];
+        $out['kept'] = (int) $run('SELECT COUNT(*) AS n FROM donor_contacts WHERE donor_id = ?', 'i', $id)[0]['n'];
+        $run('DELETE FROM donors WHERE id = ?', 'i', $id);
+        $out['after_delete'] = (int) $run('SELECT COUNT(*) AS n FROM donor_contacts WHERE donor_id = ?', 'i', $id)[0]['n'];
+        break;
+    case 'contacts_backfill':
+        // UF2-129: run the real migration 013 twice over throwaway donors. Its CREATE TABLE commits implicitly,
+        // so the donors are committed too and are deleted in the finally block. Running the whole file applies
+        // the backfill to every donor, which only repeats what the migration itself did.
+        $ids = [];
+        try {
+            foreach ([['organization', "\t Pat Doe \n"], ['organization', " \t\n "], ['individual', 'Lee Roe']] as [$type, $contact]) {
+                $run("INSERT INTO donors (donor_type, org_name, `first`, org_contact, notes) VALUES (?, ?, 'Backfill', ?, 'contacts suite')",
+                     'sss', $type, $req['marker'], $contact);
+                $ids[] = (int) $con->insert_id;
+            }
+            $sql = file_get_contents('sql/migrations/013_donor_contacts.sql');
+            $runs = [];
+            for ($i = 0; $i < 2; $i++) {
+                $con->multi_query($sql);
+                do { if ($r = $con->store_result()) { $r->free(); } } while ($con->more_results() && $con->next_result());
+                $runs[] = array_map(fn ($id) => $run('SELECT name, is_primary FROM donor_contacts WHERE donor_id = ? ORDER BY id', 'i', $id), $ids);
+            }
+            $out = $runs;
+        } finally {
+            foreach ($ids as $id) { $run('DELETE FROM donors WHERE id = ?', 'i', $id); }
+        }
+        break;
+    case 'demo_contacts':
+        $out = $run("SELECT c.name, c.title, c.is_primary FROM donor_contacts c JOIN donors d ON d.id = c.donor_id
+                     WHERE d.org_name = ? AND d.notes LIKE '[demo]%' ORDER BY c.sort_order", 's', $req['name']);
+        break;
     case 'seed_check':
         $out = ['demo' => (int) $run("SELECT COUNT(*) AS n FROM donors WHERE notes LIKE '[demo]%'")[0]['n']];
         break;
@@ -307,6 +362,27 @@ class DonorPagesTests(unittest.TestCase):
         _, body = self.get(manager, "donor.php?filter=lapsed&sort=name&q=" + marker)
         lapsed = sorted(r[0].split(marker)[1] for r in rows_in(body))
         self.assertEqual(lapsed, sorted(k for k, v in expected.items() if v != "active"))
+
+    # ---- organization contacts (UF2-129) ----
+
+    def test_contact_constraints(self):
+        got = fixture("contacts_constraints", marker="Contacts" + secrets.token_hex(5))
+        self.assertEqual(got, {"primary": True, "second_primary": False, "non_primary_a": True, "non_primary_b": True,
+                               "primary_two": False, "all_null": False, "all_blank": False, "all_whitespace": False, "title_phone": True,
+                               "anonymous": False, "missing_donor": False, "kept": 4, "after_delete": 0})
+
+    def test_contact_backfill_from_org_contact(self):
+        first, replay = fixture("contacts_backfill", marker="Backfill" + secrets.token_hex(5))
+        self.assertEqual(first, [[{"name": "Pat Doe", "is_primary": 1}], [], []])
+        self.assertEqual(replay, first)
+
+    def test_seeded_contacts(self):
+        seeded = {name: fixture("demo_contacts", name=name) for name in ("Warrenton Rotary Club", "Grace Community Church")}
+        self.assertEqual(seeded, {
+            "Warrenton Rotary Club": [{"name": "Priya Natarajan", "title": "Giving chair", "is_primary": 1},
+                                      {"name": "Dan Hollis", "title": "Treasurer", "is_primary": 0}],
+            "Grace Community Church": [{"name": "Rev. Ellen Moss", "title": "Pastor", "is_primary": 1},
+                                       {"name": None, "title": "Accountant", "is_primary": 0}]})
 
     # ---- profile ----
 

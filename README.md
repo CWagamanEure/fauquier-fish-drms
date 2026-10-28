@@ -126,7 +126,8 @@ account migration, role-appropriate navigation, private downloads, session rotat
 tokens, Unicode boundaries, concurrent sign-out and session reuse after logout, and that every PHP
 entry point is listed as protected or explicitly unguarded. `make test-donors`
 (after `make seed-demo`) runs `tests/donors_integration.py`: the donor list, profile tabs, add and edit
-against the real tables (and that a stray deactivate request changes nothing), plus the per-role write gate. `make test-users` (after
+against the real tables (and that a stray deactivate request changes nothing), plus the per-role write gate
+and the `donor_contacts` constraints, backfill and demo contacts (UF2-129). `make test-users` (after
 `make seed-demo`) runs `tests/users_integration.py`: the Manage Users list, add, edit, permissions, role
 change, deactivate, reactivate, password change and the admin protections; it prints each write's elapsed
 time and asserts the Jira limits only when `USERS_TIMING_STRICT=1` (the Make target sets it from the
