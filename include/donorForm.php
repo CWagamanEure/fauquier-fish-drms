@@ -48,8 +48,8 @@ $preferredOptions = array_values(DONOR_PREFERRED_LABELS);
             <div class="only-org">
               <div class="form-field"><label for="org_name"><span class="only-orgtype">Organization</span><span class="only-fdn">Foundation</span> name *</label><input type="text" id="org_name" name="org_name" value="<?= h($form['org_name']) ?>" placeholder="Name"></div>
 
-              <!-- Contact people for an organization or foundation. Front end only: the backend still needs a
-                   table for these (one donor can have many contacts) and to read contacts[n][...] from the POST. -->
+              <!-- Contact people for an organization or foundation. Stored in donor_contacts (UF2-129, rules in
+                   sql/README.md); reading contacts[n][...] from the POST is UF2-130. -->
               <div class="contacts">
                 <div class="contacts-head">
                   <span class="lbl" id="contactsLbl">Contact people</span>

@@ -45,12 +45,13 @@ guard in `002_donations_cash_fields.sql`.
 | `dbpersons` + `first_name`, `last_name`, `email`, `role`, `status` | Staff accounts; `role` is the source of truth, `accessLevel` is kept in sync for the legacy page gate | UF2-7, UF2-15 |
 | `user_permissions` | View / edit / delete per area (donors, donations, campaigns, communications, reports, data_import, users). `include/permissions.php` reads the user's row or, when none exists, the role preset. Rows override the preset and outlive a role change: code that changes `dbpersons.role` must re-apply that user's preset rows (DELETE + INSERT ... FROM `role_permission_presets`; `user_update()` in `database/dbUsers.php` does this for the Manage Users pages). | UF2-7, UF2-83..86 |
 | `role_permission_presets` (view) | Default permission rows per role; re-apply when a user's role changes | UF2-7 |
-| `donors` + type, org fields, middle name, preferred contact, preference flags, `donor_since` | Add-donor form and donor list | UF2-60, UF2-9 |
+| `donors` + type, org fields, middle name, preferred contact, preference flags, `donor_since` | Add-donor form and donor list. `org_contact` is deprecated since 013: read and write `donor_contacts` | UF2-60, UF2-9, UF2-129 |
 | `donations` + `donation_date`, payment fields, platform, honoree, receipt, `recorded_by`, `net_amount` | Cash donation form and lists. Triggers keep `date` (legacy MM/DD/YYYY) and `donation_date` in sync | UF2-41, UF2-48, UF2-26 |
 | `non_cash_donations`, `non_cash_distributions` | In-kind gifts (quantity in items plus `weight_lbs`, required on save since 012, which dropped `unit`) and where they went | UF2-16, UF2-18, UF2-124 |
 | `volunteer_hours` | Hours per supporter | UF2-27 |
 | `volunteer_hours` + `start_time`, `end_time`, `location`, `is_verified`, `counts_for_letter` (010) | Shift times, place and the two coordinator flags on addHours.php / hours.php | UF2-116..120 |
 | `volunteer_hours_changes` (010) | One plain-text summary per saved edit of an hours entry (who and when); cascades with its entry. The entry's own `created_at` / `recorded_by` stand for "Entry logged" | UF2-120 |
+| `donor_contacts` (013) | Contact people of an organization donor: optional `name` (UF2-127), `title`, `email`, `phone`, `sort_order`, at most one `is_primary` per donor (unique on the generated `primary_donor_id`). CHECKs refuse an all-blank row, `is_primary` other than 0/1 and donor 999. Cascades when the donor row is deleted; its donor FK is `ON UPDATE RESTRICT` because MariaDB refuses the generated column and CHECK otherwise. 013 copied each organization's `org_contact` in as its main contact. See the UF2-130 rules below | UF2-129, UF2-130 |
 | `communications` | Contact log per supporter | UF2-11, UF2-21, UF2-23, UF2-27 |
 | `donor_summary` (view) | One row per donor with lifetime totals, last gift, derived status (active / lybunt / sybunt / inactive since 011; new / active / lapsed before), last contact and `is_active`, for donor.php and donorProfile.php (recreated by 008 and 011) | UF2-26, UF2-27 |
 | `donors` + `is_active`, `updated_by`, `deactivated_at`, `deactivated_by` (008) | Soft delete from updateDonor.php and an audit of who last changed the row; 008 also backfills `user_permissions` for accounts created since 001 | UF2-26, UF2-27, UF2-60, UF2-81 |
@@ -64,3 +65,18 @@ and re-inserts all of them on every run. Deleting a donor who has cash gifts, no
 communications is blocked by foreign keys, which keeps the history; there is currently no UI to
 deactivate a donor instead. Deleting is still blocked. `donor_summary` freezes its column list when created, so a migration
 that adds a `donors` column must also recreate the view.
+
+Rules for saving and showing `donor_contacts` (UF2-130):
+
+- Only `donor_type = 'organization'` donors (later foundation) get contacts. Contacts are kept when a donor
+  becomes an individual, and are shown and edited only while it is an organization.
+- Writes need `fish_can('donors', 'edit')` and the CSRF token, and use prepared statements. Every UPDATE or
+  DELETE filters on both `id` and `donor_id`, with `donor_id` taken from the donor being edited on the server.
+- Trim each posted field and skip rows that are all blank (not an error). `primary_contact` names a
+  `contacts[]` key; if that row was skipped, the first saved row is the main contact. `sort_order` follows
+  the posted order. More than 10 rows is refused with a form error.
+- Changing the main contact clears the old one before setting the new one, in one transaction (the unique
+  key fires otherwise). Saving contacts sets `donors.org_contact = NULL` in the same transaction, so a
+  migration replay never brings a deleted contact back.
+- Read contacts by `donor_id`, only on pages gated by `fish_can('donors', 'view')`, and escape every field
+  with `h()`.

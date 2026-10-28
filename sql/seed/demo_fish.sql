@@ -77,6 +77,14 @@ INSERT INTO donors (donor_type, `first`, `last`, email, phone, street, city, sta
  ('individual', 'Maria', 'Lopez-Hernandez', 'maria.lopez@example.com', '540-555-0101', '12 Main Street', 'Warrenton', 'VA', '20186', 'text', 0, 0, 0, 1, '2024-02-02', '[demo] Possible duplicate of Maria Lopez (same email and phone)');
 SET @d_maria2 := LAST_INSERT_ID();
 
+-- Contact people for the two organizations (UF2-129). The main contacts match their org_contact; Grace's
+-- accountant has no name (UF2-127: sometimes none is ever given). Removed with the donor (ON DELETE CASCADE).
+INSERT INTO donor_contacts (donor_id, name, title, email, phone, is_primary, sort_order) VALUES
+ (@d_rotary, 'Priya Natarajan', 'Giving chair', NULL, NULL, 1, 0),
+ (@d_rotary, 'Dan Hollis', 'Treasurer', 'treasurer@warrentonrotary.example.org', NULL, 0, 1),
+ (@d_grace, 'Rev. Ellen Moss', 'Pastor', NULL, NULL, 1, 0),
+ (@d_grace, NULL, 'Accountant', NULL, '540-555-0115', 0, 1);
+
 -- 5. Cash donations. Explicit column lists only: net_amount is a virtual column.
 INSERT INTO donations (donorID, eventID, amount, fee, reason, thanked, donation_date, payment_method, check_number, is_signed, deposit_date, platform, in_honor_of, honoree_name, send_receipt, receipt_sent_at, recorded_by) VALUES
  (@d_maria,  @c_fall,    50.00, 0.00, 'Monthly gift',          1, CURDATE() - INTERVAL 10 DAY, 'online', NULL,    NULL, NULL,                        'mighty_cause', 0, NULL,                         1, NOW() - INTERVAL 9 DAY,  'fish.staff'),
