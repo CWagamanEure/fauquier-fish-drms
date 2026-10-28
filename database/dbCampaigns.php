@@ -4,6 +4,7 @@
 // tables through eventID / campaign_id. Every statement is prepared. Reads throw mysqli_sql_exception (pages
 // catch it and show a generic notice); writes log the error and return false. The old dbEvents.php is NOT used.
 require_once __DIR__ . '/dbinfo.php';
+require_once __DIR__ . '/nonCashFormat.php';   // donation_qty_text()
 
 const CAMPAIGN_TYPES = ['cash' => 'Cash', 'items' => 'Items', 'both' => 'Cash + items', 'volunteers' => 'Volunteers'];
 const CAMPAIGN_STATUS_LABELS = ['active' => 'Active', 'upcoming' => 'Upcoming', 'completed' => 'Completed'];
@@ -169,12 +170,12 @@ function campaign_gifts(array $c, $kind, $page) {
         "SELECT * FROM (
             SELECT 'cash' AS kind, dn.id AS donor_id, " . CAMPAIGN_DONOR_NAME_SQL . " AS donor_name,
                    d.donation_date AS gift_date, d.id AS gift_id,
-                   d.amount AS amount, NULL AS quantity, NULL AS unit, NULL AS item
+                   d.amount AS amount, NULL AS quantity, NULL AS weight_lbs, NULL AS item
             FROM donations d LEFT JOIN donors dn ON dn.id = d.donorID
             WHERE d.eventID = ?
             UNION ALL
             SELECT 'noncash', dn.id, " . CAMPAIGN_DONOR_NAME_SQL . ",
-                   n.date_received, n.id, NULL, n.quantity, n.unit, n.item_description
+                   n.date_received, n.id, NULL, n.quantity, n.weight_lbs, n.item_description
             FROM non_cash_donations n LEFT JOIN donors dn ON dn.id = n.donor_id
             WHERE n.campaign_id = ?
          ) g
@@ -189,7 +190,7 @@ function campaign_gifts(array $c, $kind, $page) {
         $out[] = ['kind' => $r['kind'], 'date' => $r['gift_date'], 'donor_id' => (int) $r['donor_id'],
                   'donor' => (string) $r['donor_name'],
                   'detail' => $isCash ? '$' . number_format((float) $r['amount'], 2)
-                                      : campaign_num($r['quantity']) . ' ' . $r['unit'] . ' · ' . $r['item']];
+                                      : donation_qty_text($r['quantity'], $r['weight_lbs']) . ' · ' . $r['item']];
     }
     return ['rows' => $out, 'total' => $total, 'page' => $page, 'pages' => $pages, 'kind' => $kind];
 }
@@ -254,13 +255,13 @@ function campaign_top_donors(array $c, $limit = 3) {
     $out = [];
     if ($c['campaign_type'] === 'items') {
         $rows = campaign_rows(
-            'SELECT dn.id AS donor_id, MAX(' . CAMPAIGN_DONOR_NAME_SQL . ') AS donor_name, SUM(n.quantity) AS total, MAX(n.unit) AS unit
+            'SELECT dn.id AS donor_id, MAX(' . CAMPAIGN_DONOR_NAME_SQL . ') AS donor_name, SUM(n.quantity) AS total
              FROM non_cash_donations n JOIN donors dn ON dn.id = n.donor_id
              WHERE n.campaign_id = ? AND dn.id <> ' . CAMPAIGN_ANONYMOUS_DONOR_ID . '
              GROUP BY dn.id ORDER BY total DESC, donor_name LIMIT ?',
             'ii', [$id, $limit]);
         foreach ($rows as $r) {
-            $out[] = [(int) $r['donor_id'], (string) $r['donor_name'], campaign_num($r['total']) . ' ' . $r['unit']];
+            $out[] = [(int) $r['donor_id'], (string) $r['donor_name'], campaign_num($r['total']) . ' items'];
         }
         return $out;
     }

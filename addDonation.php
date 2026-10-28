@@ -225,9 +225,8 @@ fishnet_open($title, 'donations', ['forms.css', 'donation.css']);
                 <select id="category" name="category"><?= select_options(DONATION_CATEGORY_LABELS, $form['category'], 'Choose…') ?></select></div>
               <div class="field"><label for="itemDate">Date received</label><input type="date" id="itemDate" name="date_received" max="<?= h(donation_today()) ?>" value="<?= h($form['date_received']) ?>"></div>
 
-              <div class="field"><label for="quantity">Quantity</label><input type="text" inputmode="decimal" id="quantity" name="quantity" placeholder="e.g. 320" value="<?= h($form['quantity']) ?>"></div>
-              <div class="field"><label for="unit">Unit</label>
-                <select id="unit" name="unit"><?= select_options(array_combine(DONATION_UNITS, DONATION_UNITS), $form['unit'], null) ?></select></div>
+              <div class="field"><label for="quantity">Quantity (items)</label><input type="text" inputmode="decimal" id="quantity" name="quantity" placeholder="e.g. 320" value="<?= h($form['quantity']) ?>"></div>
+              <div class="field"><label for="weight_lbs">Pounds</label><input type="text" inputmode="decimal" id="weight_lbs" name="weight_lbs" placeholder="e.g. 18.5" required value="<?= h($form['weight_lbs']) ?>"></div>
               <div class="field"><label for="estValue">Estimated value</label><input type="text" inputmode="decimal" id="estValue" name="estimated_value" placeholder="$0.00" value="<?= h($form['estimated_value']) ?>"></div>
               <div class="field"><label for="condition">Condition</label>
                 <select id="condition" name="condition"><?= select_options(DONATION_CONDITION_LABELS, $form['condition'], '—') ?></select></div>

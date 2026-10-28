@@ -118,10 +118,10 @@ fishnet_open('View donation', 'donations', ['forms.css', 'donation.css']);
               <?= field('Item description', shown($gift['item_description']), 'span2') ?>
               <?= field('Category', shown_label(DONATION_CATEGORY_LABELS, $gift['category'])) ?>
               <?= field('Date received', shown_date($gift['date_received'])) ?>
-              <?= field('Quantity', shown_qty($gift['quantity']) . ' ' . $gift['unit']) ?>
+              <?= field('Quantity', donation_qty_text($gift['quantity'], $gift['weight_lbs'])) ?>
               <?= field('Estimated value', shown_money($gift['estimated_value'])) ?>
               <?= field('Condition', shown_label(DONATION_CONDITION_LABELS, $gift['item_condition'])) ?>
-              <?= field('Given out so far', shown_qty($gift['distributed']) . ' ' . $gift['unit']) ?>
+              <?= field('Given out so far', shown_qty($gift['distributed']) . ' items') ?>
               <?= field('Intended use / program', shown($gift['intended_use']), 'span2') ?>
               <?= field('Campaign', shown($gift['campaign']), 'span2') ?>
               <?= field('Receipt', receipt_text($gift), 'span2') ?>

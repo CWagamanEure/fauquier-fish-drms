@@ -1,0 +1,34 @@
+{
+  "mode": "code",
+  "subject": "wagaman-eure-noncash-pounds",
+  "round": 1,
+  "approved": true,
+  "reviewed_commit": "2815a1be0af00c1fa0b30bda654a8a53167d3492",
+  "tree": "5165e1cbffb6825e8ea66a52b7ce63ab3611c4b33820cc7c5757db358a0374db",
+  "auditors": [
+    {
+      "auditor": "security",
+      "approve": true,
+      "finding_count": 0
+    },
+    {
+      "auditor": "data",
+      "approve": true,
+      "finding_count": 1
+    },
+    {
+      "auditor": "correctness",
+      "approve": true,
+      "finding_count": 4
+    },
+    {
+      "auditor": "verification",
+      "approve": true,
+      "finding_count": 5
+    }
+  ],
+  "counts": {
+    "low/reported": 8,
+    "medium/reported": 2
+  }
+}

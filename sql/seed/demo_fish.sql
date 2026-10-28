@@ -88,17 +88,17 @@ INSERT INTO donations (donorID, eventID, amount, fee, reason, thanked, donation_
  (999,       @c_fall,     20.00, 0.00, 'Anonymous cash in jar', 0, CURDATE() - INTERVAL 1 DAY, 'cash',   NULL,    NULL, NULL,                        'in_person',    0, NULL,                         0, NULL,                    'fish.staff');
 
 -- 6. Non-cash donations and where they went.
-INSERT INTO non_cash_donations (donor_id, campaign_id, date_received, item_description, category, quantity, unit, estimated_value, item_condition, intended_use, send_receipt, receipt_sent_at, recorded_by) VALUES
- (@d_grace, @c_fall, CURDATE() - INTERVAL 12 DAY, 'Canned vegetables and soups', 'canned_food', 240, 'items', 360.00, 'new', 'Food pantry', 1, NOW() - INTERVAL 11 DAY, 'fish.staff');
+INSERT INTO non_cash_donations (donor_id, campaign_id, date_received, item_description, category, quantity, weight_lbs, estimated_value, item_condition, intended_use, send_receipt, receipt_sent_at, recorded_by) VALUES
+ (@d_grace, @c_fall, CURDATE() - INTERVAL 12 DAY, 'Canned vegetables and soups', 'canned_food', 240, 190.00, 360.00, 'new', 'Food pantry', 1, NOW() - INTERVAL 11 DAY, 'fish.staff');
 SET @nc_cans := LAST_INSERT_ID();
-INSERT INTO non_cash_donations (donor_id, campaign_id, date_received, item_description, category, quantity, unit, estimated_value, item_condition, intended_use, send_receipt, receipt_sent_at, recorded_by) VALUES
- (@d_grace,  @c_fall,    CURDATE() - INTERVAL 12 DAY, 'Rice and pasta',               'dry_goods',        80, 'lbs',    120.00, 'new',         'Food pantry',        1, NOW() - INTERVAL 11 DAY, 'fish.staff'),
- (@d_maria,  NULL,       CURDATE() - INTERVAL 30 DAY, 'Winter coats, assorted sizes', 'clothing',         15, 'items',  300.00, 'gently_used', 'Clothing closet',    0, NULL,                    'fish.staff');
-INSERT INTO non_cash_donations (donor_id, campaign_id, date_received, item_description, category, quantity, unit, estimated_value, item_condition, intended_use, send_receipt, receipt_sent_at, recorded_by) VALUES
- (@d_rotary, @c_holiday, '2025-12-10', 'Turkeys', 'fresh_produce', 40, 'items', 1000.00, 'new', 'Holiday meal boxes', 1, '2025-12-12 14:00:00', 'fish.admin');
+INSERT INTO non_cash_donations (donor_id, campaign_id, date_received, item_description, category, quantity, weight_lbs, estimated_value, item_condition, intended_use, send_receipt, receipt_sent_at, recorded_by) VALUES
+ (@d_grace,  @c_fall,    CURDATE() - INTERVAL 12 DAY, 'Rice and pasta',               'dry_goods',        40,  80.00, 120.00, 'new',         'Food pantry',        1, NOW() - INTERVAL 11 DAY, 'fish.staff'),
+ (@d_maria,  NULL,       CURDATE() - INTERVAL 30 DAY, 'Winter coats, assorted sizes', 'clothing',         15,  30.00, 300.00, 'gently_used', 'Clothing closet',    0, NULL,                    'fish.staff');
+INSERT INTO non_cash_donations (donor_id, campaign_id, date_received, item_description, category, quantity, weight_lbs, estimated_value, item_condition, intended_use, send_receipt, receipt_sent_at, recorded_by) VALUES
+ (@d_rotary, @c_holiday, '2025-12-10', 'Turkeys', 'fresh_produce', 40, 560.00, 1000.00, 'new', 'Holiday meal boxes', 1, '2025-12-12 14:00:00', 'fish.admin');
 SET @nc_turkeys := LAST_INSERT_ID();
-INSERT INTO non_cash_donations (donor_id, campaign_id, date_received, item_description, category, quantity, unit, estimated_value, item_condition, intended_use, send_receipt, receipt_sent_at, recorded_by) VALUES
- (999, NULL, CURDATE() - INTERVAL 2 DAY, 'Toothpaste and soap', 'hygiene_products', 30, 'items', 90.00, 'new', 'Food pantry', 0, NULL, 'fish.staff');
+INSERT INTO non_cash_donations (donor_id, campaign_id, date_received, item_description, category, quantity, weight_lbs, estimated_value, item_condition, intended_use, send_receipt, receipt_sent_at, recorded_by) VALUES
+ (999, NULL, CURDATE() - INTERVAL 2 DAY, 'Toothpaste and soap', 'hygiene_products', 30, 12.50, 90.00, 'new', 'Food pantry', 0, NULL, 'fish.staff');
 
 INSERT INTO non_cash_distributions (non_cash_donation_id, distributed_on, quantity, program, recorded_by) VALUES
  (@nc_cans,    CURDATE() - INTERVAL 8 DAY, 120, 'Food pantry, week 1', 'fish.staff'),
@@ -198,21 +198,21 @@ JOIN dbevents c ON c.name = g.campaign AND c.description LIKE '[demo]%'
 WHERE NOT EXISTS (SELECT 1 FROM donations x WHERE x.reason = 'demo-seed');
 
 -- 9d. Non-cash gifts.
-INSERT INTO non_cash_donations (donor_id, campaign_id, date_received, item_description, category, quantity, unit,
+INSERT INTO non_cash_donations (donor_id, campaign_id, date_received, item_description, category, quantity, weight_lbs,
                                 estimated_value, item_condition, intended_use, notes, send_receipt, receipt_sent_at)
-SELECT d.id, c.id, CURDATE() - INTERVAL g.days_ago DAY, g.item, g.category, g.qty, g.unit,
+SELECT d.id, c.id, CURDATE() - INTERVAL g.days_ago DAY, g.item, g.category, g.qty, g.lbs,
        g.val, g.item_cond, c.name, 'demo-seed', 1, IF(g.days_ago > 5, NOW(), NULL)
 FROM (
-            SELECT 'demo.grace@example.org' AS donor_email, 'Thanksgiving Meals Drive' AS campaign, 'Soup' AS item, 'canned_food' AS category, 240 AS qty, 'cans' AS unit, 360.00 AS val, 'new' AS item_cond, 14 AS days_ago
-  UNION ALL SELECT 'demo.mainst@example.org',    'Thanksgiving Meals Drive', 'Canned vegetables', 'canned_food', 320, 'cans',  480.00, 'new', 10
-  UNION ALL SELECT 'demo.oakridge@example.org',  'Thanksgiving Meals Drive', 'Dry goods',         'dry_goods',    58, 'boxes', 290.00, 'new', 13
-  UNION ALL SELECT 'demo.rotary@example.org',    'Thanksgiving Meals Drive', 'Canned vegetables', 'canned_food', 400, 'cans',  600.00, 'new',  8
-  UNION ALL SELECT 'demo.thrift@example.org',    'Thanksgiving Meals Drive', 'Canned fruit',      'canned_food', 180, 'cans',  270.00, 'new',  5
-  UNION ALL SELECT 'demo.thrift@example.org',    'Winter Coat Collection',  'Winter coats',      'clothing',    120, 'coats', 1800.00, 'gently_used', 3
-  UNION ALL SELECT 'demo.grace@example.org',     'Winter Coat Collection',  'Winter coats',      'clothing',     60, 'coats',  900.00, 'gently_used', 2
-  UNION ALL SELECT 'demo.malvarez@example.org',  'Winter Coat Collection',  'Kids coats',        'clothing',     12, 'coats',  180.00, 'gently_used', 1
-  UNION ALL SELECT 'demo.oakridge@example.org',  'Back to School Kits',     'School supply kits','other',       300, 'kits', 1500.00, 'new', 75
-  UNION ALL SELECT 'demo.rotary@example.org',    'Back to School Kits',     'School supply kits','other',       260, 'kits', 1300.00, 'new', 70
+            SELECT 'demo.grace@example.org' AS donor_email, 'Thanksgiving Meals Drive' AS campaign, 'Soup' AS item, 'canned_food' AS category, 240 AS qty, 190.00 AS lbs, 360.00 AS val, 'new' AS item_cond, 14 AS days_ago
+  UNION ALL SELECT 'demo.mainst@example.org',    'Thanksgiving Meals Drive', 'Canned vegetables', 'canned_food', 320, 250.00,  480.00, 'new', 10
+  UNION ALL SELECT 'demo.oakridge@example.org',  'Thanksgiving Meals Drive', 'Dry goods',         'dry_goods',    58, 145.00, 290.00, 'new', 13
+  UNION ALL SELECT 'demo.rotary@example.org',    'Thanksgiving Meals Drive', 'Canned vegetables', 'canned_food', 400, 315.00,  600.00, 'new',  8
+  UNION ALL SELECT 'demo.thrift@example.org',    'Thanksgiving Meals Drive', 'Canned fruit',      'canned_food', 180, 140.00,  270.00, 'new',  5
+  UNION ALL SELECT 'demo.thrift@example.org',    'Winter Coat Collection',  'Winter coats',      'clothing',    120, 360.00, 1800.00, 'gently_used', 3
+  UNION ALL SELECT 'demo.grace@example.org',     'Winter Coat Collection',  'Winter coats',      'clothing',     60, 180.00,  900.00, 'gently_used', 2
+  UNION ALL SELECT 'demo.malvarez@example.org',  'Winter Coat Collection',  'Kids coats',        'clothing',     12,  18.00,  180.00, 'gently_used', 1
+  UNION ALL SELECT 'demo.oakridge@example.org',  'Back to School Kits',     'School supply kits','other',       300, 450.00, 1500.00, 'new', 75
+  UNION ALL SELECT 'demo.rotary@example.org',    'Back to School Kits',     'School supply kits','other',       260, 390.00, 1300.00, 'new', 70
 ) g
 JOIN donors  d ON d.email = g.donor_email
 JOIN dbevents c ON c.name = g.campaign AND c.description LIKE '[demo]%'

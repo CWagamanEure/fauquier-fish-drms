@@ -1,0 +1,33 @@
+{
+  "mode": "ticket",
+  "subject": "wagaman-eure-noncash-pounds",
+  "round": 1,
+  "approved": true,
+  "auditors": [
+    {
+      "auditor": "security",
+      "approve": true,
+      "finding_count": 2
+    },
+    {
+      "auditor": "data",
+      "approve": true,
+      "finding_count": 5
+    },
+    {
+      "auditor": "correctness",
+      "approve": true,
+      "finding_count": 7
+    },
+    {
+      "auditor": "verification",
+      "approve": true,
+      "finding_count": 7
+    }
+  ],
+  "counts": {
+    "low/reported": 12,
+    "medium/reported": 8,
+    "high/reported": 1
+  }
+}
