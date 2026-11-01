@@ -4,13 +4,18 @@
 require_once 'include/fishnet-layout.php';
 require_once 'include/permissions.php';
 require_once 'database/dbCampaigns.php';
+require_once 'include/campaigns-common.php';
 
-$isEdit = isset($_GET['id']);
-$id     = (int) ($_GET['id'] ?? 0);
+$isEdit = array_key_exists('id', $_GET);
+$id     = campaign_id_param($_GET);
 
-if (!fish_can('campaigns', 'edit')) {
-  http_response_code(403);
-  exit('Your account can view campaigns but not change them.');
+// Edit shows the stored campaign, so it needs view as well as edit (same rule as the donation pages).
+if (!fish_can('campaigns', 'view') || !fish_can('campaigns', 'edit')) {
+  if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    http_response_code(403);
+    exit('Your account cannot add or change campaigns.');
+  }
+  campaign_stop_page(403, $isEdit ? 'Edit campaign' : 'Add campaign', 'Your account cannot add or change campaigns.');
 }
 
 $errors = [];
@@ -39,6 +44,7 @@ $form = $stored ? campaign_form_from_row($stored)
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $form   = campaign_form_from_post($_POST, $form);
+  if (!$isEdit) { $form['completed'] = 0; }   // the box only exists on the edit form; a crafted POST cannot create a completed campaign
   $errors = campaign_form_validate($form, $ownerIds);
   if (!$errors) {
     $byUser = $myId !== '' ? $myId : null;

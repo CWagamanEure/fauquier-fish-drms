@@ -44,6 +44,7 @@ if ($stored) {
   $form = array_merge($form, donation_form_from_row($stored));
 } elseif (!$editing) {
   $form['donor'] = fish_str($_GET, 'donor') ?: fish_str($_GET, 'donor_id');
+  $form['campaign'] = fish_str($_GET, 'campaign_id');   // from the campaign page's "+ Donation"
 }
 $errors = [];
 

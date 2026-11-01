@@ -3,28 +3,36 @@
 // and communication tables, all through database/dbCampaigns.php.
 require_once 'include/fishnet-layout.php';
 require_once 'include/permissions.php';
+require_once 'include/campaigns-common.php';
 require_once 'database/dbCampaigns.php';
+require_once 'database/dbVolunteerHours.php';
 
 if (!fish_can('campaigns', 'view')) {
-  http_response_code(403);
-  exit('Your account cannot view campaigns.');
+  campaign_stop_page(403, 'Campaigns', 'Your account cannot view campaigns.');
 }
 
-$id   = (int) ($_GET['id'] ?? 0);
+$id   = campaign_id_param($_GET);
 $kind = fish_str($_GET, 'kind');
-$page = max(1, (int) ($_GET['page'] ?? 1));
+$page = max(1, (int) fish_str($_GET, 'page'));
+
+// What this page shows belongs to other areas too: gifts to donations, names and volunteer shifts to donors,
+// the log to communications. The campaign's own totals (the tiles) stay visible with campaigns view.
+$canSeeGifts  = fish_can('donations', 'view');
+$canSeeDonors = fish_can('donors', 'view');
+$canSeeComms  = fish_can('communications', 'view');
 
 $c = null;
 try {
   $c = $id > 0 ? campaign_get($id) : null;
   if ($c) {
     $people     = campaign_donor_counts($id);
-    $giftPage   = campaign_gifts($c, $kind, $page);
-    $volunteers = campaign_volunteers($id);
-    $comms      = campaign_communications($id);
-    $commCount  = campaign_comm_count($id);
-    $weeks      = campaign_weekly_cash($c);
-    $top        = campaign_top_donors($c);
+    $giftPage   = $canSeeGifts ? campaign_gifts($c, $kind, $page)
+                               : ['rows' => [], 'total' => 0, 'page' => 1, 'pages' => 1, 'kind' => 'all'];
+    $weeks      = $canSeeGifts ? campaign_weekly_cash($c) : [];
+    $top        = $canSeeGifts ? campaign_top_donors($c) : [];
+    $volunteers = $canSeeDonors ? campaign_volunteers($id) : [];
+    $comms      = $canSeeComms ? campaign_communications($id) : [];
+    $commCount  = $canSeeComms ? campaign_comm_count($id) : 0;
   }
 } catch (mysqli_sql_exception $e) {
   // A database fault must not print the exception into the page; log it and go back to the list with a notice.
@@ -36,7 +44,7 @@ if (!$c) { header('Location: campaigns.php', true, 303); exit; }   // unknown id
 
 $saved      = fish_str($_GET, 'saved') === '1';
 $canEdit    = fish_can('campaigns', 'edit');
-$canGive    = fish_can('donations', 'edit');
+$canGive    = fish_can_record_donations();
 $gifts      = $giftPage['rows'];
 $kind       = $giftPage['kind'];
 $giftTotal  = $c['cash_gift_count'] + $c['item_gift_count'];
@@ -47,7 +55,6 @@ $showShifts = $type === 'volunteers' || $c['volunteer_goal'] !== null || $c['shi
 
 $pct = fn($have, $goal) => $goal > 0 ? (int) round($have / $goal * 100) : 0;
 function fmt_date($d) { return $d ? date('M j, Y', strtotime($d)) : '&mdash;'; }
-function fmt_hours($n) { return rtrim(rtrim(number_format((float) $n, 1), '0'), '.'); }
 function short_money($n) { return $n >= 1000 ? '$' . number_format($n / 1000, 1) . 'k' : '$' . number_format($n); }
 function comm_type_label($t) { return h($t === 'in_person' ? 'In person' : ucfirst(str_replace('_', ' ', (string) $t))); }
 function comm_badge($status) {
@@ -55,8 +62,9 @@ function comm_badge($status) {
   return '<span class="status ' . ($warn ? 'pending' : 'active') . '">' . h(ucfirst((string) $status)) . '</span>';
 }
 function donor_link($donorId, $name) {
+  global $canSeeDonors;
   $name = (string) $name;
-  if ((int) $donorId <= 0 || (int) $donorId === CAMPAIGN_ANONYMOUS_DONOR_ID) { return h($name); }
+  if (!$canSeeDonors || (int) $donorId <= 0 || (int) $donorId === CAMPAIGN_ANONYMOUS_DONOR_ID) { return h($name); }
   return '<a href="donorProfile.php?id=' . (int) $donorId . '">' . h($name) . '</a>';
 }
 function gift_url($id, $kind, $page = 1) {
@@ -123,52 +131,54 @@ fishnet_open($c['name'], 'campaigns', ['donor.css', 'forms.css', 'campaigns.css'
           <?php if ($c['volunteer_goal'] > 0): ?>
           <div class="bar navy"><span style="width: <?= min(100, $p) ?>%"></span></div>
           <p class="sub"><?= $p ?>% filled</p>
-          <?php else: ?><p class="sub"><?= h(fmt_hours($c['volunteer_hours'])) ?> hours so far</p><?php endif; ?></div>
+          <?php else: ?><p class="sub"><?= h(hours_label($c['volunteer_hours'])) ?> hours so far</p><?php endif; ?></div>
         <?php endif; ?>
         <div class="tile goal-tile"><p class="label">Donors</p><p class="num"><?= number_format($people['donors']) ?></p>
           <p class="sub"><?= number_format($people['first_time']) ?> first-time donor<?= $people['first_time'] === 1 ? '' : 's' ?></p></div>
       </section>
 
-      <section class="card tabs-card campaign-tabs">
+            <section class="card tabs-card campaign-tabs">
         <input type="radio" name="tab" id="tGifts" checked>
         <input type="radio" name="tab" id="tVols">
         <input type="radio" name="tab" id="tComms">
         <div class="tab-bar">
-          <label for="tGifts">Donations <span class="count"><?= (int) $giftTotal ?></span></label>
-          <label for="tVols">Volunteers <span class="count"><?= (int) $c['shifts'] ?></span></label>
-          <label for="tComms">Communications <span class="count"><?= (int) $commCount ?></span></label>
+          <label for="tGifts">Donations<?php if ($canSeeGifts): ?> <span class="count"><?= (int) $giftTotal ?></span><?php endif; ?></label>
+          <label for="tVols">Volunteers<?php if ($canSeeDonors): ?> <span class="count"><?= (int) $c['shifts'] ?></span><?php endif; ?></label>
+          <label for="tComms">Communications<?php if ($canSeeComms): ?> <span class="count"><?= (int) $commCount ?></span><?php endif; ?></label>
         </div>
 
-        <!-- Donations: the filter and the paging are done by the server, so they cover every gift, not just this page -->
         <div class="panel-tab p-gifts">
-          <div class="gifts-layout">
+          <?php if (!$canSeeGifts): ?>
+          <p class="muted">Your account cannot view donations.</p>
+          <?php else: ?>
+                    <div class="gifts-layout">
             <div>
-              <div class="tab-actions left">
+              <div class="toolbar">
                 <div class="pills">
                   <?php foreach (['all' => 'All', 'cash' => 'Cash', 'noncash' => 'Items'] as $k => $label): ?>
-                    <a href="<?= h(gift_url($id, $k)) ?>" class="pill<?= $kind === $k ? ' on' : '' ?>"><?= $label ?></a>
+                  <a href="<?= h(gift_url($c['id'], $k)) ?>" class="pill<?= $kind === $k ? ' on' : '' ?>"><?= $label ?></a>
                   <?php endforeach; ?>
                 </div>
               </div>
               <div class="table-wrap"><table>
-                <thead><tr><th>Date</th><th>Donor</th><th>Type</th><th>Amount / items</th></tr></thead>
+                <thead><tr><th>Date</th><th>Donor</th><th>Type</th><th>Gift</th></tr></thead>
                 <tbody>
                   <?php foreach ($gifts as $g): ?>
                   <tr>
                     <td><?= fmt_date($g['date']) ?></td>
-                    <td><strong><?= donor_link($g['donor_id'], $g['donor']) ?></strong></td>
+                    <td><strong><?= donor_link($g['donor_id'], $g['donor'] !== '' ? $g['donor'] : 'Unknown donor') ?></strong></td>
                     <td><span class="kind <?= h($g['kind']) ?>"><?= $g['kind'] === 'cash' ? 'Cash' : 'Items' ?></span></td>
                     <td><?= h($g['detail']) ?></td>
                   </tr>
                   <?php endforeach; ?>
-                  <?php if (!$gifts): ?><tr><td colspan="4" class="empty">No gifts of this type yet.</td></tr><?php endif; ?>
+                  <?php if (!$gifts): ?><tr><td colspan="4" class="empty">No gifts linked to this campaign yet.</td></tr><?php endif; ?>
                 </tbody>
               </table></div>
               <div class="pager">
-                <p>Showing <?= $from ?>&ndash;<?= $to ?> of <?= number_format($giftPage['total']) ?></p>
+                <p>Showing <?= (int) $from ?>&ndash;<?= (int) $to ?> of <?= number_format($giftPage['total']) ?> gifts</p>
                 <div class="pages">
-                  <?php if ($giftPage['page'] > 1): ?><a href="<?= h(gift_url($id, $kind, $giftPage['page'] - 1)) ?>" class="pg wide">&lsaquo; Prev</a><?php endif; ?>
-                  <?php if ($giftPage['page'] < $giftPage['pages']): ?><a href="<?= h(gift_url($id, $kind, $giftPage['page'] + 1)) ?>" class="pg wide">Next &rsaquo;</a><?php endif; ?>
+                  <?php if ($giftPage['page'] > 1): ?><a href="<?= h(gift_url($c['id'], $kind, $giftPage['page'] - 1)) ?>" class="pg wide">&lsaquo; Previous</a><?php endif; ?>
+                  <?php if ($giftPage['page'] < $giftPage['pages']): ?><a href="<?= h(gift_url($c['id'], $kind, $giftPage['page'] + 1)) ?>" class="pg wide">Next &rsaquo;</a><?php endif; ?>
                 </div>
               </div>
             </div>
@@ -176,11 +186,11 @@ fishnet_open($c['name'], 'campaigns', ['donor.css', 'forms.css', 'campaigns.css'
             <aside class="gift-side">
               <?php if ($weeks): ?>
               <h3>Weekly progress (cash)</h3>
-              <div class="week-chart" role="img" aria-label="Cash raised per week">
-                <?php foreach ($weeks as $i => [$label, $amt]): ?>
+              <div class="week-chart">
+                <?php foreach ($weeks as $i => [$label, $amount]): ?>
                 <div class="wk">
-                  <span class="wk-val"><?= h(short_money($amt)) ?></span>
-                  <span class="wk-bar<?= $i === count($weeks) - 1 ? ' latest' : '' ?>" style="height: <?= (int) round($amt / $weekMax * 100) ?>%"></span>
+                  <span class="wk-val"><?= h(short_money($amount)) ?></span>
+                  <div class="wk-bar<?= $i === count($weeks) - 1 ? ' latest' : '' ?>" style="height: <?= (int) round($amount / $weekMax * 100) ?>%"></div>
                   <span class="wk-lbl"><?= h($label) ?></span>
                 </div>
                 <?php endforeach; ?>
@@ -188,41 +198,57 @@ fishnet_open($c['name'], 'campaigns', ['donor.css', 'forms.css', 'campaigns.css'
               <?php endif; ?>
               <?php if ($top): ?>
               <h3>Top donors</h3>
-              <?php foreach ($top as [$donorId, $name, $amt]): ?>
-              <p class="top-row"><span><?= donor_link($donorId, $name) ?></span><strong><?= h($amt) ?></strong></p>
+              <?php foreach ($top as [$topId, $topName, $topText]): ?>
+              <div class="top-row"><span><?= donor_link($topId, $topName) ?></span><strong><?= h($topText) ?></strong></div>
               <?php endforeach; ?>
               <?php endif; ?>
             </aside>
           </div>
+          <?php endif; ?>
         </div>
 
-        <!-- Volunteers -->
         <div class="panel-tab p-vols">
+          <?php if (!$canSeeDonors): ?>
+          <p class="muted">Your account cannot view donors or their volunteer hours.</p>
+          <?php else: ?>
           <div class="table-wrap"><table>
             <thead><tr><th>Date</th><th>Volunteer</th><th>Hours</th><th>Job</th></tr></thead>
             <tbody>
               <?php foreach ($volunteers as $v): ?>
-              <tr><td><?= fmt_date($v['activity_date']) ?></td><td><strong><?= donor_link($v['donor_id'], $v['volunteer_name']) ?></strong></td><td><?= h(fmt_hours($v['hours'])) ?></td><td><?= $v['job'] !== null && $v['job'] !== '' ? h($v['job']) : '&mdash;' ?></td></tr>
+              <tr><td><?= fmt_date($v['activity_date']) ?></td><td><strong><?= donor_link($v['donor_id'], $v['volunteer_name']) ?></strong></td><td><?= h(hours_label($v['hours'])) ?></td><td><?= $v['job'] !== null && $v['job'] !== '' ? h($v['job']) : '&mdash;' ?></td></tr>
               <?php endforeach; ?>
               <?php if (!$volunteers): ?><tr><td colspan="4" class="empty">No volunteer shifts yet.</td></tr><?php endif; ?>
             </tbody>
             <?php if ($volunteers): ?>
-            <tfoot><tr><td>Total</td><td><?= (int) $c['shifts'] > count($volunteers) ? 'latest ' . count($volunteers) . ' of ' . (int) $c['shifts'] . ' shifts shown' : '' ?></td><td><?= h(fmt_hours($c['volunteer_hours'])) ?> hrs</td><td></td></tr></tfoot>
+            <tfoot><tr><td>Total</td><td><?= (int) $c['shifts'] > count($volunteers) ? 'latest ' . count($volunteers) . ' of ' . (int) $c['shifts'] . ' shifts shown' : '' ?></td><td><?= h(hours_label($c['volunteer_hours'])) ?> hrs</td><td></td></tr></tfoot>
             <?php endif; ?>
           </table></div>
+          <?php endif; ?>
         </div>
 
-        <!-- Communications -->
         <div class="panel-tab p-comms">
-          <div class="table-wrap"><table>
-            <thead><tr><th>Date</th><th>To / from</th><th>Type</th><th>Subject</th><th>Status</th></tr></thead>
+          <?php if (!$canSeeComms): ?>
+          <p class="muted">Your account cannot view communications.</p>
+          <?php else: ?>
+            <div class="table-wrap"><table>
+            <thead><tr><th>Date</th><th>Donor</th><th>Type</th><th>Subject</th><th>Status</th></tr></thead>
             <tbody>
               <?php foreach ($comms as $m): ?>
-              <tr><td><?= fmt_date($m['occurred_at']) ?></td><td><?= donor_link($m['donor_id'], $m['donor_name']) ?></td><td><?= comm_type_label($m['comm_type']) ?></td><td><?= $m['subject'] !== null && $m['subject'] !== '' ? h($m['subject']) : '&mdash;' ?></td><td><?= comm_badge($m['status']) ?></td></tr>
+              <tr>
+                <td><?= fmt_date($m['occurred_at']) ?></td>
+                <td><strong><?= donor_link($m['donor_id'], $m['donor_name']) ?></strong></td>
+                <td><?= comm_type_label($m['comm_type']) ?></td>
+                <td><?= $m['subject'] !== null && $m['subject'] !== '' ? h($m['subject']) : '&mdash;' ?></td>
+                <td><?= comm_badge($m['status']) ?></td>
+              </tr>
               <?php endforeach; ?>
-              <?php if (!$comms): ?><tr><td colspan="5" class="empty">No communications logged yet.</td></tr><?php endif; ?>
+              <?php if (!$comms): ?><tr><td colspan="5" class="empty">No communications logged for this campaign.</td></tr><?php endif; ?>
             </tbody>
           </table></div>
+          <?php if ($commCount > count($comms)): ?>
+          <div class="pager"><p>Showing the latest <?= count($comms) ?> of <?= (int) $commCount ?> communications</p></div>
+          <?php endif; ?>
+          <?php endif; ?>
         </div>
       </section>
 
