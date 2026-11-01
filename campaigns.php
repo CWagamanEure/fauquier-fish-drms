@@ -3,10 +3,10 @@
 require_once 'include/fishnet-layout.php';
 require_once 'include/permissions.php';
 require_once 'database/dbCampaigns.php';
+require_once 'include/campaigns-common.php';
 
 if (!fish_can('campaigns', 'view')) {
-  http_response_code(403);
-  exit('Your account cannot view campaigns.');
+  campaign_stop_page(403, 'Campaigns', 'Your account cannot view campaigns.');
 }
 
 $loadError = fish_str($_GET, 'error') === 'load';   // set by campaign.php when its read failed
