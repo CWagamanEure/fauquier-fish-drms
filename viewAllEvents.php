@@ -1,10 +1,10 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(1);
     // Template for new VMS pages. Base your new page on this one
 
     // Make session information accessible, allowing us to associate
     // data with the logged-in user.
-    session_cache_expire(30);
-    session_start();
     date_default_timezone_set("America/New_York");
 
 
@@ -294,6 +294,7 @@
                     <!-- DELETE CONFIRM -->
                     <div id="confirmDeleteContainer">
                         <form method="POST" action="deleteMultipleEvents.php" onsubmit="return confirm('Delete selected events?');">
+                        <?php echo auth_csrf_field(); ?>
                             <input type="hidden" id="selectedEventsInput" name="selectedEvents">
                             <button id="confirmDeleteButton">Delete Selected</button>
                         </form>

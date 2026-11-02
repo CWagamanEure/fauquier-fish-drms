@@ -1,6 +1,6 @@
 <?php
-session_cache_expire(30);
-session_start();
+require_once __DIR__ . '/include/auth.php';
+require_authentication(2);
 
 if (!isset($_SESSION['access_level']) || $_SESSION['access_level'] < 1) {
     header('Location: login.php');
@@ -103,6 +103,7 @@ $access_level = $_SESSION['access_level'];
                                 <?php if ($access_level >= 2): ?>
                                     <td>
                                         <form method="POST" style="display:inline;">
+                                        <?php echo auth_csrf_field(); ?>
                                             <input type="hidden" name="event_id" value="<?php echo htmlspecialchars($id); ?>">
                                             <input type="hidden" name="user_id" value="<?php echo htmlspecialchars($signup['userID']); ?>">
                                             <button type="submit" class="button danger" onclick="return confirm('Are you sure you want to remove this user?');">

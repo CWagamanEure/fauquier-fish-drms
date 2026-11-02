@@ -550,6 +550,7 @@ function get_services($eventID) {
 }
 
 function delete_event($id) {
+    $id = (int) $id;
     $query = "delete from dbevents where id=$id";
     $connection = connect();
     $result = mysqli_query($connection, $query);

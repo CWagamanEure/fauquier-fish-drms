@@ -1,27 +1,17 @@
 <?php
-    session_cache_expire(30);
-    session_start();
-    /*
-    if ($_SESSION['access_level'] < 2) {
-        header('Location: index.php');
-        die();
-    }
-        */
-    require_once('database/dbEvents.php');
-    require_once('include/input-validation.php');
-    //$args = sanitize($_POST);
-    //$id = $args['id'];
-    if (isset($_GET['id'])) {
-        $id = $_GET['id'];
-    }
+// Deletes one event/campaign. POST with a form token only; the id must be an integer.
+require_once __DIR__ . '/include/auth.php';
+require_authentication(2);
+auth_require_csrf();
+require_once('database/dbEvents.php');
 
-    if (!$id) {
-        header('Location: index.php');
-        die();
-    }
-    if (delete_event($id)) {
-        header('Location: calendar.php?deleteSuccess');
-        die();
-    }
-    header('Location: index.php');
-?>
+$id = filter_var($_POST['id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+if ($id === false || $id === null) {
+    header('Location: index.php', true, 303);
+    exit;
+}
+if (delete_event($id)) {
+    header('Location: calendar.php?deleteSuccess', true, 303);
+    exit;
+}
+header('Location: index.php', true, 303);

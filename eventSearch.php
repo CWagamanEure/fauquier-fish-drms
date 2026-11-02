@@ -1,10 +1,10 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(1);
     // Template for new VMS pages. Base your new page on this one
 
     // Make session information accessible, allowing us to associate
     // data with the logged-in user.
-    session_cache_expire(30);
-    session_start();
 
     $loggedIn = false;
     $accessLevel = 0;
@@ -93,11 +93,13 @@
             ?>
             <h2>Search for an Event</h2>
             <form method="post">
+            <?php echo auth_csrf_field(); ?>
                 <label for="name">Name</label>
                 <input type="text" name="name" id="name" placeholder="Enter event name" required>
                 <input type="submit" name="submitName" id="submitName" value="Search by Name">
             </form>
             <form id="event-date-range-search" method="post">
+            <?php echo auth_csrf_field(); ?>
                 <label for="date-start">Date Range Start</label>
                 <input type="date" name="date-start" id="date-start" required>
                 <label for="date-end">Date Range End</label>

@@ -1,0 +1,33 @@
+{
+  "mode": "code",
+  "subject": "wagaman-eure-pr28-restore-helper (worktree /Users/corywagamaneure/projects/fish-pr28-fixes; read every file from that directory, not the main checkout, which is on a different branch; PR base is origin/Andrews-donorBackend, not dev)",
+  "round": 1,
+  "approved": true,
+  "reviewed_commit": "5bb1a19336576a22a1a187062322117da7e9945c",
+  "tree": "fe216d94397c4447d8013b6742631344ee8f0da99c6cd77eeb7bc52ad2c2c657",
+  "auditors": [
+    {
+      "auditor": "security",
+      "approve": true,
+      "finding_count": 0
+    },
+    {
+      "auditor": "data",
+      "approve": true,
+      "finding_count": 0
+    },
+    {
+      "auditor": "correctness",
+      "approve": true,
+      "finding_count": 0
+    },
+    {
+      "auditor": "verification",
+      "approve": true,
+      "finding_count": 2
+    }
+  ],
+  "counts": {
+    "low/reported": 2
+  }
+}

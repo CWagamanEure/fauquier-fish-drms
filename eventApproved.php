@@ -191,6 +191,7 @@
                 <p>This action cannot be undone.</p>
 
                 <form method="post" action="deleteEvent.php">
+                <?php echo auth_csrf_field(); ?>
                     <input type="submit" value="Delete Appointment">
                     <input type="hidden" name="id" value="<?= $id ?>">
                 </form>
@@ -204,6 +205,7 @@
                 <p>Are you sure you want to complete this appointment?</p>
                 <p>This action cannot be undone.</p>
                 <form method="post" action="completeEvent.php">
+                <?php echo auth_csrf_field(); ?>
                     <input type="submit" value="Complete Appointment">
                     <input type="hidden" name="id" value="<?= $id ?>">
                 </form>
@@ -313,6 +315,7 @@
 
         <?php if ($access_level >= 2) : ?>
             <!-- <form method="post" action="deleteEvent.php">
+ <?php echo auth_csrf_field(); ?>
                 <input type="submit" value="Delete Event">
                 <input type="hidden" name="id" value="<?= $id ?>">
             </form> -->

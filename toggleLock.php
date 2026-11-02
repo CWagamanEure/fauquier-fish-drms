@@ -1,5 +1,6 @@
 <?php
-session_start();
+require_once __DIR__ . '/include/auth.php';
+require_authentication(2, true);
 
 // Toggle lock state
 if (!isset($_SESSION['locked'])) {

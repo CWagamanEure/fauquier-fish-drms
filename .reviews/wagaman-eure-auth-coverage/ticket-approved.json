@@ -1,0 +1,39 @@
+{
+  "mode": "ticket",
+  "subject": "wagaman-eure-auth-coverage",
+  "round": 1,
+  "approved": true,
+  "auditors": [
+    {
+      "auditor": "security",
+      "approve": true,
+      "finding_count": 3
+    },
+    {
+      "auditor": "data",
+      "approve": true,
+      "finding_count": 1
+    },
+    {
+      "auditor": "correctness",
+      "approve": true,
+      "finding_count": 4
+    },
+    {
+      "auditor": "verification",
+      "approve": true,
+      "finding_count": 6
+    }
+  ],
+  "counts": {
+    "severity": {
+      "high": 3,
+      "medium": 5,
+      "low": 6
+    },
+    "status": {
+      "reported": 14
+    }
+  },
+  "accepted_highs": []
+}

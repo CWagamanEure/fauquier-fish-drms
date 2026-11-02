@@ -1,10 +1,10 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(2);
     // Template for new VMS pages. Base your new page on this one
 
     // Make session information accessible, allowing us to associate
     // data with the logged-in user.
-    session_cache_expire(30);
-    session_start();
 
     $loggedIn = false;
     $accessLevel = 0;

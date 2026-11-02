@@ -1,32 +1,19 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(1);
     ini_set('display_errors', 1);
     ini_set('display_startup_errors', 1);
     error_reporting(E_ALL);
 
-    session_cache_expire(30);
-    session_start();
-    $_SESSION['logged_in'] = true;
     date_default_timezone_set("America/New_York");
     
-    // Security Redirect
-    if (!isset($_SESSION['access_level']) || $_SESSION['access_level'] < 1) {
-        if (isset($_SESSION['change-password'])) {
-            header('Location: changePassword.php');
-        } else {
-            header('Location: login.php');
-        }
-        die();
-    }
+    // require_once: include/auth.php already loads these for the per-request account check
+    require_once 'database/dbPersons.php';
+    require_once 'domain/Person.php';
 
-    require 'database/dbPersons.php';
-    require 'domain/Person.php';
+    $person = auth_current_user();   // loaded by require_authentication()
 
-    if (isset($_SESSION['_id'])) {
-        $person = retrieve_person($_SESSION['_id']);
-    }
-
-    // Logic Fix: Define who sees the volunteer view
-    $isVolunteer = ($_SESSION['access_level'] < 2);
+    $isStandardUser = ($_SESSION['access_level'] === 1);
 ?>
 
 <!DOCTYPE html>
@@ -247,6 +234,7 @@
        </div>
 
        <div class="full-width-bar">
+            <?php if ($_SESSION['access_level'] >= 3): ?>
             <div class="content-box">
                 <img src="images/blank-white-background.jpg"/>
                 <div class="small-text">Analyze the data!</div>
@@ -256,6 +244,7 @@
                     <div class="circle">&gt;</div>
                 </button>
             </div>
+            <?php endif; ?>
 
             <div class="content-box">
                 <img src="images/blank-white-background.jpg"/>
@@ -273,6 +262,7 @@
         </div>
 
         <div class="full-width-bar-sub">
+            <?php if ($_SESSION['access_level'] >= 3): ?>
             <div class="content-box-test" onclick="window.location.href='import.php'">
                 <div class="icon-overlay">
                     <img src="images/toppng.com-file-save-icon-vector-980x980.png" alt="Icon">
@@ -328,6 +318,7 @@
                 <button class="arrow-button">→</button>
             </div>
 
+            <?php endif; ?>
             <div class="content-box-test" onclick="window.location.href='searchindex.php'">
                 <div class="icon-overlay">
                     <img src="images/magnifying-glass.svg" alt="Icon">
@@ -340,90 +331,32 @@
     <?php endif; ?>
 
 
-    <?php if ($isVolunteer) : ?>
-
-        <div style="position: absolute; top: 110px; right: 30px; z-index: 99; display: flex; flex-direction: row; gap: 30px; align-items: center; text-align: center;">
-            <a href="selectVOTM.php" style="text-decoration: none;">
-                <div style="font-size: 12px; font-weight: bold; color: #00447b; margin-bottom: 5px;">
-                    🎖 Volunteer of the Month
-                </div>
-                <img src="images/star-icon.svg" alt="VOTM" style="width: 55px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
-            </a>
-
-            <a href="leaderboard.php" style="text-decoration: none;">
-                <div style="font-size: 12px; font-weight: bold; color: #00447b; margin-bottom: 5px;">
-                    👑 Leaderboard
-                </div>
-                <img src="images/crown.png" alt="Leaderboard" style="width: 55px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
-            </a>
-        </div>
-
+    <?php if ($isStandardUser): ?>
         <div style="margin-top: 20px; padding: 30px 5%;">
-            <h2><b>Welcome <?php echo htmlspecialchars($person->get_name()); ?>!</b> Let's get started.</h2>
+            <h2><b>Welcome <?php echo htmlspecialchars($person->get_name()); ?>!</b></h2>
+            <p style="margin-top: 15px;">View shared documents and manage your password below.</p>
         </div>
 
         <div class="full-width-bar">
             <div class="content-box">
-                <img src="images/VolM.png" style="filter: contrast(150%);"/>
-                <div class="small-text">Make a difference.</div>
-                <div class="large-text">My Profile</div>
-                <button class="circle-arrow-button" onclick="window.location.href='viewProfile.php'">
-                    <span class="button-text">View</span>
-                    <div class="circle">&gt;</div>
-                </button>
+                <img src="images/blank-white-background.jpg" alt="">
+                <div class="small-text">Shared resources</div>
+                <div class="large-text">Documents</div>
+                <a class="circle-arrow-button" href="viewResources.php">
+                    <span class="button-text">View documents</span>
+                    <span class="circle" aria-hidden="true">&gt;</span>
+                </a>
             </div>
-
             <div class="content-box">
-                <img src="images/EvM.png" />
-                <div class="small-text">Let’s have some fun!</div>
-                <div class="large-text">My Events</div>
-                <button class="circle-arrow-button" onclick="window.location.href='viewAllEvents.php'">
-                    <span class="button-text">Sign Up</span>
-                    <div class="circle">&gt;</div>
-                </button>
-            </div>
-
-            <div class="content-box">
-                <img src="images/GrM.png" />
-                <div class="small-text">Our team makes this possible.</div>
-                <div class="large-text">My Group</div>
-                <button class="circle-arrow-button" onclick="window.location.href='volunteerViewGroup.php'">
-                    <span class="button-text">View</span>
-                    <div class="circle">&gt;</div>
-                </button>
+                <img src="images/blank-white-background.jpg" alt="">
+                <div class="small-text">My account</div>
+                <div class="large-text">Change Password</div>
+                <a class="circle-arrow-button" href="changePassword.php">
+                    <span class="button-text">Change password</span>
+                    <span class="circle" aria-hidden="true">&gt;</span>
+                </a>
             </div>
         </div>
-
-        <div style="margin-top: 50px; padding: 0 5%;">
-            <h2><b>Your Dashboard</b></h2>
-        </div>
-
-        <div class="full-width-bar-sub">
-            <div class="content-box-test" onclick="window.location.href='viewResources.php'">
-                <div class="icon-overlay"><img src="images/file-regular.svg"></div>
-                <img class="background-image" src="images/blank-white-background.jpg" />
-                <div class="large-text-sub">Documents</div>
-                <div class="graph-text">View documents & handbook.</div>
-                <button class="arrow-button">→</button>
-            </div>
-
-            <div class="content-box-test" onclick="window.location.href='viewDiscussions.php'">
-                <div class="icon-overlay"><img src="images/clipboard-regular.svg"></div>
-                <img class="background-image" src="images/blank-white-background.jpg" />
-                <div class="large-text-sub">Discussions</div>
-                <div class="graph-text">See the latest.</div>
-                <button class="arrow-button">→</button>
-            </div>
-
-            <div class="content-box-test" onclick="window.location.href='inbox.php'">
-                <div class="icon-overlay"><img src="images/<?php echo $inboxIcon ?? 'default-icon.png'; ?>"></div>
-                <img class="background-image" src="images/blank-white-background.jpg" />
-                <div class="large-text-sub">Notifications</div>
-                <div class="graph-text">Stay up to date.</div>
-                <button class="arrow-button">→</button>
-            </div>
-        </div>
-
     <?php endif; ?>
 
     <div style="width: 90%; height: 1px; background: #ddd; margin: 70px auto;"></div>

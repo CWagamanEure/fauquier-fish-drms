@@ -1,0 +1,5 @@
+# Reports and intermediate plots must not be served as public files.
+Require all denied
+<Files "delHandler.php">
+    Require all granted
+</Files>

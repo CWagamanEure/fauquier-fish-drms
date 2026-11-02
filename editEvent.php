@@ -1,6 +1,6 @@
-<?php 
-session_cache_expire(30);
-session_start();
+<?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(2);
 
 ini_set("display_errors",1);
 error_reporting(E_ALL);
@@ -188,6 +188,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </p>
 
     <form id="edit-event-form" method="POST">
+    <?php echo auth_csrf_field(); ?>
 
         <label>* Fundraiser Name</label>
         <input type="text" name="name" required value="<?php echo htmlspecialchars($name); ?>">

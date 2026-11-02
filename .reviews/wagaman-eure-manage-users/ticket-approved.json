@@ -1,0 +1,48 @@
+{
+  "mode": "ticket",
+  "subject": "wagaman-eure-manage-users",
+  "round": 1,
+  "approved": true,
+  "reviewed_commit": null,
+  "tree": null,
+  "auditors": [
+    {
+      "auditor": "security",
+      "approve": true,
+      "finding_count": 8
+    },
+    {
+      "auditor": "data",
+      "approve": true,
+      "finding_count": 8
+    },
+    {
+      "auditor": "correctness",
+      "approve": true,
+      "finding_count": 8
+    },
+    {
+      "auditor": "verification",
+      "approve": true,
+      "finding_count": 8
+    }
+  ],
+  "counts": {
+    "severity": {
+      "high": 5,
+      "medium": 12,
+      "low": 15
+    },
+    "status": {
+      "reported": 32
+    }
+  },
+  "accepted_highs": [
+    "Scope items 2 and 8 conflict: add_person() cannot carry role/name/email and breaks the promised transaction",
+    "user_create cannot be built on add_person(): wrong columns, no viewer role, no shared transaction",
+    "add_person() cannot create the account the ticket describes; the create path and its transaction claim contradict each other",
+    "Self-edit rules as written break ordinary edits of the admin's own name/email",
+    "Scope item 2 (create via add_person()) contradicts item 8 (user_create in a transaction) and add_person() cannot create the user as specified"
+  ],
+  "note": "All four highs adopted in ticket.md (Responses to round 1)."
+}

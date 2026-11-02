@@ -1,10 +1,10 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(1);
     // Template for new VMS pages. Base your new page on this one
 
     // Make session information accessible, allowing us to associate
     // data with the logged-in user.
-    session_cache_expire(30);
-    session_start();
     date_default_timezone_set("America/New_York");
 
     $loggedIn = false;
@@ -97,6 +97,7 @@
 			<h2><?php echo $eventName ?></h2>
             
 			<form id="new-check-in" method="post">
+			<?php echo auth_csrf_field(); ?>
 
                 <label for="name">* New Check-In Time </label>                
                 <input type="text" id="start-time" name="start-time" pattern="([1-9]|10|11|12):[0-5][0-9] ?([aApP][mM])" required placeholder="Enter new check-in time. Ex. 12:00 PM">

@@ -1,10 +1,10 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(1);
     // Template for new VMS pages. Base your new page on this one
 
     // Make session information accessible, allowing us to associate
     // data with the logged-in user.
-    session_cache_expire(30);
-    session_start();
     require_once('include/api.php');
     ini_set("display_errors",1);
     error_reporting(E_ALL);
@@ -88,6 +88,7 @@
                 <p class="error-toast">Your new password must contain at least 8 characters, one uppercase letter, one lowercase letter, and one number.</p>    
             <?php endif ?>
             <form id="password-change" method="post">
+            <?php echo auth_csrf_field(); ?>
                 <?php if (!$forced): ?>
                     <label for="password">Current Password</label>
                     <input type="password" id="password" name="password" placeholder="Enter old password" required>

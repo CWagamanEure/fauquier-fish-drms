@@ -1,0 +1,36 @@
+{
+ "mode": "code",
+ "subject": "wagaman-eure-donor-test-lookup",
+ "round": 1,
+ "approved": true,
+ "reviewed_commit": "c4bae16929f59b1f98b16e2e61a2bed33c7656a9",
+ "tree": "068f5b65aa63c78338fe704d7476ff6778c0d8c7f2d84dc0f971583a1faad17c",
+ "auditors": [
+  {
+   "auditor": "security",
+   "approve": true,
+   "finding_count": 0
+  },
+  {
+   "auditor": "data",
+   "approve": true,
+   "finding_count": 1
+  },
+  {
+   "auditor": "correctness",
+   "approve": true,
+   "finding_count": 2
+  },
+  {
+   "auditor": "verification",
+   "approve": true,
+   "finding_count": 2
+  }
+ ],
+ "findings_by_severity": {
+  "low": 5
+ },
+ "findings_by_status": {
+  "reported": 5
+ }
+}

@@ -1,0 +1,34 @@
+{
+  "mode": "code",
+  "subject": "wagaman-eure-org-contacts",
+  "round": 2,
+  "approved": true,
+  "reviewed_commit": "33e12511cccff0a65c72f547789fd5ae3135f138",
+  "tree": "aabfe2ee331039fd5e8364f675499cb4998123b8f6f64baebbbd70c429ee13f1",
+  "auditors": [
+    {
+      "auditor": "security",
+      "approve": true,
+      "finding_count": 0
+    },
+    {
+      "auditor": "data",
+      "approve": true,
+      "finding_count": 3
+    },
+    {
+      "auditor": "correctness",
+      "approve": true,
+      "finding_count": 2
+    },
+    {
+      "auditor": "verification",
+      "approve": true,
+      "finding_count": 2
+    }
+  ],
+  "counts": {
+    "low/reported": 6,
+    "medium/reported": 1
+  }
+}

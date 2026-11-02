@@ -1,4 +1,7 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(3, true);
+session_write_close();
 header('Content-Type: application/json');
 set_time_limit(120);
 ini_set('display_errors', 0);

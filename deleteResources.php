@@ -1,42 +1,16 @@
 <?php
-    session_cache_expire(30);
-    session_start();
+// Deletes one uploaded document. POST only (require_authentication checks the form token on
+// every POST; auth_require_csrf rejects GET), and the file must be a plain document name inside
+// uploads/, resolved by the same helper download.php uses.
+require_once __DIR__ . '/include/auth.php';
+require_authentication(2);
+auth_require_csrf();
 
-    $loggedin = false;
-    $accesslevel = 0;
-    $userID = null;
-    if (isset($_SESSION['_id'])) {
-        $loggedIn = true;
-        $accessLevel = $_SESSION['access_level'];
-        $userID = $_SESSION['_id'];
-    }
-    // admin-only access
-    if ($accessLevel < 2) {
-        header('Location: index.php');
-        die();
-    }
-    if (!$loggedIn) {
-        header('Location: login.php');
-        die();
-    }
-
-    
-    if (isset($_GET['file'])) {
-        $fileToDelete = $_GET['file'];
-        $target_dir = 'uploads/';
-
-        // Verify target file exists
-        $filePath = $target_dir . $fileToDelete;
-
-        if(file_exists($filePath)) {
-            // Delete target file
-            unlink($filePath);
-            header('Location: resources.php');
-            exit();
-        } else {
-            echo "Error: File does not exist.";
-        }
-    } else {
-        echo "Error: No file specified.";
-    }
-?>
+$path = auth_private_file(__DIR__ . '/uploads', $_POST['file'] ?? '', ['pdf', 'doc', 'docx']);
+if ($path === false) {
+    http_response_code(404);
+    exit('File not found.');
+}
+unlink($path);
+header('Location: resources.php', true, 303);
+exit;

@@ -1,0 +1,37 @@
+{
+  "mode": "ticket",
+  "subject": "wagaman-eure-org-contacts",
+  "round": 2,
+  "approved": true,
+  "auditors": [
+    {
+      "auditor": "security",
+      "approve": true,
+      "finding_count": 1
+    },
+    {
+      "auditor": "data",
+      "approve": true,
+      "finding_count": 2
+    },
+    {
+      "auditor": "correctness",
+      "approve": true,
+      "finding_count": 3
+    },
+    {
+      "auditor": "verification",
+      "approve": true,
+      "finding_count": 4
+    }
+  ],
+  "counts": {
+    "severity": {
+      "low": 6,
+      "medium": 4
+    },
+    "status": {
+      "reported": 10
+    }
+  }
+}

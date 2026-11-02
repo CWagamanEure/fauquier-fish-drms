@@ -1,6 +1,6 @@
 <?php
-    session_cache_expire(30);
-    session_start();
+require_once __DIR__ . '/include/auth.php';
+require_authentication(2);
     ini_set("display_errors",1);
     error_reporting(E_ALL);
     $loggedIn = false;
@@ -72,6 +72,7 @@
                 <h2>Password Reset Form</h2>
                 <p>Use the button below to reset <?php echo $targetUser->get_first_name() . ' ' . $targetUser->get_last_name()?>'s password</p>
                 <form method="post">
+                    <?php echo auth_csrf_field(); ?>
                     <input type="hidden" name="change">
                     <input type="submit" value="Reset Password">
                 </form>

@@ -1,10 +1,11 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(1);
 // Show errors while developing
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-session_start();
 require_once('header.php');
 require_once('universal.inc');
 require_once('database/dbPersons.php');

@@ -1,0 +1,34 @@
+{
+ "mode": "ticket",
+ "subject": "wagaman-eure-pr28-fixes",
+ "round": 3,
+ "approved": true,
+ "auditors": [
+  {
+   "auditor": "security",
+   "approve": true,
+   "finding_count": 0
+  },
+  {
+   "auditor": "data",
+   "approve": true,
+   "finding_count": 1
+  },
+  {
+   "auditor": "correctness",
+   "approve": true,
+   "finding_count": 1
+  },
+  {
+   "auditor": "verification",
+   "approve": true,
+   "finding_count": 2
+  }
+ ],
+ "findings_by_severity": {
+  "low": 4
+ },
+ "findings_by_status": {
+  "reported": 4
+ }
+}

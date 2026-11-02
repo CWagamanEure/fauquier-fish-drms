@@ -1,7 +1,8 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(2);
 require_once 'database/dbinfo.php'; // Include database info (likely for connection check, though not used here)
 
-session_start(); // Start PHP session (not used in the search logic)
 $con = connect();
 
 if ($con) {

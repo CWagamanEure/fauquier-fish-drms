@@ -8,6 +8,7 @@
 <main>
   <div class="main-content-box w-full max-w-3xl p-8 mb-8">
     <form class="signup-form" method="post">
+        <?php echo auth_csrf_field(); ?>
 	<div class="text-center mb-8">
           <h2 class="mb-8">Registration Form</h2>
             <div class="main-content-box border-2 mb-0 shadow-xs w-full p-4">

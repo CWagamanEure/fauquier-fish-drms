@@ -1,10 +1,10 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(1);
     // Template for new VMS pages. Base your new page on this one
 
     // Make session information accessible, allowing us to associate
     // data with the logged-in user.
-    session_cache_expire(30);
-    session_start();
     date_default_timezone_set("America/New_York");
 
     $loggedIn = false;
@@ -294,6 +294,7 @@ if (mysqli_query($connection, $query)) {
             <h2>Edit this time: 
             </h2>            
             <form id="new-event-form" method="post">
+            <?php echo auth_csrf_field(); ?>
             <!-- <p><?= $formattedEndDateTime ?></p>   -->
             <p><strong>Start Time: </strong><?= htmlspecialchars($displayTimeStart); ?></p>  
             <p><strong>End Time: </strong><?= htmlspecialchars($displayTimeEnd); ?></p> 

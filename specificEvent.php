@@ -1,10 +1,10 @@
 <?php
+require_once __DIR__ . '/include/auth.php';
+require_authentication(1);
     // Template for new VMS pages. Base your new page on this one
 
     // Make session information accessible, allowing us to associate
     // data with the logged-in user.
-    session_cache_expire(30);
-    session_start();
     date_default_timezone_set("America/New_York");
 
     $loggedIn = false;
@@ -216,8 +216,9 @@
 
 
 
-            <form action="deleteEvent.php" method="GET">
-                <input type="hidden" name="id" value=<?php echo $event['id'];?>>
+            <form action="deleteEvent.php" method="post">
+                <?php echo auth_csrf_field(); ?>
+                <input type="hidden" name="id" value="<?php echo (int) $event['id']; ?>">
                 <button 
                     type="submit" 
                     onclick="return confirm('Are you sure you want to delete this event? This action cannot be undone.');"

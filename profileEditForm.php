@@ -79,6 +79,7 @@
         <?php endif ?>
     <?php endif ?>
     <form class="signup-form" method="post">
+    <?php echo auth_csrf_field(); ?>
         <br>
 	<p>An asterisk (<em>*</em>) indicates a required field.</p>
     

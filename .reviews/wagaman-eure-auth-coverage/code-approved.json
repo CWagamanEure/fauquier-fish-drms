@@ -1,0 +1,39 @@
+{
+  "mode": "code",
+  "subject": "wagaman-eure-auth-coverage",
+  "round": 1,
+  "approved": true,
+  "reviewed_commit": "15c312e",
+  "tree": "2c93bb8cd9982c0da1bb0ec47f4c90959ddf459698f9b26701c23fa375228301",
+  "auditors": [
+    {
+      "auditor": "security",
+      "approve": true,
+      "finding_count": 3
+    },
+    {
+      "auditor": "data",
+      "approve": true,
+      "finding_count": 1
+    },
+    {
+      "auditor": "correctness",
+      "approve": true,
+      "finding_count": 3
+    },
+    {
+      "auditor": "verification",
+      "approve": true,
+      "finding_count": 2
+    }
+  ],
+  "counts": {
+    "severity": {
+      "low": 9
+    },
+    "status": {
+      "reported": 9
+    }
+  },
+  "accepted_highs": []
+}
