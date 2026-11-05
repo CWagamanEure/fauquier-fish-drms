@@ -30,7 +30,7 @@ $donors = $campaigns = $staff = [];   // id => name
 $loadError = false;
 try {
   if ($canSeeDonors) { $donors = donor_options(); }   // donor names only for accounts that may see donors
-  $staff = comm_staff_options();
+  if ($canSave) { $staff = comm_staff_options(); }    // account ids only for accounts that can save
   $campaigns = comm_campaign_options();
 } catch (mysqli_sql_exception $e) {
   error_log('addCommunication.php: ' . $e->getMessage());
@@ -59,7 +59,7 @@ if ($isPost) {
         header('Location: donorProfile.php?id=' . (int) $form['donor'] . '&tab=comm&comm=1', true, 303);
         exit;
       }
-      $errors[] = 'Could not save the communication. The donor may have just been made inactive; please check and try again.';
+      $errors[] = 'Could not save the communication. Please check the donor is still active and try again; if it keeps failing, ask an administrator.';
     }
   }
 }

@@ -30,7 +30,8 @@
   document.querySelectorAll('.time-clear').forEach((btn) => {
     const input = $(btn.dataset.clear);
     if (!input || input.matches(':disabled')) return;
-    const sync = () => { btn.hidden = input.value === ''; };
+    // A half-typed time reports value '' but badInput, and is clearable too.
+    const sync = () => { btn.hidden = input.value === '' && !input.validity.badInput; };
     input.addEventListener('input', sync);
     input.addEventListener('change', sync);
     sync();

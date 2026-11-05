@@ -67,6 +67,9 @@ function comm_form_validate(array &$form, array $donors, array $staff, array $ca
         $errors[] = 'Choose a donor from the list.';
         $form['donor'] = '';
     }
+    if ($form['person'] === '' && $form['person_other'] !== '') {
+        $form['person'] = COMM_PERSON_OTHER;   // a typed name with the select left on "Not recorded" is kept
+    }
     $form['person_is_staff'] = $form['person'] !== '' && $has($staff, $form['person']);
     if ($form['person_is_staff']) {
         $form['person_other'] = '';
@@ -105,18 +108,20 @@ function comm_form_validate(array &$form, array $donors, array $staff, array $ca
             $errors[] = $label . ' must be ' . COMM_TEXT_MAX[$k] . ' characters or fewer.';
         }
     }
-    // Follow-up: the box, the Follow up status or a date each make it one; nothing is dropped silently.
-    // The box ticked with no date is an error; the Follow up status alone may have no date.
+    // Follow-up (the posted values are kept as posted, so a re-rendered form posts back the same thing):
+    // the box ticked needs a date; a follow-up date is stored whenever one is given, whatever the status;
+    // the stored status becomes follow_up when the box is ticked (comm_stored_status()).
     if ($form['follow_up'] && $form['follow_up_on'] === '') {
         $errors[] = 'Enter the follow-up date, or untick "Remind me to follow up".';
     } elseif ($form['follow_up_on'] !== '' && !donation_valid_date($form['follow_up_on'])) {
         $errors[] = 'Enter a valid follow-up date.';
     }
-    if ($form['follow_up'] || $form['status'] === 'follow_up' || $form['follow_up_on'] !== '') {
-        $form['follow_up'] = 1;
-        $form['status'] = 'follow_up';
-    }
     return $errors;
+}
+
+// The status written for a validated form: the box ticked means follow_up; otherwise the chosen status.
+function comm_stored_status(array $form) {
+    return $form['follow_up'] ? 'follow_up' : $form['status'];
 }
 
 // $form must have passed comm_form_validate() (which sets person_is_staff).
@@ -133,10 +138,12 @@ function comm_create(array $form, array $staff, $byUser) {
     }
     $donorId = (int) $form['donor'];
     $campaignId = $form['campaign'] === '' ? null : (int) $form['campaign'];
-    $occurred = $form['date'] . ' 00:00:00';
+    // Today's contacts get the current time so they sort above earlier rows; past dates have no time.
+    $occurred = $form['date'] === donation_today() ? date('Y-m-d H:i:s') : $form['date'] . ' 00:00:00';
     $subject = $form['subject'] === '' ? null : $form['subject'];
     $summary = $form['summary'] === '' ? null : $form['summary'];
-    $followOn = $form['follow_up'] && $form['follow_up_on'] !== '' ? $form['follow_up_on'] : null;
+    $followOn = $form['follow_up_on'] === '' ? null : $form['follow_up_on'];
+    $status = comm_stored_status($form);
     $con = null;
     try {
         $con = connect();
@@ -152,7 +159,7 @@ function comm_create(array $form, array $staff, $byUser) {
                                    summary, person_contacted, person_contacted_id, status, follow_up_on, recorded_by)
                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         $stmt->bind_param('iissssssssss', $donorId, $campaignId, $occurred, $form['comm_type'], $form['direction'], $subject,
-                          $summary, $personName, $personId, $form['status'], $followOn, $byUser);
+                          $summary, $personName, $personId, $status, $followOn, $byUser);
         $stmt->execute();
         $id = (int) $con->insert_id;
         $stmt->close();
@@ -161,7 +168,10 @@ function comm_create(array $form, array $staff, $byUser) {
         return $id;
     } catch (mysqli_sql_exception $e) {
         error_log('comm_create failed: ' . $e->getMessage());
-        if ($con instanceof mysqli) { try { $con->rollback(); } catch (mysqli_sql_exception $ignored) {} }
+        if ($con instanceof mysqli) {
+            try { $con->rollback(); } catch (mysqli_sql_exception $ignored) {}
+            try { mysqli_close($con); } catch (Throwable $ignored) {}
+        }
         return false;
     }
 }

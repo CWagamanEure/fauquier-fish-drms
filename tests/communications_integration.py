@@ -212,7 +212,7 @@ class CommunicationsTests(unittest.TestCase):
         self.assertEqual(headers["Location"], f"donorProfile.php?id={self.ids['main']}&tab=comm&comm=1")
         [row] = self.rows()
         self.assertEqual(row["campaign_id"], self.ids["open"])
-        self.assertEqual(row["occurred_at"], self.today + " 00:00:00")
+        self.assertTrue(row["occurred_at"].startswith(self.today + " "), row["occurred_at"])   # today: current time
         self.assertEqual((row["comm_type"], row["direction"], row["status"]), ("phone", "inbound", "replied"))
         self.assertEqual((row["subject"], row["summary"]), ("Subject " + self.marker, "Summary " + self.marker))
         self.assertEqual((row["person_contacted_id"], row["person_contacted"]), (self.users["staff"]["id"], "Comms Staff"))
@@ -240,21 +240,33 @@ class CommunicationsTests(unittest.TestCase):
         self.post(staff, self.form(person_contacted=""), status=303)
         [row] = self.rows()
         self.assertEqual((row["person_contacted"], row["person_contacted_id"]), (None, None))
+        # A typed name with the select left on "Not recorded" is kept, not dropped.
+        fixture("clear", donors=[self.ids["main"]])
+        self.post(staff, self.form(person_contacted="", person_contacted_other="Typed Name"), status=303)
+        [row] = self.rows()
+        self.assertEqual((row["person_contacted"], row["person_contacted_id"]), ("Typed Name", None))
+        # A past date is stored without a time.
+        fixture("clear", donors=[self.ids["main"]])
+        self.post(staff, self.form(occurred_at="2026-01-15"), status=303)
+        self.assertEqual(self.rows()[0]["occurred_at"], "2026-01-15 00:00:00")
 
     def test_follow_up_rules(self):
         staff = self.login("staff")
         cases = [
-            ({"follow_up": "on", "follow_up_on": self.tomorrow}, self.tomorrow),
-            ({"status": "follow_up"}, None),
-            ({"status": "follow_up", "follow_up_on": self.tomorrow}, self.tomorrow),
-            ({"follow_up_on": self.tomorrow}, self.tomorrow),   # a date alone is not dropped
+            ({"follow_up": "on", "follow_up_on": self.tomorrow}, "follow_up", self.tomorrow),
+            ({"follow_up": "on", "follow_up_on": self.tomorrow, "status": "bounced"}, "follow_up", self.tomorrow),
+            ({"status": "follow_up"}, "follow_up", None),
+            ({"status": "follow_up", "follow_up_on": self.tomorrow}, "follow_up", self.tomorrow),
+            ({"follow_up_on": self.tomorrow}, "replied", self.tomorrow),   # a date alone is stored, status kept
         ]
-        for extra, date in cases:
+        for extra, status, date in cases:
             with self.subTest(extra=extra):
                 fixture("clear", donors=[self.ids["main"]])
                 self.post(staff, self.form(**extra), status=303)
                 [row] = self.rows()
-                self.assertEqual((row["status"], row["follow_up_on"]), ("follow_up", date))
+                self.assertEqual((row["status"], row["follow_up_on"]), (status, date))
+        fixture("clear", donors=[self.ids["main"]])
+        self.post(staff, self.form(status="follow_up"), status=303)
         body = self.get(staff, f"donorProfile.php?id={self.ids['main']}&tab=comm")
         self.assertIn(">Follow up</span>", body)
         self.assertNotIn("Follow_up", body)
@@ -264,7 +276,12 @@ class CommunicationsTests(unittest.TestCase):
         self.assertIn("Enter the follow-up date", body)
         _, _, body = self.post(staff, self.form(follow_up_on="2026-02-31"), status=200)
         self.assertIn("Enter a valid follow-up date.", body)
+        # Status Follow up with no date plus another error: the re-rendered form posts back cleanly.
+        _, _, body = self.post(staff, self.form(status="follow_up", comm_type=""), status=200)
+        self.assertNotIn('name="follow_up" checked', body)
+        self.assertEqual(selected(body, "status"), "follow_up")
         self.assertEqual(self.rows(), [])
+        self.post(staff, self.form(status="follow_up"), status=303)
 
     def test_invalid_posts_write_nothing_and_keep_values(self):
         staff = self.login("staff")
@@ -272,6 +289,8 @@ class CommunicationsTests(unittest.TestCase):
             "donor 999": ({"donor_id": "999"}, "Choose a donor from the list."),
             "inactive donor": ({"donor_id": str(self.ids["inactive"])}, "Choose a donor from the list."),
             "no donor": ({"donor_id": ""}, "Choose a donor."),
+            "unknown donor": ({"donor_id": "2147480000"}, "Choose a donor from the list."),
+            "long summary": ({"summary": "s" * 5001}, "Summary must be 5000 characters or fewer."),
             "donor not digits": ({"donor_id": f"{self.ids['main']}.0"}, "Choose a donor from the list."),
             "unknown staff": ({"person_contacted": "nobody_" + self.marker}, "Choose the person contacted from the list."),
             "inactive staff": ({"person_contacted": self.users["gone"]["id"]}, "Choose the person contacted from the list."),
@@ -347,8 +366,11 @@ class CommunicationsTests(unittest.TestCase):
 
         staff = self.login("staff")
         self.assertIn('href="addCommunication.php" class="btn btn-outline">+Log Communication', self.get(staff, "dashboard.php"))
-        # No new-contact button for an inactive donor.
+        # No new-contact button for an inactive donor or the anonymous donor.
         self.assertNotIn("Log communication", self.get(staff, f"donorProfile.php?id={self.ids['inactive']}&tab=comm"))
+        self.assertNotIn("Log communication", self.get(staff, "donorProfile.php?id=999&tab=comm"))
+        # Staff account ids are not listed to an account that cannot save.
+        self.assertEqual(set(options(self.get(viewer, "addCommunication.php"), "person")), {"", OTHER})
         self.assertEqual(fixture("count"), before)
 
 

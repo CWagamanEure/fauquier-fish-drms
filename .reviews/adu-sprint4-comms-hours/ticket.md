@@ -72,7 +72,8 @@ In:
      follow_up/bounced (the form's list); person contacted is either a key of the staff list, the special
      value `other` with a typed name (1..255 chars), or empty; campaign empty or a key of the campaign
      list; subject <= 255; summary <= 5000; follow-up date, when given, a valid date; ticking "Remind me
-     to follow up" without a date is an error; a follow-up date with the box unticked is ignored.
+     to follow up" without a date is an error; the follow-up rule is in "Responses to round 1" (code round 1
+     revised it: see code-round-1-responses.md).
    - Insert: `donor_id`, `campaign_id` (NULL when none), `occurred_at` = date + ' 00:00:00', `comm_type`,
      `direction`, `subject`/`summary` (NULL when blank), `person_contacted` (staff display name or the
      typed name, NULL when none), `person_contacted_id` (staff id or NULL), `status` (`follow_up` when the
