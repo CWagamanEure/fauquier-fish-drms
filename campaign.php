@@ -6,6 +6,7 @@ require_once 'include/permissions.php';
 require_once 'include/campaigns-common.php';
 require_once 'database/dbCampaigns.php';
 require_once 'database/dbVolunteerHours.php';
+require_once 'database/dbCommunications.php';   // comm_status_label()
 
 if (!fish_can('campaigns', 'view')) {
   campaign_stop_page(403, 'Campaigns', 'Your account cannot view campaigns.');
@@ -59,7 +60,7 @@ function short_money($n) { return $n >= 1000 ? '$' . number_format($n / 1000, 1)
 function comm_type_label($t) { return h($t === 'in_person' ? 'In person' : ucfirst(str_replace('_', ' ', (string) $t))); }
 function comm_badge($status) {
   $warn = in_array($status, ['bounced', 'failed'], true);
-  return '<span class="status ' . ($warn ? 'pending' : 'active') . '">' . h(ucfirst((string) $status)) . '</span>';
+  return '<span class="status ' . ($warn ? 'pending' : 'active') . '">' . h(comm_status_label($status)) . '</span>';
 }
 function donor_link($donorId, $name) {
   global $canSeeDonors;

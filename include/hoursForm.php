@@ -47,8 +47,15 @@ function hours_form_render(array $v) {
             <div class="group-title">2 &middot; When</div>
             <div class="grid g-vol-when">
               <div class="field"><label for="date">Date *</label><input type="date" id="date" name="date" required max="<?= h(donation_today()) ?>" value="<?= h($form['date']) ?>"></div>
-              <div class="field"><label for="start">Start time</label><input type="time" id="start" name="start_time" value="<?= h($form['start']) ?>"></div>
-              <div class="field"><label for="end">End time</label><input type="time" id="end" name="end_time" value="<?= h($form['end']) ?>"></div>
+              <?php foreach (['start' => ['start_time', 'Start time'], 'end' => ['end_time', 'End time']] as $key => [$field, $label]): ?>
+              <div class="field">
+                <label for="<?= $key ?>"><?= $label ?></label>
+                <div class="time-wrap">
+                  <input type="time" id="<?= $key ?>" name="<?= $field ?>" value="<?= h($form[$key]) ?>">
+                  <?php if (!$readonly): ?><button type="button" class="time-clear" data-clear="<?= $key ?>" aria-label="Clear <?= strtolower($label) ?>" title="Clear <?= strtolower($label) ?>" hidden>&times;</button><?php endif; ?>
+                </div>
+              </div>
+              <?php endforeach; ?>
               <div class="field hours-field">
                 <label for="hours">Hours *</label>
                 <input id="hours" name="hours" inputmode="decimal" required value="<?= h($form['hours']) ?>" placeholder="e.g. 4.5">

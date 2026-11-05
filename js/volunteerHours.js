@@ -19,10 +19,28 @@
     lastAuto = String(Math.round((b - a) * 100 / 60) / 100);
     hours.value = lastAuto;
   }
-  if (start && end && hours && !start.disabled) {
+  if (start && end && hours && !start.matches(':disabled')) {
     start.addEventListener('input', fillHours);
     end.addEventListener('input', fillHours);
   }
+
+  // ---- Clear-time buttons (UF2-145): an x inside Start and End, shown while that field has a value ----
+  // Clearing a time also clears Hours when Hours still holds the value this script filled in; a typed
+  // (or stored) Hours is kept. The PHP renders no x on a read-only entry; the fieldset check is a backstop.
+  document.querySelectorAll('.time-clear').forEach((btn) => {
+    const input = $(btn.dataset.clear);
+    if (!input || input.matches(':disabled')) return;
+    const sync = () => { btn.hidden = input.value === ''; };
+    input.addEventListener('input', sync);
+    input.addEventListener('change', sync);
+    sync();
+    btn.addEventListener('click', () => {
+      input.value = '';
+      if (hours && lastAuto !== null && hours.value === lastAuto) { hours.value = ''; lastAuto = null; }
+      sync();
+      input.focus();
+    });
+  });
 
   // ---- Same shift for more people (add page only) ----
   const box = $('peopleBox');
