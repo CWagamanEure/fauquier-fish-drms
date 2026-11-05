@@ -12,6 +12,7 @@ $popup = '';   // set when a change is refused; shown as a pop-up over the form 
 $form = ['first' => (string) $stored['first_name'], 'last' => (string) $stored['last_name'],
          'username' => $stored['id'], 'email' => (string) $stored['email'], 'role' => $stored['role']];
 $matrix = $stored['matrix'];
+$storedForm = $form;   // what is saved now; put back when a change is refused
 $link = rawurlencode($stored['id']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -58,8 +59,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       }
       if ($result === 'last_admin') {
         http_response_code(403);
-        $popup = 'This user is the last active administrator, so their role cannot be changed. They would be the only person able to change things on the website. Make another user an administrator first.';
-        $form['role'] = $stored['role'];      // show the form as it is saved, not the refused change
+        $popup = 'This user is the last active administrator, so their role cannot be changed and nothing was saved. They would be the only person able to change things on the website. Make another user an administrator first.';
+        $form = $storedForm;                  // nothing was saved: show the form as it is stored
         $matrix = $stored['matrix'];
       } else {
         $errors[] = $result === 'duplicate' ? 'That email is already used by another account.' : 'Could not save the user. Please try again.';

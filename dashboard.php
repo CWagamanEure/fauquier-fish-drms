@@ -26,28 +26,36 @@ function dash_row($con, $sql, array $dates) {
 
 $stats = ['cash' => 0.0, 'cash_ly' => 0.0, 'cash_lm' => 0.0, 'items' => 0.0, 'item_value' => 0.0, 'hours' => 0.0, 'volunteers' => 0];
 $statsError = false;
+// Same gates as the pages that own the data: donations.php for gift totals; donor permissions govern
+// volunteer records (see fish_can_log_hours). A user without the permission sees "No access" instead.
+$canGifts = fish_can('donations', 'view');
+$canHours = fish_can('donors', 'view');
 try {
-  $con = connect();
-  $r = dash_row($con, 'SELECT COALESCE(SUM(amount), 0) AS total FROM donations WHERE donation_date >= ? AND donation_date < ?',
-                [$ymd($monthStart), $ymd($nextStart)]);
-  $stats['cash'] = (float) ($r['total'] ?? 0);
-  $r = dash_row($con, 'SELECT COALESCE(SUM(amount), 0) AS total FROM donations WHERE donation_date >= ? AND donation_date < ?',
-                [$ymd($lyStart), $ymd($lyNext)]);
-  $stats['cash_ly'] = (float) ($r['total'] ?? 0);
-  $r = dash_row($con, 'SELECT COALESCE(SUM(amount), 0) AS total FROM donations WHERE donation_date >= ? AND donation_date < ?',
-                [$ymd($lmStart), $ymd($monthStart)]);
-  $stats['cash_lm'] = (float) ($r['total'] ?? 0);
-  $r = dash_row($con, 'SELECT COALESCE(SUM(quantity), 0) AS items, COALESCE(SUM(estimated_value), 0) AS value
-                       FROM non_cash_donations WHERE date_received >= ? AND date_received < ?',
-                [$ymd($monthStart), $ymd($nextStart)]);
-  $stats['items'] = (float) ($r['items'] ?? 0);
-  $stats['item_value'] = (float) ($r['value'] ?? 0);
-  $r = dash_row($con, 'SELECT COALESCE(SUM(hours), 0) AS hours, COUNT(DISTINCT donor_id) AS people
-                       FROM volunteer_hours WHERE activity_date >= ? AND activity_date < ?',
-                [$ymd($monthStart), $ymd($nextStart)]);
-  $stats['hours'] = (float) ($r['hours'] ?? 0);
-  $stats['volunteers'] = (int) ($r['people'] ?? 0);
-  mysqli_close($con);
+  $con = ($canGifts || $canHours) ? connect() : null;
+  if ($canGifts) {
+    $r = dash_row($con, 'SELECT COALESCE(SUM(amount), 0) AS total FROM donations WHERE donation_date >= ? AND donation_date < ?',
+                  [$ymd($monthStart), $ymd($nextStart)]);
+    $stats['cash'] = (float) ($r['total'] ?? 0);
+    $r = dash_row($con, 'SELECT COALESCE(SUM(amount), 0) AS total FROM donations WHERE donation_date >= ? AND donation_date < ?',
+                  [$ymd($lyStart), $ymd($lyNext)]);
+    $stats['cash_ly'] = (float) ($r['total'] ?? 0);
+    $r = dash_row($con, 'SELECT COALESCE(SUM(amount), 0) AS total FROM donations WHERE donation_date >= ? AND donation_date < ?',
+                  [$ymd($lmStart), $ymd($monthStart)]);
+    $stats['cash_lm'] = (float) ($r['total'] ?? 0);
+    $r = dash_row($con, 'SELECT COALESCE(SUM(quantity), 0) AS items, COALESCE(SUM(estimated_value), 0) AS value
+                         FROM non_cash_donations WHERE date_received >= ? AND date_received < ?',
+                  [$ymd($monthStart), $ymd($nextStart)]);
+    $stats['items'] = (float) ($r['items'] ?? 0);
+    $stats['item_value'] = (float) ($r['value'] ?? 0);
+  }
+  if ($canHours) {
+    $r = dash_row($con, 'SELECT COALESCE(SUM(hours), 0) AS hours, COUNT(DISTINCT donor_id) AS people
+                         FROM volunteer_hours WHERE activity_date >= ? AND activity_date < ?',
+                  [$ymd($monthStart), $ymd($nextStart)]);
+    $stats['hours'] = (float) ($r['hours'] ?? 0);
+    $stats['volunteers'] = (int) ($r['people'] ?? 0);
+  }
+  if ($con) { mysqli_close($con); }
 } catch (mysqli_sql_exception $e) {
   // A database fault must not print the exception into the page; log it and show dashes.
   error_log('dashboard.php: ' . $e->getMessage());
@@ -94,8 +102,10 @@ fishnet_open('Dashboard', 'dashboard', 'dashboard.css');
         <!-- this month's cash gifts (donations.donation_date), compared with last month and the same month last year -->
         <div class="card stat">
           <p class="label"><?= h($monthShort) ?> Cash Donations</p>
-          <p class="big"><?= $statsError ? '&mdash;' : '$' . number_format($stats['cash']) ?></p>
-          <?php if ($statsError): ?>
+          <p class="big"><?= $statsError || !$canGifts ? '&mdash;' : '$' . number_format($stats['cash']) ?></p>
+          <?php if (!$canGifts): ?>
+          <p class="sub">No access to donations</p>
+          <?php elseif ($statsError): ?>
           <p class="sub">Could not load</p>
           <?php else: ?>
           <?= dash_compare_line(dash_change($stats['cash'], $stats['cash_lm']), $lastMonthShort) ?>
@@ -105,14 +115,14 @@ fishnet_open('Dashboard', 'dashboard', 'dashboard.css');
         <!-- this month's non-cash items (non_cash_donations.date_received): total quantity and estimated value -->
         <div class="card stat">
           <p class="label"><?= h($monthShort) ?> Non Cash Donations</p>
-          <p class="big"><?= $statsError ? '&mdash;' : dash_num($stats['items']) ?></p>
-          <p class="sub"><?= $statsError ? 'Could not load' : 'Est Value $' . number_format($stats['item_value']) ?></p>
+          <p class="big"><?= $statsError || !$canGifts ? '&mdash;' : dash_num($stats['items']) ?></p>
+          <p class="sub"><?= !$canGifts ? 'No access to donations' : ($statsError ? 'Could not load' : 'Est Value $' . number_format($stats['item_value'])) ?></p>
         </div>
         <!-- this month's volunteer hours (volunteer_hours.activity_date) and how many different people logged them -->
         <div class="card stat">
           <p class="label"><?= h($monthShort) ?> Volunteer hours</p>
-          <p class="big"><?= $statsError ? '&mdash;' : dash_num($stats['hours']) ?></p>
-          <p class="sub"><?= $statsError ? 'Could not load' : $stats['volunteers'] . ' volunteer' . ($stats['volunteers'] === 1 ? '' : 's') . ' this month' ?></p>
+          <p class="big"><?= $statsError || !$canHours ? '&mdash;' : dash_num($stats['hours']) ?></p>
+          <p class="sub"><?= !$canHours ? 'No access to volunteer records' : ($statsError ? 'Could not load' : $stats['volunteers'] . ' volunteer' . ($stats['volunteers'] === 1 ? '' : 's') . ' this month') ?></p>
         </div>
         <div class="card stat alert">
           <!-- not in this sprint (FAKE) -->
