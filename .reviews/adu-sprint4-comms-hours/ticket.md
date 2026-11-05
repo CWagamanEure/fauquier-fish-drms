@@ -74,7 +74,7 @@ In:
      list; subject <= 255; summary <= 5000; follow-up date, when given, a valid date; ticking "Remind me
      to follow up" without a date is an error; the follow-up rule is in "Responses to round 1" (code round 1
      revised it: see code-round-1-responses.md).
-   - Insert: `donor_id`, `campaign_id` (NULL when none), `occurred_at` = date + ' 00:00:00', `comm_type`,
+   - Insert: `donor_id`, `campaign_id` (NULL when none), `occurred_at` = date + ' 00:00:00' (code round 1: the current time when the date is today), `comm_type`,
      `direction`, `subject`/`summary` (NULL when blank), `person_contacted` (staff display name or the
      typed name, NULL when none), `person_contacted_id` (staff id or NULL), `status` (`follow_up` when the
      box is ticked, else the chosen status), `follow_up_on`, `recorded_by` = the signed-in user id.
@@ -178,9 +178,9 @@ All four auditors approved (0 critical). Changes made to the plan, by finding:
   communications save gate. sql/README.md gets the 014 columns.
 - **Medium (verification) / low (correctness): campaigns suite.** `tests/campaigns_integration.py` is run
   directly in the verification plan and listed in AC11.
-- **Low: follow-up rule.** One rule: a row is a follow-up when the box is ticked, or Status is Follow up,
-  or a follow-up date is given; it then saves `status = 'follow_up'` and the date (if any). The box ticked
-  with no date is an error. Nothing is dropped silently. Each combination is a test case.
+- **Low: follow-up rule.** *(Superseded in code round 1, see code-round-1-responses.md: a follow-up date
+  is stored whenever given; only the ticked box sets `status = 'follow_up'`; Status Follow up alone needs no
+  date; the box ticked with no date is an error.)*
 - **Low (data): re-check donor at insert.** `comm_create()` re-checks `is_active = 1 AND id <> 999` with
   `LOCK IN SHARE MODE` in a transaction before the insert, like `hours_create()`.
 - **Low: enum position.** Appended at the end (see the migration above).

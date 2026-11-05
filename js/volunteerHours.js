@@ -32,8 +32,7 @@
     if (!input || input.matches(':disabled')) return;
     // A half-typed time reports value '' but badInput, and is clearable too.
     const sync = () => { btn.hidden = input.value === '' && !input.validity.badInput; };
-    input.addEventListener('input', sync);
-    input.addEventListener('change', sync);
+    ['input', 'change', 'keyup', 'blur'].forEach((type) => input.addEventListener(type, sync));
     sync();
     btn.addEventListener('click', () => {
       input.value = '';

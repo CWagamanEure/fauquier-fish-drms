@@ -67,11 +67,10 @@ function comm_form_validate(array &$form, array $donors, array $staff, array $ca
         $errors[] = 'Choose a donor from the list.';
         $form['donor'] = '';
     }
-    if ($form['person'] === '' && $form['person_other'] !== '') {
-        $form['person'] = COMM_PERSON_OTHER;   // a typed name with the select left on "Not recorded" is kept
-    }
+    // The select decides: a name left in the (hidden) "Someone else" box is ignored unless Someone else is
+    // picked, so switching back to "Not recorded" really records no one.
     $form['person_is_staff'] = $form['person'] !== '' && $has($staff, $form['person']);
-    if ($form['person_is_staff']) {
+    if ($form['person_is_staff'] || $form['person'] === '') {
         $form['person_other'] = '';
     } elseif ($form['person'] === COMM_PERSON_OTHER) {
         if ($form['person_other'] === '') {

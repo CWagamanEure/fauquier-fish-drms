@@ -240,11 +240,13 @@ class CommunicationsTests(unittest.TestCase):
         self.post(staff, self.form(person_contacted=""), status=303)
         [row] = self.rows()
         self.assertEqual((row["person_contacted"], row["person_contacted_id"]), (None, None))
-        # A typed name with the select left on "Not recorded" is kept, not dropped.
-        fixture("clear", donors=[self.ids["main"]])
-        self.post(staff, self.form(person_contacted="", person_contacted_other="Typed Name"), status=303)
-        [row] = self.rows()
-        self.assertEqual((row["person_contacted"], row["person_contacted_id"]), ("Typed Name", None))
+        # A name left in the hidden "Someone else" box after switching back to "Not recorded" is not saved,
+        # and neither is one left behind when a staff member is picked.
+        for person in ("", self.users["staff"]["id"]):
+            fixture("clear", donors=[self.ids["main"]])
+            self.post(staff, self.form(person_contacted=person, person_contacted_other="Left Behind"), status=303)
+            [row] = self.rows()
+            self.assertNotEqual(row["person_contacted"], "Left Behind")
         # A past date is stored without a time.
         fixture("clear", donors=[self.ids["main"]])
         self.post(staff, self.form(occurred_at="2026-01-15"), status=303)
