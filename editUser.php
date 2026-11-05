@@ -8,9 +8,11 @@ $stored = users_target_or_404();
 $self = users_is_self($stored);
 $canEdit = users_may_manage($stored);       // users edit, and admin accounts only for admins
 $errors = [];
+$popup = '';   // set when a change is refused; shown as a pop-up over the form instead of a blank page
 $form = ['first' => (string) $stored['first_name'], 'last' => (string) $stored['last_name'],
          'username' => $stored['id'], 'email' => (string) $stored['email'], 'role' => $stored['role']];
 $matrix = $stored['matrix'];
+$storedForm = $form;   // what is saved now; put back when a change is refused
 $link = rawurlencode($stored['id']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -32,9 +34,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if ($result === 'last_admin') {
       http_response_code(403);
-      exit('This is the last active administrator and cannot be deactivated.');
+      $popup = 'This user is the last active administrator, so they cannot be deactivated. They would be the only person able to change things on the website. Make another user an administrator first.';
+    } else {
+      $errors[] = 'Could not update the user. Please try again.';
     }
-    $errors[] = 'Could not update the user. Please try again.';
   } else {
     $form = user_form_from_post($_POST, $form);
     $form['username'] = $stored['id'];                   // never posted: the field is read-only
@@ -56,9 +59,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       }
       if ($result === 'last_admin') {
         http_response_code(403);
-        exit('This is the last active administrator and cannot be demoted.');
+        $popup = 'This user is the last active administrator, so their role cannot be changed and nothing was saved. They would be the only person able to change things on the website. Make another user an administrator first.';
+        $form = $storedForm;                  // nothing was saved: show the form as it is stored
+        $matrix = $stored['matrix'];
+      } else {
+        $errors[] = $result === 'duplicate' ? 'That email is already used by another account.' : 'Could not save the user. Please try again.';
       }
-      $errors[] = $result === 'duplicate' ? 'That email is already used by another account.' : 'Could not save the user. Please try again.';
     }
   }
 }
@@ -138,6 +144,15 @@ fishnet_open('Edit user', 'users', 'forms.css');
           <?php endif; ?>
         </aside>
       </form>
+
+<?php if ($popup !== ''): ?>
+      <dialog class="fish-popup" id="fishPopup" open aria-labelledby="fishPopupTitle">
+        <h2 id="fishPopupTitle">This change can&rsquo;t be made</h2>
+        <p><?= h($popup) ?></p>
+        <form method="dialog"><button type="submit" class="btn btn-yellow small">OK</button></form>
+      </dialog>
+      <div class="fish-popup-backdrop" aria-hidden="true"></div>
+<?php endif; ?>
 
 <script src="js/userForm.js"></script>
 

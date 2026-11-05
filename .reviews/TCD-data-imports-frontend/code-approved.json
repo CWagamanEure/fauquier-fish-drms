@@ -1,0 +1,17 @@
+{
+ "mode": "code",
+ "subject": "TCD-data-imports-frontend",
+ "round": 1,
+ "approved": true,
+ "reviewed_commit": "1262f8030c132ab4c1787d5edf71d02f4cc12c6a",
+ "tree": "0993fc860b8709ffe8b1e4a82c2a498bb738100464d67ced7aa92529893ebe2c",
+ "runner": "review-swarm.js auditor prompts run via the Agent tool (Workflow tool unavailable in this session); no criticals, so no skeptic round",
+ "auditors": [
+  {"auditor": "security", "approve": true, "finding_count": 0},
+  {"auditor": "data", "approve": true, "finding_count": 2},
+  {"auditor": "correctness", "approve": true, "finding_count": 2},
+  {"auditor": "verification", "approve": true, "finding_count": 1}
+ ],
+ "findings_by_severity": {"low": 5},
+ "findings_by_status": {"reported": 5}
+}
