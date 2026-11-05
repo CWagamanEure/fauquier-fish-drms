@@ -267,6 +267,7 @@ class VolunteerHoursTests(unittest.TestCase):
         self.assertNotIn("Save changes", body)
         self.assertNotIn("Delete entry", body)
         self.assertIn('value="Hall"', body)
+        self.assertNotIn("time-clear", body)   # UF2-145: no clear-time x on a read-only entry
         self.assertEqual(self.post(viewer, self.add_url(), self.hours_form())[0], 403)
         self.assertEqual(self.post(viewer, entry, self.edit_form(self.ids["timed"], hours="2"))[0], 403)
         self.assertEqual(self.post(viewer, entry, {"action": "delete"})[0], 403)
@@ -405,6 +406,19 @@ class VolunteerHoursTests(unittest.TestCase):
         _, body = self.get(staff, headers["Location"])
         self.assertIn("Hours saved for 3 volunteers.", body)
 
+    def test_clear_time_buttons(self):
+        """UF2-145: an x per time field on editable forms, rendered hidden (the script shows it while the
+        field has a value). The click behaviour is client-side and checked in a browser, not here."""
+        staff = self.login("staff")
+        for path in (self.add_url(), f"hours.php?id={self.ids['timed']}"):
+            with self.subTest(path=path):
+                _, body = self.get(staff, path)
+                for key, label in (("start", "Clear start time"), ("end", "Clear end time")):
+                    self.assertRegex(body, r'<button type="button" class="time-clear" data-clear="' + key
+                                     + r'" aria-label="' + label + r'" title="' + label + r'" hidden>')
+                self.assertIn('name="start_time"', body)
+                self.assertIn('name="end_time"', body)
+
     def test_bad_donor_redirects(self):
         staff = self.login("staff")
         before = fixture("counts")
@@ -532,6 +546,7 @@ class VolunteerHoursTests(unittest.TestCase):
         self.assertNotIn("Save changes", body)
         self.assertNotIn("Delete entry", body)
         self.assertIn("Entries of the anonymous donor cannot be changed.", body)
+        self.assertNotIn("time-clear", body)
         form = {"date": self.today, "hours": "2", "job": "Office help", "action": "save"}
         self.assertEqual(self.post(manager, f"hours.php?id={anon}", form)[0], 403)
         self.assertEqual(self.post(manager, f"hours.php?id={anon}", {"action": "delete"})[0], 403)

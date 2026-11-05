@@ -161,6 +161,19 @@ function donors_lookup($q, $limit = 10) {
     return $rows;
 }
 
+// id => display name of every active, non-anonymous donor (the same filter as the donor list), for a
+// full donor dropdown such as addCommunication.php's.
+function donor_options() {
+    [$where] = donors_list_where('all', '');
+    $con = connect();
+    $stmt = $con->prepare("SELECT id, display_name FROM donor_summary WHERE $where ORDER BY display_name, id");
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    mysqli_close($con);
+    return array_column($rows, 'display_name', 'id');
+}
+
 // One donor_summary row (active or not), or null.
 function donor_get($id) {
     $con = connect();

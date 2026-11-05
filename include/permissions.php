@@ -52,6 +52,12 @@ function fish_can_log_hours() {
     return fish_can('donors', 'view') && fish_can('donors', 'edit');
 }
 
+// Logging a one-on-one communication (addCommunication.php and every link to it): communications view and
+// edit, plus donors view to pick the donor.
+function fish_can_log_communications() {
+    return fish_can('communications', 'view') && fish_can('communications', 'edit') && fish_can('donors', 'view');
+}
+
 // Deleting a volunteer hours entry: the edit page's rights plus donors delete, so the delete panel only
 // appears on a page that is not read-only.
 function fish_can_delete_hours() {
