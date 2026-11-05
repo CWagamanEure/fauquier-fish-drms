@@ -42,6 +42,7 @@ fishnet_open('Data & Imports', 'imports', ['donor.css', 'forms.css', 'imports.cs
           <h1>Data &amp; Imports</h1>
           <p class="lede">Bring spreadsheets in, download data out</p>
         </div>
+        <a href="itemValues.php" class="btn btn-outline">Item values</a>
       </section>
 
       <div class="data-cols">
