@@ -87,7 +87,8 @@ In:
    - CSRF: `auth_require_csrf()` on POST (form already carries `auth_csrf_field()`).
    - Dropdowns filled from the three lookups; values re-selected after a validation error; every value
      escaped with `h()`. "Person contacted" becomes a select of staff plus "Someone else..." which shows a
-     name text box (`person_contacted_other`); with JS off the text box is always visible.
+     name text box (`person_contacted_other`), shown by CSS `:has()` when "Someone else" is picked (always
+     visible where `:has()` is unsupported; a name is stored only when "Someone else" is picked; code round 2).
    - `?donor_id=N` preselects that donor when it is in the list.
    - POST with `kind=one_on_one`: validate, insert, then 303 to `donorProfile.php?id=N&tab=comm`.
    - POST with `kind=outreach`: re-render with the error "Saving outreach posts is not available yet"
