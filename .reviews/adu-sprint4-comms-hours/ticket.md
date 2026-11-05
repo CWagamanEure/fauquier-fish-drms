@@ -46,15 +46,16 @@ In:
    ALTER TABLE communications
      ADD COLUMN IF NOT EXISTS person_contacted_id VARCHAR(256) NULL AFTER person_contacted,
      ADD COLUMN IF NOT EXISTS follow_up_on        DATE         NULL AFTER status,
-     MODIFY COLUMN status ENUM('logged','sent','delivered','opened','replied','follow_up','bounced','failed')
+     MODIFY COLUMN status ENUM('logged','sent','delivered','opened','replied','bounced','failed','follow_up')
                           NOT NULL DEFAULT 'logged',
      ADD INDEX IF NOT EXISTS idx_comm_person_contacted (person_contacted_id);
    -- FK fk_comm_person_contacted -> dbpersons(id) ON DELETE SET NULL ON UPDATE CASCADE, added only when
    -- information_schema shows it missing (same pattern as migration 009).
    ```
    `person_contacted` (text) stays and holds the display name, so existing rows, the seed and the
-   readers (`donor_communications()`, `campaign_communications()`) keep working unchanged. The enum change
-   only appends a value, so no stored row changes. No view reads `communications`.
+   readers (`donor_communications()`, `campaign_communications()`) keep working unchanged. `follow_up` is appended after `failed`, so existing
+   ordinals are unchanged and no stored row changes. `donor_summary` reads only `communications.donor_id` and
+   `occurred_at`, so it needs no recreation.
 
 2. **`database/dbCommunications.php`** (new; every statement prepared):
    - `comm_donor_options()`: id => display_name from `donor_summary` where `is_anonymous = 0 AND
@@ -115,7 +116,7 @@ Out:
 2. "Person contacted" lists active staff accounts (not vmsroot) and "Someone else"; saving a staff
    member stores their id in `person_contacted_id` and their name in `person_contacted`; "Someone else"
    stores the typed name and NULL id; an unknown staff id is refused.
-3. The Campaign dropdown lists campaigns that are not completed; saving one stores its id in
+3. The Campaign dropdown lists the campaigns the hours and donation forms offer (`hours_campaign_names()`); saving one stores its id in
    `campaign_id`; a completed or unknown campaign id is refused.
 4. A valid one-on-one POST inserts exactly one `communications` row with the posted values and
    `recorded_by` = the user, and 303s to the donor profile, where the row shows on the Communications tab.
@@ -127,7 +128,8 @@ Out:
 9. UF2-145: on addHours.php and hours.php (editable), each time field with a value shows an `×`; clicking
    it empties the field and the auto-filled Hours; a typed Hours stays. No `×` on a read-only entry.
 10. Migration 014 runs twice cleanly on a migrated database; existing rows are unchanged.
-11. `make test-auth`, `test-donors`, `test-users`, `test-donations`, `test-hours`, `test-gate` still pass.
+11. `make test-auth`, `test-donors`, `test-users`, `test-donations`, `test-hours`, `test-gate` and
+    `tests/campaigns_integration.py` still pass.
 
 ## Verification plan
 
@@ -147,3 +149,47 @@ Out:
 - A large donor table makes a full `<select>`; acceptable at FISH's size (hundreds), and the donation
   page's lookup widget can replace it later.
 - Teammates must run `make migrate` after merging (014).
+
+## Responses to round 1
+
+All four auditors approved (0 critical). Changes made to the plan, by finding:
+
+- **High (verification, correctness): profile "+ Log communication" links to the missing logCommunication.php.**
+  Fixed in scope: the profile button and the dashboard button point at `addCommunication.php` (the profile
+  one with `?donor_id=N`). The profile button shows only when the account can save a communication
+  (`communications` view + edit, `donors` view), the donor is active and not anonymous, and nothing failed
+  to load (same shape as `$canLogHours`). The profile's Communications tab rows are now shown only with
+  `communications` view (security medium; matches campaign.php). Tested in the comms suite.
+- **Medium (all four): lookups return row lists.** Staff come from
+  `array_column(campaign_owner_options(), 'name', 'id')`; validation compares with
+  `array_key_exists((string) $v, $map)` after string-casting, and campaign ids must be `ctype_digit`.
+  Tests post an id that exists in dbevents but is not offered, and `0`.
+- **Medium (correctness): two definitions of "completed".** The Campaign dropdown uses
+  `hours_campaign_names()` (id => name, same list as the hours and donation forms) instead of
+  `campaigns_options()`. AC3 now reads "campaigns the hours and donation forms offer".
+- **Medium (security): read-only form lists donors.** `comm_donor_options()` runs only with `donors` view.
+- **Medium (correctness, verification): `Follow_up` badge.** `comm_status_label()` in
+  `database/dbCommunications.php` maps statuses to labels; both `comm_badge()` copies use it. The follow-up
+  date is stored only (no reader shows it yet); the badge says "Follow up".
+- **Medium (correctness): readonly x detection.** The PHP does not render the x buttons when
+  `$v['readonly']`; the script additionally checks `closest('fieldset[disabled]')`.
+- **Medium (verification): README.md.** Added to Docs: CI suite list, `make test-comms`, the
+  communications save gate. sql/README.md gets the 014 columns.
+- **Medium (verification) / low (correctness): campaigns suite.** `tests/campaigns_integration.py` is run
+  directly in the verification plan and listed in AC11.
+- **Low: follow-up rule.** One rule: a row is a follow-up when the box is ticked, or Status is Follow up,
+  or a follow-up date is given; it then saves `status = 'follow_up'` and the date (if any). The box ticked
+  with no date is an error. Nothing is dropped silently. Each combination is a test case.
+- **Low (data): re-check donor at insert.** `comm_create()` re-checks `is_active = 1 AND id <> 999` with
+  `LOCK IN SHARE MODE` in a transaction before the insert, like `hours_create()`.
+- **Low: enum position.** Appended at the end (see the migration above).
+- **Low: "no view reads communications".** Corrected above.
+- **Low: `other` sentinel.** The value is `__other__`, which `auth_valid_username()` cannot produce.
+- **Low: redundant CSRF call.** Dropped; the layout's `require_authentication()` already calls
+  `auth_require_csrf()` on POST. AC5's test stays.
+- **Low: donor helper location.** `donor_options()` goes in `database/dbDonors.php`.
+- **Low: test teardown.** The comms suite deletes its communications rows before its donors and users.
+- **Low: AC9 on hours.php.** Reworded: on an existing entry the stored Hours is kept unless the script
+  filled it in this page view. The suite checks the markup (present + hidden on editable forms, absent on
+  read-only); the click behaviour is checked in the headless walk.
+- **Low (data, correctness): out-of-scope pre-existing items.** Noted, not changed here.
