@@ -48,23 +48,27 @@ $preferredOptions = array_values(DONOR_PREFERRED_LABELS);
             <div class="only-org">
               <div class="form-field"><label for="org_name"><span class="only-orgtype">Organization</span><span class="only-fdn">Foundation</span> name *</label><input type="text" id="org_name" name="org_name" value="<?= h($form['org_name']) ?>" placeholder="Name"></div>
 
-              <!-- Contact people for an organization or foundation. Stored in donor_contacts (UF2-129, rules in
-                   sql/README.md); reading contacts[n][...] from the POST is UF2-130. -->
+              <?php
+                $contactRows = $form['contacts'] ?? [];
+                if (!$contactRows) { $contactRows = [['name' => '', 'title' => '', 'email' => '', 'phone' => '']]; }
+                $mainContact = (int) ($form['primary_contact'] ?? 0);
+              ?>
               <div class="contacts">
                 <div class="contacts-head">
                   <span class="lbl" id="contactsLbl">Contact people</span>
                   <button type="button" class="btn btn-outline pill-btn" id="addContact">+ Add contact person</button>
                 </div>
-                <p class="contacts-note" id="contactsNote">Contact people are not saved yet. Until they are, put the main contact's email and phone in the Contact fields below.</p>
-                <div class="contact-list" id="contactList" aria-labelledby="contactsLbl" aria-describedby="contactsNote">
+                <div class="contact-list" id="contactList" aria-labelledby="contactsLbl">
+                  <?php foreach ($contactRows as $i => $c): ?>
                   <div class="contact-row">
-                    <div class="form-field"><label for="contact0_name">Name</label><input id="contact0_name" type="text" name="contacts[0][name]" placeholder="Full name"></div>
-                    <div class="form-field"><label for="contact0_title">Title / role</label><input id="contact0_title" type="text" name="contacts[0][title]" placeholder="e.g. Pastor, Grants manager"></div>
-                    <div class="form-field"><label for="contact0_email">Email</label><input id="contact0_email" type="email" name="contacts[0][email]" placeholder="name@email.com"></div>
-                    <div class="form-field"><label for="contact0_phone">Phone</label><input id="contact0_phone" type="tel" name="contacts[0][phone]" placeholder="(540) 555-0000"></div>
-                    <label class="primary"><input type="radio" name="primary_contact" value="0" checked> Main contact</label>
+                    <div class="form-field"><label for="contact<?= $i ?>_name">Name</label><input id="contact<?= $i ?>_name" type="text" name="contacts[<?= $i ?>][name]" value="<?= h($c['name']) ?>" maxlength="255" placeholder="Full name"></div>
+                    <div class="form-field"><label for="contact<?= $i ?>_title">Title / role</label><input id="contact<?= $i ?>_title" type="text" name="contacts[<?= $i ?>][title]" value="<?= h($c['title']) ?>" maxlength="100" placeholder="e.g. Pastor, Grants manager"></div>
+                    <div class="form-field"><label for="contact<?= $i ?>_email">Email</label><input id="contact<?= $i ?>_email" type="email" name="contacts[<?= $i ?>][email]" value="<?= h($c['email']) ?>" maxlength="100" placeholder="name@email.com"></div>
+                    <div class="form-field"><label for="contact<?= $i ?>_phone">Phone</label><input id="contact<?= $i ?>_phone" type="tel" name="contacts[<?= $i ?>][phone]" value="<?= h($c['phone']) ?>" maxlength="30" placeholder="(540) 555-0000"></div>
+                    <label class="primary"><input type="radio" name="primary_contact" value="<?= $i ?>"<?= $i === $mainContact ? ' checked' : '' ?>> Main contact</label>
                     <button type="button" class="remove-contact" aria-label="Remove this contact">&times;</button>
                   </div>
+                  <?php endforeach; ?>
                 </div>
               </div>
             </div>
