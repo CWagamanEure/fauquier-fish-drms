@@ -471,3 +471,34 @@ function donation_update($kind, $id, array $form) {
         return false;
     }
 }
+
+// ---------- unsaved-donation draft (session only, add mode) ----------
+const DONATION_DRAFT_KEY = 'donation_draft';
+const DONATION_DRAFT_MAX_AGE = 28800;   // 8 hours
+
+// Keeps the posted fields of the add form so a trip to another page does not lose them. Only keys the
+// browser actually posted are kept (disabled fieldsets are not posted), so restoring never blanks a default.
+function donation_draft_save(array $post) {
+    $kind = isset($post['kind']) && is_string($post['kind']) && in_array($post['kind'], ['cash', 'noncash'], true) ? $post['kind'] : '';
+    $form = donation_form_from_post($post, 'cash') + donation_form_from_post($post, 'noncash');
+    $checkboxes = ['send_receipt', 'in_honor'];
+    $kept = [];
+    $meaningful = false;
+    foreach ($form as $k => $v) {
+        if (!in_array($k, $checkboxes, true) && !array_key_exists($k, $post)) { continue; }
+        $kept[$k] = is_string($v) ? mb_substr($v, 0, 1000, 'UTF-8') : $v;
+        if (!in_array($k, ['date_received', 'send_receipt'], true) && $v !== '' && $v !== 0) { $meaningful = true; }
+    }
+    if (!$meaningful) { unset($_SESSION[DONATION_DRAFT_KEY]); return; }
+    $_SESSION[DONATION_DRAFT_KEY] = ['kind' => $kind, 'form' => $kept, 'saved' => time()];
+}
+
+function donation_draft_load() {
+    $d = $_SESSION[DONATION_DRAFT_KEY] ?? null;
+    if (!is_array($d) || !isset($d['form']) || !is_array($d['form']) || time() - (int) ($d['saved'] ?? 0) > DONATION_DRAFT_MAX_AGE) { return null; }
+    return ['kind' => (string) ($d['kind'] ?? ''), 'form' => $d['form']];
+}
+
+function donation_draft_clear() {
+    unset($_SESSION[DONATION_DRAFT_KEY]);
+}

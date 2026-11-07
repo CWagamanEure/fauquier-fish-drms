@@ -159,7 +159,7 @@ def fixture(action, **payload):
 
 def embedded(body, name):
     """The JSON value a page embeds as `const NAME = ...;`."""
-    match = re.search(r"const " + name + r" = (.*?);\n", body)
+    match = re.search(r"const " + name + r" = (.*?);\r?\n", body)
     assert match, name
     return json.loads(match.group(1))
 
@@ -585,9 +585,9 @@ class DonationPagesTests(unittest.TestCase):
                          (float(want["raised"]), int(want["gifts"]), float(want["item_value"]), 1000.0))
         self.assertGreater(got["gifts"], 0)
         self.assertGreater(got["raised"], 0)
-        self.assertNotIn("Thanksgiving Food Drive", body)
+        self.assertNotIn("8,160", body)
         # The campaign name cannot end the script block.
-        script = re.search(r"const CAMPAIGNS = (.*?);\n", body).group(1)
+        script = re.search(r"const CAMPAIGNS = (.*?);\r?\n", body).group(1)
         self.assertNotIn("</script", script)
         self.assertEqual(embedded(body, "CAMPAIGNS")[str(self.ids["xss_campaign"])]["name"], XSS_CAMPAIGN + self.marker)
 
@@ -679,6 +679,57 @@ class DonationPagesTests(unittest.TestCase):
         noview = self.login("noview")
         _, body = self.get(noview, "addDonor.php")
         self.assertNotIn('value="save_add"', body)
+
+    def test_unsaved_donation_draft_and_add_donor_return(self):
+        staff = self.login("staff")
+        donor = self.ids["donor"]
+        note = "draft note " + self.marker
+        before = fixture("counts")
+        draft = {"donor": str(donor), "kind": "cash", "amount": "77", "notes": note, "next": "draft"}
+        self.assertEqual(self.post(staff, "addDonation.php", draft)[::2], (204, ""))
+        self.assertEqual(fixture("counts"), before)                       # a draft writes nothing to the tables
+
+        _, body = self.get(staff, "addDonation.php")                       # plain link: restored
+        self.assertIn("Your unsaved donation was restored", body)
+        self.assertIn('value="77"', body)
+        self.assertIn(f'value="{note}"', body)
+        self.assertIn('value="cash" checked', body)
+        self.assertEqual(embedded(body, "CHOSEN_DONOR")["id"], donor)
+        _, body = self.get(staff, f"addDonation.php?campaign_id={self.ids['open']}")   # entry with a parameter: fresh
+        self.assertNotIn("restored", body)
+        self.assertNotIn('value="77"', body)
+        _, body = self.get(staff, f"addDonation.php?donor={self.ids['xss']}&restore=1")  # restore, other donor chosen
+        self.assertIn('value="77"', body)
+        self.assertEqual(embedded(body, "CHOSEN_DONOR")["id"], self.ids["xss"])
+
+        status, headers, _ = staff.request("addDonation.php?discard=1")   # Cancel
+        self.assertEqual((status, headers["Location"]), (303, "donations.php"))
+        _, body = self.get(staff, "addDonation.php")
+        self.assertNotIn('value="77"', body)
+
+        self.post(staff, "addDonation.php", draft)                         # saving the gift clears the draft
+        status, _, _ = self.post(staff, "addDonation.php", self.cash_form(amount="78", notes=note))
+        self.assertEqual(status, 303)
+        _, body = self.get(staff, "addDonation.php")
+        self.assertNotIn(f'value="{note}"', body)
+
+        self.assertEqual(self.post(self.login("viewer"), "addDonation.php", draft)[0], 403)   # no donations edit
+
+        # Add donor from the donation form: saves, then returns with the new donor chosen.
+        manager = self.login("manager")
+        _, body = self.get(manager, "addDonor.php?return=donation")
+        self.assertIn('action="addDonor.php?return=donation"', body)
+        self.assertIn('href="addDonation.php?restore=1"', body)
+        self.assertNotIn('value="save_add"', body)
+        status, headers, _ = self.post(manager, "addDonor.php?return=donation", {
+            "type": "Individual", "first": "Return", "last": self.marker, "email": "", "phone": "", "preferred": "",
+            "street": "", "city": "", "state": "", "zip": "", "action": "save"})
+        match = re.fullmatch(r"addDonation\.php\?donor=(\d+)&restore=1", headers["Location"])
+        self.assertEqual(status, 303)
+        self.assertIsNotNone(match, headers["Location"])
+        self.addCleanup(fixture, "teardown", donors=[int(match.group(1))], campaigns=[])
+        _, body = self.get(manager, headers["Location"])
+        self.assertEqual(embedded(body, "CHOSEN_DONOR")["id"], int(match.group(1)))
 
     # ---- other pages touched by this change ----
 

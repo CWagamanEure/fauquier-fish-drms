@@ -6,6 +6,7 @@ require_once 'database/dbDonors.php';
 
 $canEdit = fish_can('donors', 'edit');
 $canAddGift = fish_can_record_donations();   // "Save & add donation" only leads somewhere useful with this
+$returnToGift = fish_str($_GET, 'return') === 'donation' && $canAddGift;   // came from the Add donation page
 $errors = [];
 $form = [
   'type'=>'Individual', 'first'=>'', 'middle'=>'', 'last'=>'', 'org_name'=>'',
@@ -23,10 +24,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $errors = donor_form_validate($form);
   if (!$errors) {
     $newId = donor_create($form, auth_current_user()->get_id());
-    if ($newId === false) {
+        if ($newId === false) {
       $errors[] = 'Could not save the donor. Please try again.';
+    } elseif ($returnToGift) {
+      // Back to the donation form with the new donor chosen and the unsaved fields restored.
+      header('Location: addDonation.php?donor=' . $newId . '&restore=1', true, 303);
+      exit;
     } elseif (fish_str($_POST, 'action') === 'save_add' && $canAddGift) {
-      // "Save & add donation": open the donation form with the new donor already chosen (UF2-49).
       header('Location: addDonation.php?donor=' . $newId, true, 303);
       exit;
     } else {
@@ -37,10 +41,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $readOnly = !$canEdit;
-$formAction = 'addDonor.php';
-$buttons = '<a href="donor.php" class="btn btn-outline small">Cancel</a>'
-         . ($canAddGift ? '<button type="submit" name="action" value="save_add" class="btn btn-outline small">Save &amp; add donation</button>' : '')
-         . '<button type="submit" name="action" value="save" class="btn btn-yellow small">Save donor</button>';
+$formAction = 'addDonor.php' . ($returnToGift ? '?return=donation' : '');
+$cancelUrl = $returnToGift ? 'addDonation.php?restore=1' : 'donor.php';
+$buttons = '<a href="' . $cancelUrl . '" class="btn btn-outline small">Cancel</a>'
+         . (!$returnToGift && $canAddGift ? '<button type="submit" name="action" value="save_add" class="btn btn-outline small">Save &amp; add donation</button>' : '')
+         . '<button type="submit" name="action" value="save" class="btn btn-yellow small">' . ($returnToGift ? 'Save &amp; return to donation' : 'Save donor') . '</button>';
 
 fishnet_open('Add donor', 'donor', 'forms.css');
 ?>
