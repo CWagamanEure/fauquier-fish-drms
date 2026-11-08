@@ -1,0 +1,17 @@
+{
+ "mode": "code",
+ "subject": "TCD-smallchange",
+ "round": 2,
+ "approved": true,
+ "reviewed_commit": "d7d169639557b06f00d482cdc53b7ee019bccb36",
+ "tree": "6526ae48bcba6060fe698ca62f40c9f7aaa6b8fca604b0d0a2b35c7534d8fb4e",
+ "runner": "review-swarm.js auditor prompts run via the Agent tool (Workflow tool unavailable in this session); no criticals in either round, so no skeptic round. Round 1 high (security: dashboard totals not permission-gated) fixed before round 2. Diff base: TCD-data-imports-frontend (this branch merges after it).",
+ "auditors": [
+  {"auditor": "security", "approve": true, "finding_count": 1},
+  {"auditor": "data", "approve": true, "finding_count": 0},
+  {"auditor": "correctness", "approve": true, "finding_count": 0},
+  {"auditor": "verification", "approve": true, "finding_count": 2}
+ ],
+ "findings_by_severity": {"low": 3},
+ "findings_by_status": {"reported": 3}
+}

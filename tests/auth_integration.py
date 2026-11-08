@@ -26,7 +26,7 @@ BASE_URL = "http://127.0.0.1"
 # does not also remove its regression coverage. Authenticated writes are limited
 # to temporary accounts owned by this suite.
 PROTECTED_PAGES = """
-dashboard.php dataImports.php donor.php donorProfile.php updateDonor.php
+dashboard.php dataImports.php itemValues.php donor.php donorProfile.php updateDonor.php
 ReportGeneration.php VolunteerRegister.php addDonationHandler.php addDonor.php
 addEvent.php adminViewingEvents.php calendar.php cancelEvent.php changePassword.php
 completeEvent.php date.php deleteEvent.php

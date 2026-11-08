@@ -55,7 +55,7 @@ fishnet_open('Manage Users', 'users', 'donor.css');
                 <td><span class="initials <?= $colours[$i % count($colours)] ?>"><?= h(initials($name)) ?></span><strong><?= h($name) ?></strong></td>
                 <td><?= h($u['id']) ?></td>
                 <td><?= h(user_role_label($u['role'])) ?></td>
-                <td><?= permission_chips($u['matrix']) ?></td>
+                <td class="perm-cell"><?= permission_chips($u['matrix']) ?></td>
                 <td>&mdash;</td><!-- no sign-in times are recorded yet -->
                 <td><span class="status <?= $u['status'] === 'active' ? 'active' : 'off' ?>"><?= $u['status'] === 'active' ? 'Active' : 'Inactive' ?></span></td>
                 <td class="actions"><a href="editUser.php?id=<?= $link ?>" class="edit">Edit</a><a href="userPassword.php?id=<?= $link ?>" class="pw-link">Change password</a></td>
