@@ -1,0 +1,43 @@
+{
+ "mode": "ticket",
+ "subject": "wagaman-eure-export-noncash",
+ "round": 2,
+ "approved": true,
+ "auditors": [
+  {
+   "auditor": "security",
+   "approve": true,
+   "finding_count": 0
+  },
+  {
+   "auditor": "data",
+   "approve": true,
+   "finding_count": 1
+  },
+  {
+   "auditor": "correctness",
+   "approve": true,
+   "finding_count": 2
+  },
+  {
+   "auditor": "verification",
+   "approve": true,
+   "finding_count": 3
+  }
+ ],
+ "findings_by_severity": {
+  "low": 6
+ },
+ "findings_by_status": {
+  "reported": 6
+ },
+ "previous_rounds": {
+  "1": {
+   "approved": false,
+   "critical": 1,
+   "high": 2,
+   "medium": 3,
+   "low": 8
+  }
+ }
+}

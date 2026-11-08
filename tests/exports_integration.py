@@ -19,6 +19,9 @@ from auth_integration import Browser, ROOT, assert_no_php_errors_in  # noqa: E40
 PREFIX = "ExportSuite"   # fixed, so a crashed run's leftovers can be found and removed
 HEADER = ["Gift ID", "Date", "Donor ID", "Donor", "Amount", "Fee", "Net", "Payment method", "Check number",
           "Platform", "Deposit date", "Campaign", "In honor of", "Receipt sent", "Recorded by", "Notes"]
+NC_HEADER = ["Gift ID", "Date received", "Donor ID", "Donor", "Item description", "Category", "Quantity (items)",
+             "Weight (lbs)", "Estimated value", "Condition", "Given out so far (items)", "Intended use", "Campaign",
+             "Receipt sent", "Recorded by", "Notes"]
 MULTILINE_NOTE = 'comma, "quoted"\nsecond line'
 
 FIXTURES_PHP = r"""
@@ -37,10 +40,14 @@ $run = function ($sql, $types = '', ...$values) use ($con) {
     return $rows;
 };
 $outside = "(d.donation_date BETWEEN '1901-01-01' AND '1901-12-31' OR d.donation_date BETWEEN '1900-01-01' AND '1900-01-02')";
+$outsideNc = "(n.date_received BETWEEN '1901-01-01' AND '1901-12-31' OR n.date_received BETWEEN '1900-01-01' AND '1900-01-02')";
 switch ($req['action']) {
     case 'clean':
         // Leftovers of an earlier run that stopped before its cleanup: rows tied to the suite's fixed prefix.
         $p = $req['prefix'] . '%';
+        // Non-cash gifts first: their donor FK is RESTRICT and their campaign FK is SET NULL. Distributions cascade.
+        $run("DELETE n FROM non_cash_donations n LEFT JOIN donors o ON o.id = n.donor_id LEFT JOIN dbevents e ON e.id = n.campaign_id
+              WHERE $outsideNc AND (o.`last` LIKE ? OR e.name LIKE ?)", 'ss', $p, '@' . $p);
         $run("DELETE d FROM donations d LEFT JOIN donors o ON o.id = d.donorID LEFT JOIN dbevents e ON e.id = d.eventID
               WHERE $outside AND (o.`last` LIKE ? OR e.name LIKE ?)", 'ss', $p, '@' . $p);
         $run("DELETE FROM dbevents WHERE name LIKE ?", 's', '@' . $p);
@@ -48,6 +55,7 @@ switch ($req['action']) {
         $run("DELETE FROM user_permissions WHERE user_id LIKE 'export\\_test\\_%'");
         $run("DELETE FROM dbpersons WHERE id LIKE 'export\\_test\\_%'");
         $out = ['left' => (int) $run("SELECT COUNT(*) AS n FROM donations d WHERE $outside")[0]['n'],
+                'left_noncash' => (int) $run("SELECT COUNT(*) AS n FROM non_cash_donations n WHERE $outsideNc")[0]['n'],
                 'demo' => (int) $run("SELECT COUNT(*) AS n FROM donors WHERE notes LIKE '[demo]%'")[0]['n']];
         break;
     case 'users_create':
@@ -100,8 +108,34 @@ switch ($req['action']) {
         $gift('zero', '1901-03-25', ['amount' => '0.00', 'fee' => '10.00']);
         $gift('last', '1901-03-31', ['amount' => '7.00']);
         $gift('after', '1901-04-01', []);
+        // Non-cash gifts: every one on the suite campaign, so clean can always find it through the prefix.
+        $item = function ($key, $date, array $set) use ($run, $con, $donor, $campaign, &$out) {
+            $cols = array_merge(['donor_id' => $donor, 'campaign_id' => $campaign, 'date_received' => $date,
+                                 'item_description' => 'Canned beans', 'category' => 'canned_food', 'quantity' => '10.00',
+                                 'weight_lbs' => '12.50', 'intended_use' => 'Food pantry'], $set);
+            $names = implode(', ', array_map(function ($c) { return "`$c`"; }, array_keys($cols)));
+            $marks = implode(', ', array_fill(0, count($cols), '?'));
+            $run("INSERT INTO non_cash_donations ($names) VALUES ($marks)", str_repeat('s', count($cols)),
+                 ...array_map(function ($v) { return $v === null ? null : (string) $v; }, array_values($cols)));
+            $out['noncash'][$key] = (int) $con->insert_id;
+        };
+        $out['noncash'] = [];
+        $item('before', '1901-02-28', []);
+        $item('first', '1901-03-01', ['item_description' => '-Canned beans', 'category' => 'clothing', 'quantity' => '24.00',
+              'weight_lbs' => '18.50', 'estimated_value' => '60.00', 'item_condition' => 'gently_used',
+              'intended_use' => '+Pantry', 'receipt_sent_at' => '1901-03-05 09:00:00', 'recorded_by' => $req['recorder'],
+              'notes' => '=SUM(1)']);
+        foreach (['3.00', '2.00'] as $qty) {
+            $run("INSERT INTO non_cash_distributions (non_cash_donation_id, distributed_on, quantity) VALUES (?, '1901-03-20', ?)",
+                 'is', $out['noncash']['first'], $qty);
+        }
+        $item('anon', '1901-03-10', ['donor_id' => 999]);
+        $item('last', '1901-03-31', ['weight_lbs' => null, 'item_condition' => null]);
+        $item('after', '1901-04-01', []);
         break;
     case 'teardown':
+        // Non-cash first (RESTRICT donor FK, SET NULL campaign FK); their distributions cascade.
+        $run('DELETE FROM non_cash_donations WHERE donor_id = ? OR campaign_id = ?', 'ii', $req['donor'], $req['campaign']);
         $run('DELETE FROM donations WHERE donorID = ? OR eventID = ?', 'ii', $req['donor'], $req['campaign']);
         $run('DELETE FROM dbevents WHERE id = ?', 'i', $req['campaign']);
         $run('DELETE FROM donors WHERE id = ?', 'i', $req['donor']);
@@ -130,7 +164,7 @@ def parse_csv(body):
 
 
 class CashExportTests(unittest.TestCase):
-    """UF2-133 cash donations export, against fixture gifts dated in 1901."""
+    """UF2-133 cash and UF2-134 non-cash donations exports, against fixture gifts dated in 1901."""
 
     @classmethod
     def setUpClass(cls):
@@ -138,8 +172,11 @@ class CashExportTests(unittest.TestCase):
         state = fixture("clean", prefix=PREFIX)
         if state["demo"] == 0:
             raise AssertionError("run make seed-demo before make test-exports")
+        if state["left_noncash"] != 0:
+            raise AssertionError("non-cash gifts received in 1901 or on 1900-01-01..02 exist that this suite did not "
+                                 "make; the suite needs those dates empty")
         if state["left"] != 0:
-            raise AssertionError("donations dated in 1901 or on 1900-01-01..02 exist that this suite did not make; "
+            raise AssertionError("cash donations dated in 1901 or on 1900-01-01..02 exist that this suite did not make; "
                                  "the suite needs those dates empty")
         cls.users = {role: {"id": f"export_test_{role}_{secrets.token_hex(4)}", "name": f"Export test {role}",
                             "first": "Rita", "last": "Recorder" if role == "manager" else role.capitalize(),
@@ -241,7 +278,7 @@ class CashExportTests(unittest.TestCase):
         """Exports that are not built redirect as unavailable, whatever the permission."""
         for role in ("manager", "noexport"):
             browser = self.login(role)
-            for name in ("emails", "noncash", "junk", ""):
+            for name in ("emails", "junk", ""):
                 with self.subTest(role=role, export=name):
                     status, headers, _ = self.export(browser, {"export": name})
                     self.assertEqual(status, 303)
@@ -279,12 +316,12 @@ class CashExportTests(unittest.TestCase):
         """Button states and error messages on dataImports.php."""
         _, _, body = Browser.request(self.login("staff"), "dataImports.php")
         assert_no_php_errors_in(self, body)
-        self.assertEqual(body.count('action="exportData.php"'), 1)
-        self.assertEqual(body.count(">Coming soon</button>"), 7)
+        self.assertEqual(body.count('action="exportData.php"'), 2)
+        self.assertEqual(body.count(">Coming soon</button>"), 6)
         self.assertNotIn(">No access</button>", body)
         self.assertIn('id="export"', body)
         _, _, body = self.login("noexport").request("dataImports.php")
-        self.assertIn(">No access</button>", body)
+        self.assertEqual(body.count(">No access</button>"), 2)
         self.assertEqual(body.count(">Export CSV</button>"), 0)
         manager = self.login("manager")
         for code, text in (("dates", "Pick a From date on or before the To date."),
@@ -296,6 +333,68 @@ class CashExportTests(unittest.TestCase):
         _, _, body = manager.request("dataImports.php?export_error=%3Cscript%3E")
         self.assertNotIn('class="form-errors"', body)
         self.assertNotIn("<script>", body)
+
+    def noncash(self, browser, start="1901-03-01", end="1901-03-31"):
+        """Requests the non-cash export for a date range."""
+        return self.export(browser, {"export": "noncash", "from": start, "to": end})
+
+    def test_noncash_export_file(self):
+        """UF2-134: headers, columns, range ends, order, labels, blanks, decimals, given out and escaping."""
+        status, headers, body = self.noncash(self.login("manager"))
+        self.assertEqual(status, 200, body[:300])
+        self.assertEqual(headers["Content-Type"], "text/csv; charset=utf-8")
+        self.assertEqual(headers["Content-Disposition"],
+                         'attachment; filename="fish-noncash-donations-1901-03-01-to-1901-03-31.csv"')
+        self.assertIn("no-store", headers["Cache-Control"])
+        assert_no_php_errors_in(self, body)
+        rows = parse_csv(body)
+        self.assertEqual(rows[0], NC_HEADER)
+        nc = self.ids["noncash"]
+        # Both ends included, the day before and after left out, ordered by date then id.
+        self.assertEqual([int(r[0]) for r in rows[1:]], [nc[k] for k in ("first", "anon", "last")])
+        by_id = {int(r[0]): dict(zip(NC_HEADER, r)) for r in rows[1:]}
+        self.assertEqual(by_id[nc["first"]], {
+            "Gift ID": str(nc["first"]), "Date received": "1901-03-01", "Donor ID": str(self.ids["donor"]),
+            "Donor": "'+Export " + self.marker, "Item description": "'-Canned beans", "Category": "Clothing",
+            "Quantity (items)": "24.00", "Weight (lbs)": "18.50", "Estimated value": "60.00", "Condition": "Gently used",
+            "Given out so far (items)": "5.00", "Intended use": "'+Pantry", "Campaign": "'@" + self.marker,
+            "Receipt sent": "1901-03-05", "Recorded by": "Rita R.", "Notes": "'=SUM(1)"})
+        anon = by_id[nc["anon"]]
+        self.assertEqual((anon["Donor ID"], anon["Donor"], anon["Category"], anon["Given out so far (items)"]),
+                         ("999", "Anonymous", "Canned food", "0.00"))
+        last = by_id[nc["last"]]
+        self.assertEqual((last["Weight (lbs)"], last["Condition"], last["Estimated value"], last["Quantity (items)"],
+                          last["Item description"], last["Receipt sent"], last["Recorded by"]),
+                         ("", "", "", "10.00", "Canned beans", "", ""))
+
+    def test_noncash_empty_range_and_bad_dates(self):
+        """An empty range gives the header only; bad dates redirect without a file."""
+        manager = self.login("manager")
+        status, _, body = self.noncash(manager, "1900-01-01", "1900-01-02")
+        self.assertEqual(status, 200)
+        self.assertEqual(body, "\ufeff" + ",".join(f'"{h}"' if " " in h else h for h in NC_HEADER) + "\r\n")
+        for start, end in (("1901-03-31", "1901-03-01"), ("", ""), ("2026-02-30", "2026-03-01")):
+            with self.subTest(start=start, end=end):
+                status, headers, body = self.noncash(manager, start, end)
+                self.assertEqual(status, 303, body[:300])
+                self.assertEqual(headers["Location"], "dataImports.php?export_error=dates#export")
+                self.assertNotIn("text/csv", headers.get("Content-Type", ""))
+
+    def test_noncash_permissions(self):
+        """Staff and viewer can export, no donations view gets 403, no donors view blanks Donor ID."""
+        for role in ("staff", "viewer"):
+            with self.subTest(role=role):
+                status, _, body = self.noncash(self.login(role))
+                self.assertEqual(status, 200, body[:300])
+                self.assertIn(str(self.ids["noncash"]["first"]), body)
+        status, headers, body = self.noncash(self.login("noexport"))
+        self.assertEqual(status, 403)
+        self.assertNotIn(self.marker, body)
+        self.assertNotIn("Canned beans", body)
+        self.assertNotIn("text/csv", headers.get("Content-Type", ""))
+        status, _, body = self.noncash(self.login("nodonors"))
+        self.assertEqual(status, 200)
+        self.assertEqual({r[2] for r in parse_csv(body)[1:]}, {""})
 
 
 if __name__ == "__main__":

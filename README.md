@@ -98,8 +98,8 @@ Report, export, import and email handlers release their session locks during lon
 operations so sign-out completes immediately, and imports save their result only if the
 original session is still authenticated when processing finishes. Stored report files, legacy
 exports and uploaded documents are served through `download.php`; the Data & Imports CSV exports are generated
-and streamed by `exportData.php` and follow each export's own permission (the cash export follows donations
-view; the 'Data imports' permission area governs imports only); direct file URLs are denied by Apache
+and streamed by `exportData.php` and follow each export's own permission (the cash and non-cash exports follow
+donations view; the 'Data imports' permission area governs imports only); direct file URLs are denied by Apache
 (`docker/apache.conf` and the `.htaccess` files, which must be preserved on other hosts).
 Rebuild the web image with `make dev` after pulling this change. Existing sessions must log
 in again.
@@ -148,8 +148,8 @@ entries it creates and removes itself. `make test-comms` (after `make seed-demo`
 `tests/communications_integration.py`: the one-on-one form's donor, person contacted and campaign lists,
 saving (including "Someone else" and the follow-up rules), validation, the profile's Communications tab and
 the permission gates, on donors, campaigns and users it creates and removes itself. `make test-exports` (after
-`make seed-demo`) runs `tests/exports_integration.py`: the cash donations CSV from Data & Imports (UF2-133),
-its date range, columns, formula escaping, error redirects and permission gates, on gifts dated in 1901 that it
+`make seed-demo`) runs `tests/exports_integration.py`: the cash (UF2-133) and non-cash (UF2-134) donations
+CSVs from Data & Imports, their date range, columns, formula escaping, error redirects and permission gates, on gifts dated in 1901 that it
 creates and removes itself. Run them only against a local development database.
 
 ## Purpose
