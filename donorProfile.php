@@ -19,14 +19,14 @@ try {
       $items = donor_noncash_history($id);
     }
     $vol   = donor_hours_history($id);
-    $comms = donor_communications($id);
-
     if (fish_can('communications', 'view')) {   // same gate as campaign.php's Communications tab
       $comms = donor_communications($id);
     }
     if ($donor['donor_type'] === 'organization' && fish_can('donors', 'view')) {
       $contacts = donor_contacts_get($id);
       usort($contacts, function ($a, $b) { return $b['is_primary'] <=> $a['is_primary']; });   // main contact first
+    }
+  }
 } catch (mysqli_sql_exception $e) {
   // A database fault must not print the exception into the page; log it and show an empty profile.
   error_log('donorProfile.php: ' . $e->getMessage());
