@@ -19,6 +19,8 @@ from auth_integration import Browser, ROOT, assert_no_php_errors_in  # noqa: E40
 PREFIX = "ExportSuite"   # fixed, so a crashed run's leftovers can be found and removed
 HEADER = ["Gift ID", "Date", "Donor ID", "Donor", "Amount", "Fee", "Net", "Payment method", "Check number",
           "Platform", "Deposit date", "Campaign", "In honor of", "Receipt sent", "Recorded by", "Notes"]
+HOURS_HEADER = ["Entry ID", "Date", "Volunteer ID", "Volunteer", "Hours", "Start time", "End time", "Job", "Location",
+                "Campaign", "Verified", "Counts for letter", "Recorded by", "Notes"]
 NC_HEADER = ["Gift ID", "Date received", "Donor ID", "Donor", "Item description", "Category", "Quantity (items)",
              "Weight (lbs)", "Estimated value", "Condition", "Given out so far (items)", "Intended use", "Campaign",
              "Receipt sent", "Recorded by", "Notes"]
@@ -40,12 +42,17 @@ $run = function ($sql, $types = '', ...$values) use ($con) {
     return $rows;
 };
 $outside = "(d.donation_date BETWEEN '1901-01-01' AND '1901-12-31' OR d.donation_date BETWEEN '1900-01-01' AND '1900-01-02')";
+$outsideVh = "(v.activity_date BETWEEN '1901-01-01' AND '1901-12-31' OR v.activity_date BETWEEN '1900-01-01' AND '1900-01-02')";
 $outsideNc = "(n.date_received BETWEEN '1901-01-01' AND '1901-12-31' OR n.date_received BETWEEN '1900-01-01' AND '1900-01-02')";
 switch ($req['action']) {
     case 'clean':
         // Leftovers of an earlier run that stopped before its cleanup: rows tied to the suite's fixed prefix.
         $p = $req['prefix'] . '%';
-        // Non-cash gifts first: their donor FK is RESTRICT and their campaign FK is SET NULL. Distributions cascade.
+        // Hours and non-cash gifts first: their donor FKs are RESTRICT and their campaign FKs SET NULL. Hours changes
+        // and distributions cascade.
+        $run("DELETE v FROM volunteer_hours v LEFT JOIN donors o ON o.id = v.donor_id LEFT JOIN dbevents e ON e.id = v.campaign_id
+              WHERE $outsideVh AND (o.`last` LIKE ? OR e.name LIKE ?)", 'ss', $p, '@' . $p);
+        // Non-cash gifts: their donor FK is RESTRICT and their campaign FK is SET NULL. Distributions cascade.
         $run("DELETE n FROM non_cash_donations n LEFT JOIN donors o ON o.id = n.donor_id LEFT JOIN dbevents e ON e.id = n.campaign_id
               WHERE $outsideNc AND (o.`last` LIKE ? OR e.name LIKE ?)", 'ss', $p, '@' . $p);
         $run("DELETE d FROM donations d LEFT JOIN donors o ON o.id = d.donorID LEFT JOIN dbevents e ON e.id = d.eventID
@@ -55,6 +62,7 @@ switch ($req['action']) {
         $run("DELETE FROM user_permissions WHERE user_id LIKE 'export\\_test\\_%'");
         $run("DELETE FROM dbpersons WHERE id LIKE 'export\\_test\\_%'");
         $out = ['left' => (int) $run("SELECT COUNT(*) AS n FROM donations d WHERE $outside")[0]['n'],
+                'left_hours' => (int) $run("SELECT COUNT(*) AS n FROM volunteer_hours v WHERE $outsideVh")[0]['n'],
                 'left_noncash' => (int) $run("SELECT COUNT(*) AS n FROM non_cash_donations n WHERE $outsideNc")[0]['n'],
                 'demo' => (int) $run("SELECT COUNT(*) AS n FROM donors WHERE notes LIKE '[demo]%'")[0]['n']];
         break;
@@ -132,13 +140,34 @@ switch ($req['action']) {
         $item('anon', '1901-03-10', ['donor_id' => 999]);
         $item('last', '1901-03-31', ['weight_lbs' => null, 'item_condition' => null]);
         $item('after', '1901-04-01', []);
+        // Volunteer hours: the suite donor's entries, and one for donor 999 that only the suite campaign ties to the suite.
+        $shift = function ($key, $date, array $set) use ($run, $con, $donor, $campaign, &$out) {
+            $cols = array_merge(['donor_id' => $donor, 'campaign_id' => $campaign, 'activity_date' => $date, 'hours' => '1.00'], $set);
+            $names = implode(', ', array_map(function ($c) { return "`$c`"; }, array_keys($cols)));
+            $marks = implode(', ', array_fill(0, count($cols), '?'));
+            $run("INSERT INTO volunteer_hours ($names) VALUES ($marks)", str_repeat('s', count($cols)),
+                 ...array_map(function ($v) { return $v === null ? null : (string) $v; }, array_values($cols)));
+            $out['hours'][$key] = (int) $con->insert_id;
+        };
+        $out['hours'] = [];
+        $shift('first', '1901-03-01', ['hours' => '4.50', 'start_time' => '09:00:00', 'end_time' => '13:30:00',
+               'job' => '=Driver', 'location' => '+Annex', 'notes' => '@note', 'is_verified' => 1,
+               'counts_for_letter' => 1, 'recorded_by' => $req['recorder']]);
+        $shift('second', '1901-03-01', ['job' => 'Pantry sorting']);
+        $shift('anon', '1901-03-10', ['donor_id' => 999]);
+        $shift('last', '1901-06-15', ['hours' => '2.00', 'campaign_id' => null]);
         break;
     case 'teardown':
-        // Non-cash first (RESTRICT donor FK, SET NULL campaign FK); their distributions cascade.
+        // Hours, then non-cash, before dbevents and donors: RESTRICT donor FKs, and SET NULL campaign FKs would
+        // otherwise orphan the donor-999 rows that only the campaign ties to the suite. Children cascade.
+        $run('DELETE FROM volunteer_hours WHERE donor_id = ? OR campaign_id = ?', 'ii', $req['donor'], $req['campaign']);
         $run('DELETE FROM non_cash_donations WHERE donor_id = ? OR campaign_id = ?', 'ii', $req['donor'], $req['campaign']);
         $run('DELETE FROM donations WHERE donorID = ? OR eventID = ?', 'ii', $req['donor'], $req['campaign']);
         $run('DELETE FROM dbevents WHERE id = ?', 'i', $req['campaign']);
         $run('DELETE FROM donors WHERE id = ?', 'i', $req['donor']);
+        break;
+    case 'today':
+        $out = date('Y-m-d');
         break;
     case 'anonymous_name':
         $out = $run('SELECT display_name FROM donor_summary WHERE id = 999')[0]['display_name'] ?? null;
@@ -164,7 +193,8 @@ def parse_csv(body):
 
 
 class CashExportTests(unittest.TestCase):
-    """UF2-133 cash and UF2-134 non-cash donations exports, against fixture gifts dated in 1901."""
+    """UF2-133 cash, UF2-134 non-cash and UF2-138 volunteer hours exports, against gifts and volunteer hours
+    entries dated in 1901."""
 
     @classmethod
     def setUpClass(cls):
@@ -172,6 +202,9 @@ class CashExportTests(unittest.TestCase):
         state = fixture("clean", prefix=PREFIX)
         if state["demo"] == 0:
             raise AssertionError("run make seed-demo before make test-exports")
+        if state["left_hours"] != 0:
+            raise AssertionError("volunteer hours dated in 1901 or on 1900-01-01..02 exist that this suite did not make; "
+                                 "the suite needs those dates empty")
         if state["left_noncash"] != 0:
             raise AssertionError("non-cash gifts received in 1901 or on 1900-01-01..02 exist that this suite did not "
                                  "make; the suite needs those dates empty")
@@ -316,13 +349,16 @@ class CashExportTests(unittest.TestCase):
         """Button states and error messages on dataImports.php."""
         _, _, body = Browser.request(self.login("staff"), "dataImports.php")
         assert_no_php_errors_in(self, body)
-        self.assertEqual(body.count('action="exportData.php"'), 2)
-        self.assertEqual(body.count(">Coming soon</button>"), 6)
+        self.assertEqual(body.count('action="exportData.php"'), 3)
+        self.assertEqual(body.count(">Coming soon</button>"), 5)
         self.assertNotIn(">No access</button>", body)
         self.assertIn('id="export"', body)
         _, _, body = self.login("noexport").request("dataImports.php")
         self.assertEqual(body.count(">No access</button>"), 2)
-        self.assertEqual(body.count(">Export CSV</button>"), 0)
+        self.assertEqual(body.count(">Export CSV</button>"), 1)
+        _, _, body = self.login("nodonors").request("dataImports.php")
+        self.assertEqual(body.count(">No access</button>"), 1)
+        self.assertEqual(body.count(">Export CSV</button>"), 2)
         manager = self.login("manager")
         for code, text in (("dates", "Pick a From date on or before the To date."),
                            ("unavailable", "That export is not available yet."),
@@ -395,6 +431,66 @@ class CashExportTests(unittest.TestCase):
         status, _, body = self.noncash(self.login("nodonors"))
         self.assertEqual(status, 200)
         self.assertEqual({r[2] for r in parse_csv(body)[1:]}, {""})
+
+    def hours(self, browser):
+        """Requests the volunteer hours export."""
+        return self.export(browser, {"export": "hours"})
+
+    def test_hours_export_file(self):
+        """UF2-138: headers, filename date, order, values, blanks, Yes/No, times, escaping and Anonymous."""
+        before = fixture("today")
+        status, headers, body = self.hours(self.login("manager"))
+        after = fixture("today")
+        self.assertEqual(status, 200, body[:300])
+        self.assertEqual(headers["Content-Type"], "text/csv; charset=utf-8")
+        self.assertIn(headers["Content-Disposition"],
+                      {f'attachment; filename="fish-volunteer-hours-{d}.csv"' for d in (before, after)})
+        self.assertIn("no-store", headers["Cache-Control"])
+        self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
+        assert_no_php_errors_in(self, body)
+        rows = parse_csv(body)
+        self.assertEqual(rows[0], HOURS_HEADER)
+        hrs = self.ids["hours"]
+        suite = [int(r[0]) for r in rows[1:] if int(r[0]) in set(hrs.values())]
+        self.assertEqual(suite, [hrs[k] for k in ("first", "second", "anon", "last")])
+        self.assertEqual([r for r in rows[1:] if r[1].startswith("1901-") and int(r[0]) not in set(hrs.values())], [])
+        by_id = {int(r[0]): dict(zip(HOURS_HEADER, r)) for r in rows[1:]}
+        self.assertEqual(by_id[hrs["first"]], {
+            "Entry ID": str(hrs["first"]), "Date": "1901-03-01", "Volunteer ID": str(self.ids["donor"]),
+            "Volunteer": "'+Export " + self.marker, "Hours": "4.50", "Start time": "09:00", "End time": "13:30",
+            "Job": "'=Driver", "Location": "'+Annex", "Campaign": "'@" + self.marker, "Verified": "Yes",
+            "Counts for letter": "Yes", "Recorded by": "Rita R.", "Notes": "'@note"})
+        anon = by_id[hrs["anon"]]
+        self.assertEqual((anon["Volunteer ID"], anon["Volunteer"]), ("999", "Anonymous"))
+        last = by_id[hrs["last"]]
+        self.assertEqual(last, {
+            "Entry ID": str(hrs["last"]), "Date": "1901-06-15", "Volunteer ID": str(self.ids["donor"]),
+            "Volunteer": "'+Export " + self.marker, "Hours": "2.00", "Start time": "", "End time": "", "Job": "",
+            "Location": "", "Campaign": "", "Verified": "No", "Counts for letter": "No", "Recorded by": "",
+            "Notes": ""})
+
+    def test_hours_permissions(self):
+        """Donors view is the rule: noexport (no donations view) and viewer get the file, nodonors gets 403."""
+        for role in ("noexport", "viewer", "staff"):
+            with self.subTest(role=role):
+                status, _, body = self.hours(self.login(role))
+                self.assertEqual(status, 200, body[:300])
+                self.assertIn(str(self.ids["hours"]["first"]), {r[0] for r in parse_csv(body)[1:]})
+        status, headers, body = self.hours(self.login("nodonors"))
+        self.assertEqual(status, 403)
+        self.assertNotIn(self.marker, body)
+        self.assertNotIn("Driver", body)
+        self.assertNotIn("text/csv", headers.get("Content-Type", ""))
+
+    def test_hours_method_and_token(self):
+        """GET gets 405 and a bad CSRF token gets 403 for the hours export too."""
+        manager = self.login("manager")
+        status, headers, body = manager.request("exportData.php")
+        self.assertEqual((status, body), (405, ""))
+        status, headers, body = manager.request("exportData.php", {"export": "hours", "csrf_token": "0" * 64})
+        self.assertEqual(status, 403)
+        self.assertNotIn(self.marker, body)
+        self.assertNotIn("text/csv", headers.get("Content-Type", ""))
 
 
 if __name__ == "__main__":

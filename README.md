@@ -99,7 +99,7 @@ operations so sign-out completes immediately, and imports save their result only
 original session is still authenticated when processing finishes. Stored report files, legacy
 exports and uploaded documents are served through `download.php`; the Data & Imports CSV exports are generated
 and streamed by `exportData.php` and follow each export's own permission (the cash and non-cash exports follow
-donations view; the 'Data imports' permission area governs imports only); direct file URLs are denied by Apache
+donations view, the volunteer hours export follows donors view; the 'Data imports' permission area governs imports only); direct file URLs are denied by Apache
 (`docker/apache.conf` and the `.htaccess` files, which must be preserved on other hosts).
 Rebuild the web image with `make dev` after pulling this change. Existing sessions must log
 in again.
@@ -149,8 +149,8 @@ entries it creates and removes itself. `make test-comms` (after `make seed-demo`
 saving (including "Someone else" and the follow-up rules), validation, the profile's Communications tab and
 the permission gates, on donors, campaigns and users it creates and removes itself. `make test-exports` (after
 `make seed-demo`) runs `tests/exports_integration.py`: the cash (UF2-133) and non-cash (UF2-134) donations
-CSVs from Data & Imports, their date range, columns, formula escaping, error redirects and permission gates, on gifts dated in 1901 that it
-creates and removes itself. Run them only against a local development database.
+CSVs and the volunteer hours CSV (UF2-138) from Data & Imports: date ranges, columns, formula escaping, error
+redirects and permission gates, on gifts and hours entries dated in 1901 that it creates and removes itself. Run them only against a local development database.
 
 ## Purpose
 This project is the result of a semester's worth of collaboration among UMW students. The goal of the project was to create a web application that better suits the needs of Rappahannock CASA, specifically as a system to manage their donors. 

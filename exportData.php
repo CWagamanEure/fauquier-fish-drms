@@ -1,7 +1,8 @@
 <?php
 // Data & Imports exports (UF2-132..139): every Export form on dataImports.php posts `export` (+ from/to or
 // year) here, and the answer is a CSV download or a redirect back with a fixed error code. Built so far: `cash`
-// (UF2-133) and `noncash` (UF2-134); each later export adds a case with its own permission check and query.
+// (UF2-133), `noncash` (UF2-134) and `hours` (UF2-138); each later export adds a case with its own permission
+// check and query.
 // Including the layout signs in the visitor and checks the CSRF token on every POST (require_authentication).
 require_once 'include/fishnet-layout.php';
 require_once 'include/csvExport.php';
@@ -42,15 +43,15 @@ function export_range_start() {
 }
 
 /**
- * Runs one prepared SELECT bound to the date range and returns [$con, $stmt, $result], before any header is
- * sent. A database error is logged and answered with a redirect to `failed`, so there is never a partial file.
+ * Runs one prepared SELECT with the given bound values (none for hours) and returns [$con, $stmt, $result],
+ * before any header is sent. A database error is logged and answered with a redirect to `failed`, so there is
+ * never a partial file.
  */
-function export_query($sql, $from, $to, $what) {
+function export_query($sql, $what, array $params = []) {
     try {
         $con = connect();
         $stmt = $con->prepare($sql);
-        $stmt->bind_param('ss', $from, $to);
-        $stmt->execute();
+        $params ? $stmt->execute($params) : $stmt->execute();
         return [$con, $stmt, $stmt->get_result()];
     } catch (mysqli_sql_exception $e) {
         error_log($what . ' export failed: ' . $e->getMessage());
@@ -71,7 +72,7 @@ switch (fish_str($_POST, 'export')) {
              LEFT JOIN dbevents e ON e.id = d.eventID
              LEFT JOIN dbpersons p ON p.id = d.recorded_by
              WHERE d.donation_date BETWEEN ? AND ?
-             ORDER BY d.donation_date, d.id", $from, $to, 'cash');
+             ORDER BY d.donation_date, d.id", 'cash', [$from, $to]);
         $rows = (function () use ($result, $showDonorId) {
             while ($r = $result->fetch_assoc()) {
                 yield [
@@ -115,7 +116,7 @@ switch (fish_str($_POST, 'export')) {
              LEFT JOIN dbevents e ON e.id = n.campaign_id
              LEFT JOIN dbpersons p ON p.id = n.recorded_by
              WHERE n.date_received BETWEEN ? AND ?
-             ORDER BY n.date_received, n.id", $from, $to, 'noncash');
+             ORDER BY n.date_received, n.id", 'noncash', [$from, $to]);
         $rows = (function () use ($result, $showDonorId) {
             while ($r = $result->fetch_assoc()) {
                 yield [
@@ -142,6 +143,53 @@ switch (fish_str($_POST, 'export')) {
                       ['Gift ID', 'Date received', 'Donor ID', 'Donor', 'Item description', 'Category', 'Quantity (items)',
                        'Weight (lbs)', 'Estimated value', 'Condition', 'Given out so far (items)', 'Intended use',
                        'Campaign', 'Receipt sent', 'Recorded by', 'Notes'],
+                      $rows);
+        $stmt->close();
+        $con->close();
+        exit;
+
+    case 'hours':
+        // Donors view, as on hours.php, addHours.php and the profile's Volunteer tab. No dates: every entry.
+        if (!fish_can_export_hours()) {
+            http_response_code(403);
+            header('Content-Type: text/plain; charset=utf-8');
+            echo 'You do not have access to volunteer hours exports.';
+            exit;
+        }
+        session_write_close();
+        [$con, $stmt, $result] = export_query(
+            "SELECT v.id, v.activity_date, v.donor_id, s.display_name, s.is_anonymous, v.hours,
+                    TIME_FORMAT(v.start_time, '%H:%i') AS start_time, TIME_FORMAT(v.end_time, '%H:%i') AS end_time,
+                    v.job, v.location, e.name AS campaign, v.is_verified, v.counts_for_letter,
+                    p.first_name, p.last_name, v.notes
+             FROM volunteer_hours v
+             LEFT JOIN donor_summary s ON s.id = v.donor_id
+             LEFT JOIN dbevents e ON e.id = v.campaign_id
+             LEFT JOIN dbpersons p ON p.id = v.recorded_by
+             ORDER BY v.activity_date, v.id", 'hours');
+        $rows = (function () use ($result) {
+            while ($r = $result->fetch_assoc()) {
+                yield [
+                    $r['id'],
+                    $r['activity_date'],
+                    $r['donor_id'],
+                    (int) $r['is_anonymous'] === 1 ? 'Anonymous' : $r['display_name'],
+                    $r['hours'],
+                    $r['start_time'],
+                    $r['end_time'],
+                    $r['job'],
+                    $r['location'],
+                    $r['campaign'],
+                    (int) $r['is_verified'] === 1 ? 'Yes' : 'No',
+                    (int) $r['counts_for_letter'] === 1 ? 'Yes' : 'No',
+                    donation_recorder_name($r['first_name'], $r['last_name']),
+                    $r['notes'],
+                ];
+            }
+        })();
+        fish_csv_send('fish-volunteer-hours-' . date('Y-m-d') . '.csv',
+                      ['Entry ID', 'Date', 'Volunteer ID', 'Volunteer', 'Hours', 'Start time', 'End time', 'Job',
+                       'Location', 'Campaign', 'Verified', 'Counts for letter', 'Recorded by', 'Notes'],
                       $rows);
         $stmt->close();
         $con->close();
