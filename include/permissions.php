@@ -46,6 +46,13 @@ function fish_can_record_donations() {
     return fish_can('donations', 'view') && fish_can('donations', 'edit') && fish_can('donors', 'view');
 }
 
+// Downloading the cash donations CSV (exportData.php, the Cash donations row on dataImports.php): donations
+// view, so the file never holds more than the donations list and gift pages already show. The 'data_import'
+// area governs imports only; to stop someone exporting gifts, remove their donations view (UF2-133).
+function fish_can_export_donations() {
+    return fish_can('donations', 'view');
+}
+
 // Logging or editing volunteer hours (addHours.php, hours.php and the profile's "+ Log hours"): donors view
 // and edit. The users enum has no volunteers area, so donor permissions govern volunteer records.
 function fish_can_log_hours() {

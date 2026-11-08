@@ -80,6 +80,8 @@ jobs:
         run: make test-hours
       - name: Communications page tests
         run: make test-comms
+      - name: Export tests
+        run: make test-exports
       - name: Review gate tests
         run: make test-gate
       - name: Service state and logs
