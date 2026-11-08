@@ -1,0 +1,37 @@
+{
+ "mode": "code",
+ "subject": "wagaman-eure-export-cash",
+ "round": 1,
+ "approved": true,
+ "reviewed_commit": "faebd472ed50bb50c1f116f30185d1bab71b720b",
+ "tree": "f5004132b382fa505d106d5c963dba85969e526481faf6b100ce254fd55349ef",
+ "auditors": [
+  {
+   "auditor": "security",
+   "approve": true,
+   "finding_count": 0
+  },
+  {
+   "auditor": "data",
+   "approve": true,
+   "finding_count": 0
+  },
+  {
+   "auditor": "correctness",
+   "approve": true,
+   "finding_count": 1
+  },
+  {
+   "auditor": "verification",
+   "approve": true,
+   "finding_count": 4
+  }
+ ],
+ "findings_by_severity": {
+  "low": 4,
+  "medium": 1
+ },
+ "findings_by_status": {
+  "reported": 5
+ }
+}
