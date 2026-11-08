@@ -1,0 +1,36 @@
+{
+ "mode": "code",
+ "subject": "wagaman-eure-export-noncash",
+ "round": 1,
+ "approved": true,
+ "reviewed_commit": "2915dc79876b5c9b1bd65068ee1b4b879198d0ba",
+ "tree": "585eeecc3d43d0f9d377e0436c57f6472aade68c14a3583fa82131621a04086e",
+ "auditors": [
+  {
+   "auditor": "security",
+   "approve": true,
+   "finding_count": 0
+  },
+  {
+   "auditor": "data",
+   "approve": true,
+   "finding_count": 0
+  },
+  {
+   "auditor": "correctness",
+   "approve": true,
+   "finding_count": 2
+  },
+  {
+   "auditor": "verification",
+   "approve": true,
+   "finding_count": 4
+  }
+ ],
+ "findings_by_severity": {
+  "low": 6
+ },
+ "findings_by_status": {
+  "reported": 6
+ }
+}
