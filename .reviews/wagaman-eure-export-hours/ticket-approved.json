@@ -1,0 +1,44 @@
+{
+ "mode": "ticket",
+ "subject": "wagaman-eure-export-hours",
+ "round": 2,
+ "approved": true,
+ "auditors": [
+  {
+   "auditor": "security",
+   "approve": true,
+   "finding_count": 0
+  },
+  {
+   "auditor": "data",
+   "approve": true,
+   "finding_count": 1
+  },
+  {
+   "auditor": "correctness",
+   "approve": true,
+   "finding_count": 1
+  },
+  {
+   "auditor": "verification",
+   "approve": true,
+   "finding_count": 1
+  }
+ ],
+ "findings_by_severity": {
+  "low": 2,
+  "medium": 1
+ },
+ "findings_by_status": {
+  "reported": 3
+ },
+ "previous_rounds": {
+  "1": {
+   "approved": true,
+   "critical": 0,
+   "high": 1,
+   "medium": 2,
+   "low": 7
+  }
+ }
+}
