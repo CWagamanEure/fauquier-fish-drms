@@ -117,19 +117,24 @@ echo json_encode($out, JSON_THROW_ON_ERROR);
 
 
 def fixture(action, **payload):
+    """Runs one FIXTURES_PHP action in a transaction and returns its JSON result."""
     result = subprocess.run(["php", "-r", FIXTURES_PHP], input=json.dumps({"action": action, **payload}),
                             text=True, check=True, cwd=ROOT, capture_output=True)
     return json.loads(result.stdout)
 
 
 def parse_csv(body):
+    """Checks the BOM and returns the CSV rows."""
     assert body.startswith("﻿"), body[:40]
     return list(csv.reader(io.StringIO(body[1:], newline="")))
 
 
 class CashExportTests(unittest.TestCase):
+    """UF2-133 cash donations export, against fixture gifts dated in 1901."""
+
     @classmethod
     def setUpClass(cls):
+        """Removes leftovers, checks the dates are empty, then creates the users and gifts."""
         state = fixture("clean", prefix=PREFIX)
         if state["demo"] == 0:
             raise AssertionError("run make seed-demo before make test-exports")
@@ -151,6 +156,7 @@ class CashExportTests(unittest.TestCase):
         cls.addClassCleanup(fixture, "teardown", donor=cls.ids["donor"], campaign=cls.ids["campaign"])
 
     def login(self, role):
+        """Signs in as the suite user for role and returns the browser."""
         browser = Browser()
         user = self.users[role]
         status, _, _ = browser.request("login.php", {"csrf_token": browser.token(), "username": user["id"],
@@ -165,9 +171,11 @@ class CashExportTests(unittest.TestCase):
         return browser.request("exportData.php", [("csrf_token", token)] + pairs)
 
     def cash(self, browser, start="1901-03-01", end="1901-03-31"):
+        """Requests the cash export for a date range."""
         return self.export(browser, {"export": "cash", "from": start, "to": end})
 
     def test_cash_export_file(self):
+        """Headers, columns, range ends, order, labels and cell escaping."""
         status, headers, body = self.cash(self.login("manager"))
         self.assertEqual(status, 200, body[:300])
         self.assertEqual(headers["Content-Type"], "text/csv; charset=utf-8")
@@ -206,11 +214,13 @@ class CashExportTests(unittest.TestCase):
         self.assertEqual((anon["Donor ID"], anon["Donor"]), ("999", "Anonymous"))
 
     def test_empty_range_is_header_only(self):
+        """A range with no gifts gives the BOM and header only."""
         status, _, body = self.cash(self.login("manager"), "1900-01-01", "1900-01-02")
         self.assertEqual(status, 200)
         self.assertEqual(body, "﻿" + ",".join(f'"{h}"' if " " in h else h for h in HEADER) + "\r\n")
 
     def test_bad_dates_redirect_without_a_file(self):
+        """Bad, missing, reversed or array dates redirect with the dates error."""
         manager = self.login("manager")
         cases = [
             {"export": "cash", "from": "1901-03-31", "to": "1901-03-01"},
@@ -228,6 +238,7 @@ class CashExportTests(unittest.TestCase):
                 self.assertNotIn("text/csv", headers.get("Content-Type", ""))
 
     def test_unknown_exports_are_not_available(self):
+        """Exports that are not built redirect as unavailable, whatever the permission."""
         for role in ("manager", "noexport"):
             browser = self.login(role)
             for name in ("emails", "noncash", "junk", ""):
@@ -237,6 +248,7 @@ class CashExportTests(unittest.TestCase):
                     self.assertEqual(headers["Location"], "dataImports.php?export_error=unavailable#export")
 
     def test_permissions(self):
+        """Staff and viewer can export, no donations view gets 403, no donors view blanks Donor ID."""
         for role in ("staff", "viewer"):
             with self.subTest(role=role):
                 status, headers, body = self.cash(self.login(role))
@@ -253,6 +265,7 @@ class CashExportTests(unittest.TestCase):
         self.assertEqual({r[2] for r in rows[1:]}, {""})
 
     def test_method_and_token(self):
+        """GET gets 405, a bad CSRF token gets 403."""
         manager = self.login("manager")
         status, headers, body = manager.request("exportData.php")
         self.assertEqual((status, body), (405, ""))
@@ -263,6 +276,7 @@ class CashExportTests(unittest.TestCase):
         self.assertNotIn(self.marker, body)
 
     def test_page_buttons_and_messages(self):
+        """Button states and error messages on dataImports.php."""
         _, _, body = Browser.request(self.login("staff"), "dataImports.php")
         assert_no_php_errors_in(self, body)
         self.assertEqual(body.count('action="exportData.php"'), 1)

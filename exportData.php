@@ -13,6 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+/** Redirects to the Export section of dataImports.php with a fixed error code, and ends the request. */
 function export_back($error) {
     header('Location: dataImports.php?export_error=' . $error . '#export', true, 303);
     exit;
