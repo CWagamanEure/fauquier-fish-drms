@@ -3,8 +3,8 @@
 // then Recent imports beside Needs review.
 // Imports are FRONT END ONLY: no data yet and no handlers. Backend TODO:
 //   - the import form posts `type` + `file` to an import handler (not built yet); each template link points at its file
-//   - each export form posts `export` (+ from/to or year) to exportData.php, which streams a CSV. Only `cash` (UF2-133)
-//     is built; the other rows' buttons say "Coming soon" until their case exists in exportData.php
+//   - each export form posts `export` (+ from/to or year) to exportData.php, which streams a CSV. `cash` (UF2-133) and
+//     `noncash` (UF2-134) are built; the other rows' buttons say "Coming soon" until their case exists in exportData.php
 //   - fill $recent (one row per import run) and $review (one row per problem row / possible duplicate)
 //   The markup for one row of each table is in the commented example inside it.
 require_once 'include/fishnet-layout.php';
@@ -31,7 +31,7 @@ $exports = [
 ];
 
 // Exports that exportData.php can answer, with the permission each needs.
-$exportReady = ['cash' => fish_can_export_donations()];
+$exportReady = ['cash' => fish_can_export_donations(), 'noncash' => fish_can_export_donations()];
 $exportErrors = [
   'dates'       => 'Pick a From date on or before the To date.',
   'unavailable' => 'That export is not available yet.',

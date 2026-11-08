@@ -47,9 +47,10 @@ function fish_can_record_donations() {
 }
 
 /**
- * Downloading the cash donations CSV (exportData.php, the Cash donations row on dataImports.php): donations
- * view, so the file never holds more than the donations list and gift pages already show. The 'data_import'
- * area governs imports only; to stop someone exporting gifts, remove their donations view (UF2-133).
+ * Downloading the cash and non-cash donations CSVs (exportData.php, those two rows on dataImports.php):
+ * donations view, so a file never holds more than the donations list and gift pages already show. The
+ * 'data_import' area governs imports only; to stop someone exporting gifts, remove their donations view
+ * (UF2-133, UF2-134).
  */
 function fish_can_export_donations() {
     return fish_can('donations', 'view');
