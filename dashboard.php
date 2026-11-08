@@ -21,8 +21,10 @@ fishnet_open('Dashboard', 'dashboard', 'dashboard.css');
           <?php if (fish_can('donors', 'edit')): ?>
           <a href="addDonor.php" class="btn btn-outline">+Add Donor</a>
           <?php endif; ?>
-          <!-- not working not in this sprint  (FAKE) -->
-          <a href="logCommunication.php" class="btn btn-outline">+Log Communication</a>
+          <!-- link to log a one-on-one communication (same gate as addCommunication.php) -->
+          <?php if (fish_can_log_communications()): ?>
+          <a href="addCommunication.php" class="btn btn-outline">+Log Communication</a>
+          <?php endif; ?>
         </div>
       </section>
 
