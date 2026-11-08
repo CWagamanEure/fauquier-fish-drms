@@ -122,3 +122,6 @@ td .sub { display: block; font-size: 0.8rem; color: var(--muted); margin-top: 2p
   .kind-choices, .g-subject, .g-out, .g-follow, .g-comm4 { grid-template-columns: 1fr; }
   .view-side .tiles, .view-side .tiles.three { grid-template-columns: 1fr 1fr; }
 }
+
+/* Person contacted: the name box only matters for "Someone else" (stays visible where :has() is unsupported) */
+.comm-form:has(#person option[value="__other__"]:not(:checked)) .person-other-field { display: none; }

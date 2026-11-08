@@ -91,8 +91,8 @@ fishnet_open('Dashboard', 'dashboard', 'dashboard.css');
           <?php if (fish_can('donors', 'edit')): ?>
           <a href="addDonor.php" class="btn btn-outline">+Add Donor</a>
           <?php endif; ?>
-          <!-- link to log a communication (addCommunication.php) -->
-          <?php if (fish_can('communications', 'edit')): ?>
+          <!-- link to log a one-on-one communication (same gate as addCommunication.php) -->
+          <?php if (fish_can_log_communications()): ?>
           <a href="addCommunication.php" class="btn btn-outline">+Log Communication</a>
           <?php endif; ?>
         </div>

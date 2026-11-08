@@ -78,6 +78,8 @@ jobs:
         run: make test-donations
       - name: Volunteer hours page tests
         run: make test-hours
+      - name: Communications page tests
+        run: make test-comms
       - name: Review gate tests
         run: make test-gate
       - name: Service state and logs
