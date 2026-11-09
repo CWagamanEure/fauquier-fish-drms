@@ -471,3 +471,42 @@ function donation_update($kind, $id, array $form) {
         return false;
     }
 }
+
+// ---------- unsaved-donation draft (session only, add mode) ----------
+const DONATION_DRAFT_KEY = 'donation_draft';
+const DONATION_DRAFT_MAX_AGE = 28800;   // 8 hours
+
+/**
+ * Saves normalized add-form fields and the save time in the current session, without validating a gift.
+ * Keeps only posted fields except checkboxes, which are always stored as 0 or 1; strings are limited
+ * to 1,000 UTF-8 characters. Clears the draft if only the date and receipt preference are populated.
+ */
+function donation_draft_save(array $post) {
+    $kind = isset($post['kind']) && is_string($post['kind']) && in_array($post['kind'], ['cash', 'noncash'], true) ? $post['kind'] : '';
+    $form = donation_form_from_post($post, 'cash') + donation_form_from_post($post, 'noncash');
+    $checkboxes = ['send_receipt', 'in_honor'];
+    $kept = [];
+    $meaningful = false;
+    foreach ($form as $k => $v) {
+        if (!in_array($k, $checkboxes, true) && !array_key_exists($k, $post)) { continue; }
+        $kept[$k] = is_string($v) ? mb_substr($v, 0, 1000, 'UTF-8') : $v;
+        if (!in_array($k, ['date_received', 'send_receipt'], true) && $v !== '' && $v !== 0) { $meaningful = true; }
+    }
+    if (!$meaningful) { unset($_SESSION[DONATION_DRAFT_KEY]); return; }
+    $_SESSION[DONATION_DRAFT_KEY] = ['kind' => $kind, 'form' => $kept, 'saved' => time()];
+}
+
+/**
+ * Returns the session draft as kind/form, or null if absent, lacking a form array, or more than eight hours old.
+ * Does not remove an expired draft from the session or validate its form fields.
+ */
+function donation_draft_load() {
+    $d = $_SESSION[DONATION_DRAFT_KEY] ?? null;
+    if (!is_array($d) || !isset($d['form']) || !is_array($d['form']) || time() - (int) ($d['saved'] ?? 0) > DONATION_DRAFT_MAX_AGE) { return null; }
+    return ['kind' => (string) ($d['kind'] ?? ''), 'form' => $d['form']];
+}
+
+/** Removes the unsaved donation draft from the current session. */
+function donation_draft_clear() {
+    unset($_SESSION[DONATION_DRAFT_KEY]);
+}

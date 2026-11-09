@@ -198,6 +198,15 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; display: conten
   border-radius: 10px;
   padding: 12px 14px;
 }
+/* Donor profile: contact people of an organization */
+.contacts-card { padding: 20px 26px; border-width: 0; border-radius: 10px; }
+.contacts-card h3 { font-size: 1.1rem; margin-bottom: 12px; }
+.contact-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.contact-card { background: #f4f5f1; border-radius: 8px; padding: 12px 14px; }
+.contact-card p { margin-top: 4px; font-size: 0.9rem; color: var(--muted); }
+.contact-card a:hover { text-decoration: underline; }
+.contacts-more { margin-top: 12px; }
+.contacts-more summary { cursor: pointer; font-weight: bold; color: #1f6b7a; margin-bottom: 12px; }
 .contact-row .primary { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; padding-bottom: 10px; white-space: nowrap; cursor: pointer; }
 .contact-row .primary input { accent-color: var(--teal); }
 .remove-contact {
