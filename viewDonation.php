@@ -72,7 +72,7 @@ fishnet_open('View donation', 'donations', ['forms.css', 'donation.css']);
                 <strong><?= h($donorName) ?></strong>
                 <?php if ($canViewDonors && $donor): ?>
                 <p class="meta"><?= h(implode(' · ', array_filter([
-                  $donor['donor_type'] === 'organization' ? 'Organization' : 'Individual',
+                  $donor['donor_type'] === donor_type_label($donor['donor_type']),
                   implode(', ', array_filter([(string) $donor['city'], (string) $donor['state']], 'strlen')),
                   $donor['donor_since_date'] ? 'Donor since ' . substr($donor['donor_since_date'], 0, 4) : '',
                 ]))) ?></p>

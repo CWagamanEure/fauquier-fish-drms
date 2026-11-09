@@ -491,8 +491,8 @@ class DonorPagesTests(unittest.TestCase):
 
         # ---- organization contact people (UF2-130) ----
 
-    def org_form(self, name, contacts, primary="0", **overrides):
-        form = self.donor_form(type="Organization", org_name=name, first="", last="", middle="", **overrides)
+    def org_form(self, name, contacts, primary="0", dtype="Organization", **overrides):
+        form = self.donor_form(type=dtype, org_name=name, first="", last="", middle="", **overrides)
         form["primary_contact"] = primary
         for i, contact in enumerate(contacts):
             for field, value in contact.items():
@@ -573,6 +573,42 @@ class DonorPagesTests(unittest.TestCase):
         ind_id = int(re.search(r"id=(\d+)", headers["Location"]).group(1))
         self.created.append(ind_id)
         self.assertEqual(fixture("contacts_read", id=ind_id), [])
+
+    def test_foundation_donor(self):
+        manager = self.login("manager")
+        token = manager.token("addDonor.php")
+        name = "Suite Foundation " + self.marker
+        contact = {"name": "Fran F", "title": "Program officer", "email": "fran@example.test", "phone": "5405550123"}
+        status, headers, _ = manager.request("addDonor.php", {"csrf_token": token, **self.org_form(name, [contact], dtype="Foundation")})
+        self.assertEqual(status, 303)
+        fid = int(re.search(r"id=(\d+)", headers["Location"]).group(1))
+        self.created.append(fid)
+
+        read = fixture("donor_read", id=fid)
+        self.assertEqual((read["donor"]["donor_type"], read["donor"]["org_name"]), ("foundation", name))
+        self.assertEqual(read["summary"]["display_name"], name)          # the view names it after org_name
+        rows = fixture("contacts_read", id=fid)
+        self.assertEqual([(r["name"], r["is_primary"]) for r in rows], [("Fran F", 1)])
+
+        _, body = self.get(manager, "donor.php?q=" + urllib.parse.quote(name))
+        listed = [r for r in rows_in(body) if r[6] == fid]
+        self.assertEqual([(r[0], r[1]) for r in listed], [(name, "Foundation")])
+        _, body = self.get(manager, "donor.php?filter=organizations&q=" + urllib.parse.quote(name))
+        self.assertEqual([r[6] for r in rows_in(body)], [fid])           # foundations count as organizations
+        _, body = self.get(manager, "donor.php?filter=individuals&q=" + urllib.parse.quote(name))
+        self.assertEqual(rows_in(body), [])
+
+        _, body = self.get(manager, f"donorProfile.php?id={fid}")
+        self.assertIn("Contact people", body)
+        self.assertIn("<strong>Fran F</strong>", body)
+        _, body = self.get(manager, f"updateDonor.php?id={fid}")
+        self.assertRegex(body, r'id="typeFdn" value="Foundation" checked')
+        self.assertIn('value="Fran F"', body)
+
+        # The name rule follows the type.
+        status, _, body = manager.request("addDonor.php", {"csrf_token": token, **self.org_form("", [], dtype="Foundation")})
+        self.assertEqual(status, 200)
+        self.assertIn("Foundation name is required.", body)
 
 
 if __name__ == "__main__":
