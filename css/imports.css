@@ -43,6 +43,8 @@
 .export-filters { display: flex; align-items: center; gap: 8px; color: var(--muted); }
 .export-filters input, .export-filters select { padding: 5px 7px; border: 1.5px solid #c9ccc4; border-radius: 6px; font: inherit; color: var(--text); }
 .export-row .btn { padding: 6px 16px; font-size: 0.9rem; white-space: nowrap; }
+.export-row .btn:disabled { opacity: 0.55; cursor: not-allowed; background: #fff; }
+#export .form-errors { margin: 8px 0 4px; }
 
 /* ===== Recent imports / needs review ===== */
 .status.pending { background: #fbe9a6; color: #7a5a00; }

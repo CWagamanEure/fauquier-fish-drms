@@ -61,7 +61,7 @@ before it is pushed. `make dev` installs the pre-push hook that guards against p
 a human review is the real control. Two GitHub Actions checks report on every pull request: `record`
 says whether a review-swarm record is present (advisory since 2026-10-20) and `tests`
 (`.github/workflows/ci.yml`) runs the PHP syntax check, `make test-auth`, `make test-donors`,
-`make test-users`, `make test-donations`, `make test-hours`, `make test-comms` and `make test-gate`, so a PR needs no tooling on the author's machine. Read
+`make test-users`, `make test-donations`, `make test-hours`, `make test-comms`, `make test-exports` and `make test-gate`, so a PR needs no tooling on the author's machine. Read
 `docs/process/change-review-process.md` before starting work.
 
 ## Database migrations
@@ -96,8 +96,10 @@ sign-out requires a form token, destroys the session and expires its cookie, and
 `logout.php` directly shows a confirmation form. Authentication responses are not cached.
 Report, export, import and email handlers release their session locks during long
 operations so sign-out completes immediately, and imports save their result only if the
-original session is still authenticated when processing finishes. Reports, exports and
-uploaded documents are served through `download.php`; direct file URLs are denied by Apache
+original session is still authenticated when processing finishes. Stored report files, legacy
+exports and uploaded documents are served through `download.php`; the Data & Imports CSV exports are generated
+and streamed by `exportData.php` and follow each export's own permission (the cash and non-cash exports follow
+donations view, the volunteer hours export follows donors view; the 'Data imports' permission area governs imports only); direct file URLs are denied by Apache
 (`docker/apache.conf` and the `.htaccess` files, which must be preserved on other hosts).
 Rebuild the web image with `make dev` after pulling this change. Existing sessions must log
 in again.
@@ -145,8 +147,10 @@ change history, delete, the profile's Volunteer tab and the permission gates, on
 entries it creates and removes itself. `make test-comms` (after `make seed-demo`) runs
 `tests/communications_integration.py`: the one-on-one form's donor, person contacted and campaign lists,
 saving (including "Someone else" and the follow-up rules), validation, the profile's Communications tab and
-the permission gates, on donors, campaigns and users it creates and removes itself. Run them only against a
-local development database.
+the permission gates, on donors, campaigns and users it creates and removes itself. `make test-exports` (after
+`make seed-demo`) runs `tests/exports_integration.py`: the cash (UF2-133) and non-cash (UF2-134) donations
+CSVs and the volunteer hours CSV (UF2-138) from Data & Imports: date ranges, columns, formula escaping, error
+redirects and permission gates, on gifts and hours entries dated in 1901 that it creates and removes itself. Run them only against a local development database.
 
 ## Purpose
 This project is the result of a semester's worth of collaboration among UMW students. The goal of the project was to create a web application that better suits the needs of Rappahannock CASA, specifically as a system to manage their donors. 

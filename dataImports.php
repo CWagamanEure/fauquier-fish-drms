@@ -1,9 +1,10 @@
 <?php
 // Data & Imports: Import (pick a type, get its template, upload one file) beside Export (one row per CSV export),
 // then Recent imports beside Needs review.
-// FRONT END ONLY: no data yet and no handlers. Backend TODO:
+// Imports are FRONT END ONLY: no data yet and no handlers. Backend TODO:
 //   - the import form posts `type` + `file` to an import handler (not built yet); each template link points at its file
-//   - each export form posts `export` (+ from/to or year) to an export handler that streams a CSV
+//   - each export form posts `export` (+ from/to or year) to exportData.php, which streams a CSV. `cash` (UF2-133),
+//     `noncash` (UF2-134) and `hours` (UF2-138) are built; the other rows' buttons say "Coming soon" until their case exists in exportData.php
 //   - fill $recent (one row per import run) and $review (one row per problem row / possible duplicate)
 //   The markup for one row of each table is in the commented example inside it.
 require_once 'include/fishnet-layout.php';
@@ -29,6 +30,16 @@ $exports = [
   'lapsed'       => ['LYBUNT and SYBUNT contact list',     'Contact info for donors who gave before but not this year.',        false],
 ];
 
+// Exports that exportData.php can answer, with the permission each needs.
+$exportReady = ['cash' => fish_can_export_donations(), 'noncash' => fish_can_export_donations(),
+                'hours' => fish_can_export_hours()];
+$exportErrors = [
+  'dates'       => 'Pick a From date on or before the To date.',
+  'unavailable' => 'That export is not available yet.',
+  'failed'      => 'The export could not be made. Try again.',
+];
+$exportError = $exportErrors[fish_str($_GET, 'export_error')] ?? null;
+
 $recent   = [];   // Backend TODO
 $review   = [];   // Backend TODO
 $thisYear = (int) date('Y');
@@ -42,6 +53,7 @@ fishnet_open('Data & Imports', 'imports', ['donor.css', 'forms.css', 'imports.cs
           <h1>Data &amp; Imports</h1>
           <p class="lede">Bring spreadsheets in, download data out</p>
         </div>
+        <a href="itemValues.php" class="btn btn-outline">Item values</a>
       </section>
 
       <div class="data-cols">
@@ -77,13 +89,16 @@ fishnet_open('Data & Imports', 'imports', ['donor.css', 'forms.css', 'imports.cs
         </section>
 
         <!-- ===== Export ===== -->
-        <section class="card table-card">
+        <section class="card table-card" id="export">
           <h2 class="section-title">Export</h2>
           <p class="section-note">Downloads a CSV for Excel or Google Sheets</p>
+          <?php if ($exportError !== null): ?><div class="form-errors" role="alert"><?= h($exportError) ?></div><?php endif; ?>
           <ul class="export-list">
-            <?php foreach ($exports as $key => [$title, $desc, $filter]): ?>
+            <?php foreach ($exports as $key => [$title, $desc, $filter]):
+              $built = array_key_exists($key, $exportReady);
+              $allowed = $built && $exportReady[$key]; ?>
             <li>
-              <form class="export-row" method="post" action="#">
+              <form class="export-row" method="post" action="<?= $built ? 'exportData.php' : '#' ?>">
                 <?= auth_csrf_field() ?>
                 <input type="hidden" name="export" value="<?= h($key) ?>">
                 <div class="export-text">
@@ -101,7 +116,11 @@ fishnet_open('Data & Imports', 'imports', ['donor.css', 'forms.css', 'imports.cs
                     </select>
                   <?php endif; ?>
                 </div>
+                <?php if ($allowed): ?>
                 <button type="submit" class="btn btn-outline">Export CSV</button>
+                <?php else: ?>
+                <button type="submit" class="btn btn-outline" disabled><?= $built ? 'No access' : 'Coming soon' ?></button>
+                <?php endif; ?>
               </form>
             </li>
             <?php endforeach; ?>
