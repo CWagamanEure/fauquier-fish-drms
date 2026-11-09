@@ -2,6 +2,76 @@
 // this is used to pull the css for the dash and the layout for the website (i.e the logo the title serach bar and profile logo also the side bar and links to the other main pages)
 require_once 'include/fishnet-layout.php';
 require_once 'include/permissions.php';
+require_once 'database/dbinfo.php';
+
+// ---------- This month's numbers for the three stat cards ----------
+// The month is the server's current month (America/New_York, set by the layout). Ranges are
+// [first of month, first of next month) so the date indexes can be used.
+$monthStart = new DateTime('first day of this month 00:00');
+$nextStart  = (clone $monthStart)->modify('+1 month');
+$lyStart    = (clone $monthStart)->modify('-1 year');
+$lyNext     = (clone $lyStart)->modify('+1 month');
+$lmStart    = (clone $monthStart)->modify('-1 month');    // last month
+$monthShort = $monthStart->format('M');     // "Nov"
+$ymd = fn(DateTime $d) => $d->format('Y-m-d');
+
+function dash_row($con, $sql, array $dates) {
+  $stmt = $con->prepare($sql);
+  $stmt->bind_param(str_repeat('s', count($dates)), ...$dates);
+  $stmt->execute();
+  $row = $stmt->get_result()->fetch_assoc() ?: [];
+  $stmt->close();
+  return $row;
+}
+
+$stats = ['cash' => 0.0, 'cash_ly' => 0.0, 'cash_lm' => 0.0, 'items' => 0.0, 'item_value' => 0.0, 'hours' => 0.0, 'volunteers' => 0];
+$statsError = false;
+// Same gates as the pages that own the data: donations.php for gift totals; donor permissions govern
+// volunteer records (see fish_can_log_hours). A user without the permission sees "No access" instead.
+$canGifts = fish_can('donations', 'view');
+$canHours = fish_can('donors', 'view');
+try {
+  $con = ($canGifts || $canHours) ? connect() : null;
+  if ($canGifts) {
+    $r = dash_row($con, 'SELECT COALESCE(SUM(amount), 0) AS total FROM donations WHERE donation_date >= ? AND donation_date < ?',
+                  [$ymd($monthStart), $ymd($nextStart)]);
+    $stats['cash'] = (float) ($r['total'] ?? 0);
+    $r = dash_row($con, 'SELECT COALESCE(SUM(amount), 0) AS total FROM donations WHERE donation_date >= ? AND donation_date < ?',
+                  [$ymd($lyStart), $ymd($lyNext)]);
+    $stats['cash_ly'] = (float) ($r['total'] ?? 0);
+    $r = dash_row($con, 'SELECT COALESCE(SUM(amount), 0) AS total FROM donations WHERE donation_date >= ? AND donation_date < ?',
+                  [$ymd($lmStart), $ymd($monthStart)]);
+    $stats['cash_lm'] = (float) ($r['total'] ?? 0);
+    $r = dash_row($con, 'SELECT COALESCE(SUM(quantity), 0) AS items, COALESCE(SUM(estimated_value), 0) AS value
+                         FROM non_cash_donations WHERE date_received >= ? AND date_received < ?',
+                  [$ymd($monthStart), $ymd($nextStart)]);
+    $stats['items'] = (float) ($r['items'] ?? 0);
+    $stats['item_value'] = (float) ($r['value'] ?? 0);
+  }
+  if ($canHours) {
+    $r = dash_row($con, 'SELECT COALESCE(SUM(hours), 0) AS hours, COUNT(DISTINCT donor_id) AS people
+                         FROM volunteer_hours WHERE activity_date >= ? AND activity_date < ?',
+                  [$ymd($monthStart), $ymd($nextStart)]);
+    $stats['hours'] = (float) ($r['hours'] ?? 0);
+    $stats['volunteers'] = (int) ($r['people'] ?? 0);
+  }
+  if ($con) { mysqli_close($con); }
+} catch (mysqli_sql_exception $e) {
+  // A database fault must not print the exception into the page; log it and show dashes.
+  error_log('dashboard.php: ' . $e->getMessage());
+  $statsError = true;
+}
+function dash_num($n) { return rtrim(rtrim(number_format((float) $n, 1), '0'), '.'); }
+
+// Percent change against a comparison total; null when there is nothing to compare with.
+function dash_change($now, $then) { return $then > 0 ? (int) round(($now - $then) / $then * 100) : null; }
+// One comparison line for the cash card, e.g. "▲ 8% from last Nov" or "No gifts in Oct to compare".
+function dash_compare_line($change, $what) {
+  if ($change === null) { return '<p class="sub">No gifts ' . h($what) . ' to compare</p>'; }
+  return '<p class="sub ' . ($change >= 0 ? 'up' : 'down') . '">' . ($change >= 0 ? '&#9651;' : '&#9661;') . ' '
+       . abs($change) . '% from ' . h($what) . '</p>';
+}
+$lastMonthShort = $lmStart->format('M');
 fishnet_open('Dashboard', 'dashboard', 'dashboard.css');
 ?>
 <!-- Html Section -->
@@ -21,33 +91,38 @@ fishnet_open('Dashboard', 'dashboard', 'dashboard.css');
           <?php if (fish_can('donors', 'edit')): ?>
           <a href="addDonor.php" class="btn btn-outline">+Add Donor</a>
           <?php endif; ?>
-          <!-- not working not in this sprint  (FAKE) -->
-          <a href="logCommunication.php" class="btn btn-outline">+Log Communication</a>
+          <!-- link to log a one-on-one communication (same gate as addCommunication.php) -->
+          <?php if (fish_can_log_communications()): ?>
+          <a href="addCommunication.php" class="btn btn-outline">+Log Communication</a>
+          <?php endif; ?>
         </div>
       </section>
 
       <section class="stats">
+        <!-- this month's cash gifts (donations.donation_date), compared with last month and the same month last year -->
         <div class="card stat">
-          <!-- needs connection to know what month it is -->
-          <p class="label">Sept Cash Donations</p>
-          <!-- needs connection cash.db to what has been donated this month and code to calculate the total -->
-          <p class="big">$12,000</p>
-          <!-- needs something to know what monht it is and code to compare that month compared to last year -->
-          <p class="sub up">&#9651; 8% from last Sep</p>
+          <p class="label"><?= h($monthShort) ?> Cash Donations</p>
+          <p class="big"><?= $statsError || !$canGifts ? '&mdash;' : '$' . number_format($stats['cash']) ?></p>
+          <?php if (!$canGifts): ?>
+          <p class="sub">No access to donations</p>
+          <?php elseif ($statsError): ?>
+          <p class="sub">Could not load</p>
+          <?php else: ?>
+          <?= dash_compare_line(dash_change($stats['cash'], $stats['cash_lm']), $lastMonthShort) ?>
+          <?= dash_compare_line(dash_change($stats['cash'], $stats['cash_ly']), 'last ' . $monthShort) ?>
+          <?php endif; ?>
         </div>
+        <!-- this month's non-cash items (non_cash_donations.date_received): total quantity and estimated value -->
         <div class="card stat">
-          <!-- needs connection to know what month it is -->
-          <p class="label">Sept Non Cash Donations</p>
-          <!-- needs connection to non-Cash db to show how many items have been donated this month -->
-          <p class="big">400</p>
-          <!-- need connection the non-cash db and code to calculate the total est value  -->
-          <p class="sub">Est Value $1,200</p>
+          <p class="label"><?= h($monthShort) ?> Non Cash Donations</p>
+          <p class="big"><?= $statsError || !$canGifts ? '&mdash;' : dash_num($stats['items']) ?></p>
+          <p class="sub"><?= !$canGifts ? 'No access to donations' : ($statsError ? 'Could not load' : 'Est Value $' . number_format($stats['item_value'])) ?></p>
         </div>
+        <!-- this month's volunteer hours (volunteer_hours.activity_date) and how many different people logged them -->
         <div class="card stat">
-          <!-- not in this sprint (FAKE) -->
-          <p class="label">Volunteer hours</p>
-          <p class="big">512</p>
-          <p class="sub">112 Volunteers this month</p>
+          <p class="label"><?= h($monthShort) ?> Volunteer hours</p>
+          <p class="big"><?= $statsError || !$canHours ? '&mdash;' : dash_num($stats['hours']) ?></p>
+          <p class="sub"><?= !$canHours ? 'No access to volunteer records' : ($statsError ? 'Could not load' : $stats['volunteers'] . ' volunteer' . ($stats['volunteers'] === 1 ? '' : 's') . ' this month') ?></p>
         </div>
         <div class="card stat alert">
           <!-- not in this sprint (FAKE) -->

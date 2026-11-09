@@ -33,6 +33,12 @@ $run = function ($sql, $types = '', ...$values) use ($con) {
     return $rows;
 };
 switch ($req['action']) {
+    case 'contacts_read':
+        $out = $run('SELECT name, title, email, phone, is_primary, sort_order FROM donor_contacts WHERE donor_id = ? ORDER BY sort_order, id', 'i', $req['id']);
+        break;
+    case 'donor_find':
+        $out = $run('SELECT id FROM donors WHERE org_name = ?', 's', $req['name'])[0] ?? null;
+        break;
     case 'users_create':
         foreach ($req['users'] as $u) {
             $hash = password_hash($u['password'], PASSWORD_BCRYPT);
@@ -192,7 +198,10 @@ def rows_in(body):
 
 def fmt_date(value):
     import datetime
-    return datetime.date.fromisoformat(value).strftime("%b %-d, %Y") if value else "—"
+    if not value:
+        return "—"
+    d = datetime.date.fromisoformat(value)
+    return f"{d:%b} {d.day}, {d.year}"
 
 
 class DonorPagesTests(unittest.TestCase):
@@ -479,6 +488,91 @@ class DonorPagesTests(unittest.TestCase):
         status, headers, _ = manager.request("updateDonor.php?id=999", {"csrf_token": token, **self.donor_form()})
         self.assertEqual((status, headers["Location"]), (303, "donor.php"))
         self.assertEqual(fixture("donor_read", id=999)["donor"], before)
+
+        # ---- organization contact people (UF2-130) ----
+
+    def org_form(self, name, contacts, primary="0", **overrides):
+        form = self.donor_form(type="Organization", org_name=name, first="", last="", middle="", **overrides)
+        form["primary_contact"] = primary
+        for i, contact in enumerate(contacts):
+            for field, value in contact.items():
+                form[f"contacts[{i}][{field}]"] = value
+        return form
+
+    def test_org_contacts_save_edit_and_show(self):
+        manager = self.login("manager")
+        token = manager.token("addDonor.php")
+        name = "Contacts Org " + self.marker
+        pat = {"name": "Pat A", "title": "Chair", "email": "pat@example.test", "phone": "5405550100"}
+        blank = {"name": " ", "title": "", "email": "", "phone": ""}
+        acct = {"name": "", "title": "Accountant", "email": "", "phone": "540-555-0111"}
+        # Row 1 is blank and skipped; the posted main contact (key 2) becomes the second saved row.
+        status, headers, _ = manager.request("addDonor.php", {"csrf_token": token, **self.org_form(name, [pat, blank, acct], primary="2")})
+        self.assertEqual(status, 303)
+        org_id = int(re.search(r"id=(\d+)", headers["Location"]).group(1))
+        self.created.append(org_id)
+        self.assertEqual(fixture("contacts_read", id=org_id), [
+            {"name": "Pat A", "title": "Chair", "email": "pat@example.test", "phone": "(540) 555-0100", "is_primary": 0, "sort_order": 0},
+            {"name": None, "title": "Accountant", "email": None, "phone": "(540) 555-0111", "is_primary": 1, "sort_order": 1}])
+        self.assertIsNone(fixture("donor_read", id=org_id)["donor"]["org_contact"])
+
+        _, body = self.get(manager, f"donorProfile.php?id={org_id}")
+        self.assertIn("Contact people", body)
+        self.assertIn("<strong>Pat A</strong>", body)
+        self.assertIn('<span class="status active">Main</span>', body)
+        self.assertLess(body.index("Accountant"), body.index("Pat A"))      # main contact first
+        self.assertNotIn("<summary>", body)                                  # two contacts: nothing to expand
+
+        # The edit form shows the stored rows and the main contact.
+        _, body = self.get(manager, f"updateDonor.php?id={org_id}")
+        self.assertIn('value="Pat A"', body)
+        self.assertRegex(body, r'name="primary_contact" value="1" checked')
+
+        # Edit: four contacts, main = the last one. The set is replaced, one main contact, extra ones fold away.
+        edit_path = f"updateDonor.php?id={org_id}"
+        token = manager.token(edit_path)
+        four = [pat, {"name": "Lee B", "title": "", "email": "", "phone": ""}, acct, {"name": "Cam D", "title": "Pastor", "email": "", "phone": ""}]
+        status, headers, _ = manager.request(edit_path, {"csrf_token": token, "action": "save", **self.org_form(name, four, primary="3")})
+        self.assertEqual(status, 303)
+        rows = fixture("contacts_read", id=org_id)
+        self.assertEqual([r["name"] for r in rows], ["Pat A", "Lee B", None, "Cam D"])
+        self.assertEqual([r["is_primary"] for r in rows], [0, 0, 0, 1])
+        _, body = self.get(manager, f"donorProfile.php?id={org_id}")
+        self.assertIn("Show 2 more", body)
+
+        # Becoming an individual keeps the rows but the profile stops showing them.
+        status, _, _ = manager.request(edit_path, {"csrf_token": token, **self.donor_form(
+            first="Was", last="Org" + self.marker, action="save")})
+        self.assertEqual(status, 303)
+        self.assertEqual(len(fixture("contacts_read", id=org_id)), 4)
+        _, body = self.get(manager, f"donorProfile.php?id={org_id}")
+        self.assertNotIn("Contact people", body)
+
+    def test_org_contact_validation_and_individuals(self):
+        manager = self.login("manager")
+        token = manager.token("addDonor.php")
+        good = {"name": "Pat A", "title": "", "email": "", "phone": ""}
+        cases = [
+            ([{**good, "email": "not-an-email"}], "Contact person 1: enter a valid email address."),
+            ([good, {**good, "phone": "12345"}], "Contact person 2: phone number must have 10 digits."),
+            ([{**good, "name": "x" * 256}], "Contact person 1: name must be 255 characters or fewer."),
+            ([{**good, "name": f"Person {i}"} for i in range(11)], "Add at most 10 contact people."),
+        ]
+        for contacts, message in cases:
+            with self.subTest(message=message):
+                name = "Bad Org " + secrets.token_hex(4)
+                status, _, body = manager.request("addDonor.php", {"csrf_token": token, **self.org_form(name, contacts)})
+                self.assertEqual(status, 200)
+                self.assertIn(html.escape(message, quote=False), body)
+                self.assertIsNone(fixture("donor_find", name=name))        # nothing was written
+
+        # An individual never stores posted contacts.
+        status, headers, _ = manager.request("addDonor.php", {"csrf_token": token, **self.donor_form(
+            last=self.marker + "Ind", **{"contacts[0][name]": "Ghost", "primary_contact": "0"})})
+        self.assertEqual(status, 303)
+        ind_id = int(re.search(r"id=(\d+)", headers["Location"]).group(1))
+        self.created.append(ind_id)
+        self.assertEqual(fixture("contacts_read", id=ind_id), [])
 
 
 if __name__ == "__main__":

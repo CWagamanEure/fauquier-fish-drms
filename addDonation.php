@@ -30,6 +30,13 @@ if ($editing) {
 }
 
 $isPost = $_SERVER['REQUEST_METHOD'] === 'POST';
+if (!$isPost && fish_str($_GET, 'discard') === '1') {
+  donation_draft_clear();
+  $back = fish_str($_GET, 'from') === 'profile' && ctype_digit(fish_str($_GET, 'donor'))
+        ? 'donorProfile.php?id=' . (int) fish_str($_GET, 'donor') : 'donations.php';
+  header('Location: ' . $back, true, 303);
+  exit;
+}
 $fromProfile = fish_str($isPost ? $_POST : $_GET, 'from') === 'profile';
 if ($editing) {
   $kind = $editKind;
@@ -43,15 +50,28 @@ $form = array_merge(donation_form_blank('cash'), donation_form_blank('noncash'))
 if ($stored) {
   $form = array_merge($form, donation_form_from_row($stored));
 } elseif (!$editing) {
-  $form['donor'] = fish_str($_GET, 'donor') ?: fish_str($_GET, 'donor_id');
-  $form['campaign'] = fish_str($_GET, 'campaign_id');   // from the campaign page's "+ Donation"
+  $hasParams = fish_str($_GET, 'donor') !== '' || fish_str($_GET, 'donor_id') !== ''
+            || fish_str($_GET, 'kind') !== '' || fish_str($_GET, 'campaign_id') !== '';
+  $draft = $canWrite && (!$hasParams || fish_str($_GET, 'restore') === '1') ? donation_draft_load() : null;
+  if ($draft) {
+    $form = array_merge($form, $draft['form']);
+    if ($kind === '' && in_array($draft['kind'], $kinds, true)) { $kind = $draft['kind']; }
+  }
+  $form['donor'] = fish_str($_GET, 'donor') ?: fish_str($_GET, 'donor_id') ?: (string) $form['donor'];
+  if (fish_str($_GET, 'campaign_id') !== '') { $form['campaign'] = fish_str($_GET, 'campaign_id'); }   // from the campaign page's "+ Donation"
 }
+$draftRestored = !empty($draft);
 $errors = [];
 
 if ($isPost) {
   if (!$canWrite) {
     http_response_code(403);
     exit('Your account cannot record or change donations.');
+  }
+  if (fish_str($_POST, 'next') === 'draft') {      // sent by js/donationDraft.js when the page is left
+    if (!$editing) { donation_draft_save($_POST); }
+    http_response_code(204);
+    exit;
   }
   if ($loadError) {
     $errors[] = 'Could not load this donation. Please try again shortly.';
@@ -70,6 +90,7 @@ if ($isPost) {
       $id = $editing ? (int) $editId : donation_create($kind, $form, auth_current_user()->get_id());
       $ok = $editing ? donation_update($kind, $id, $form) : $id !== false;
       if ($ok) {
+        if (!$editing) { donation_draft_clear(); }
         $profile = $fromProfile ? '&from=profile' : '';
         if (!$editing && fish_str($_POST, 'next') === 'another') {
           $target = 'addDonation.php?donor=' . (int) $form['donor'] . '&kind=' . $kind . '&saved=1' . $profile;
@@ -137,12 +158,13 @@ fishnet_open($title, 'donations', ['forms.css', 'donation.css']);
       </section>
 
       <?php if ($saved): ?><div class="notice ok" role="status">Donation saved.</div><?php endif; ?>
+      <?php if ($draftRestored): ?><div class="notice ok" role="status">Your unsaved donation was restored. Cancel discards it.</div><?php endif; ?>
       <?php if (!$canWrite): ?>
       <div class="notice err" role="status">Your account cannot record or change donations.</div>
       <?php else: ?>
       <?php if ($loadError): ?><div class="notice err" role="alert">Could not load everything this form needs. Please try again shortly.</div><?php endif; ?>
 
-      <form class="donation-layout" method="post" id="donationForm" novalidate>
+      <form class="donation-layout" method="post" id="donationForm" novalidate<?= $editing ? '' : ' data-draft="1"' ?>>
         <?= auth_csrf_field() ?>
         <?php if ($fromProfile): ?><input type="hidden" name="from" value="profile"><?php endif; ?>
         <!-- Hidden default button: pressing Enter in a field saves normally -->
@@ -162,7 +184,7 @@ fishnet_open($title, 'donations', ['forms.css', 'donation.css']);
             <div class="donor-box" id="donorSearchBox">
               <input type="text" id="donorSearch" placeholder="Search donors by name, email or phone..." autocomplete="off" aria-label="Search donors" aria-controls="donorResults">
               <?php if ($canAddDonors && !$editing): ?>
-              <a href="addDonor.php" class="link">+Add</a>
+              <a href="addDonor.php?return=donation" class="link">+Add</a>
               <?php endif; ?>
               <ul class="results" id="donorResults" aria-live="polite" hidden></ul>
             </div>
@@ -243,7 +265,8 @@ fishnet_open($title, 'donations', ['forms.css', 'donation.css']);
           <footer class="form-foot">
             <label class="check"><input type="checkbox" name="send_receipt"<?= $form['send_receipt'] ? ' checked' : '' ?>> Send a thank-you &amp; tax receipt</label>
             <div class="foot-btns">
-              <a href="<?= $editing ? 'viewDonation.php?kind=' . $kind . '&amp;id=' . (int) $editId : ($fromProfile && $chosenDonor ? 'donorProfile.php?id=' . $chosenDonor['id'] : 'donations.php') ?>" class="btn btn-outline small">Cancel</a>
+                <a href="<?= $editing ? 'viewDonation.php?kind=' . $kind . '&amp;id=' . (int) $editId
+                : 'addDonation.php?discard=1' . ($fromProfile && $chosenDonor ? '&amp;from=profile&amp;donor=' . (int) $chosenDonor['id'] : '') ?>" class="btn btn-outline small" data-no-draft>Cancel</a>
               <?php if (!$editing): ?>
               <button type="submit" name="next" value="another" class="btn btn-outline small" id="saveAnother" disabled>Save &amp; add another</button>
               <?php endif; ?>
@@ -278,6 +301,7 @@ const CAMPAIGNS = <?= json_encode((object) $campaigns, $jsonFlags) ?>;
 const STORED = <?= json_encode($storedForCard, $jsonFlags) ?>;
 </script>
 <script src="js/addDonation.js"></script>
+<script src="js/donationDraft.js"></script>
       <?php endif; ?>
 
 <?php fishnet_close(); ?>

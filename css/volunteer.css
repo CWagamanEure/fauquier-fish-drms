@@ -87,3 +87,11 @@
 @media (max-width: 700px) {
   .g-vol-when, .g-vol-what { grid-template-columns: 1fr; }
 }
+
+/* Clear-time x inside the Start / End fields (UF2-145) */
+.time-wrap { position: relative; }
+.time-wrap input { width: 100%; padding-right: 30px; }
+.time-clear { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px;
+  border: 0; border-radius: 50%; background: #e4e4dc; color: #333; font-size: 15px; line-height: 22px; padding: 0; cursor: pointer; }
+.time-clear:hover, .time-clear:focus-visible { background: #cfcfc4; }
+.time-clear[hidden] { display: none; }

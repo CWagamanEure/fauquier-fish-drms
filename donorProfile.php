@@ -5,11 +5,12 @@ require_once 'include/fishnet-layout.php';
 require_once 'include/permissions.php';
 require_once 'database/dbDonors.php';
 require_once 'database/dbVolunteerHours.php';   // hours_label()
+require_once 'database/dbCommunications.php';   // comm_status_label()
 
 $id = (int) ($_GET['id'] ?? 0);
 $loadError = false;
 $donor = null;
-$cash = $items = $vol = $comms = [];
+$cash = $items = $vol = $comms = $contacts = [];
 try {
   $donor = $id > 0 ? donor_get($id) : null;
   if ($donor) {
@@ -18,13 +19,19 @@ try {
       $items = donor_noncash_history($id);
     }
     $vol   = donor_hours_history($id);
-    $comms = donor_communications($id);
+    if (fish_can('communications', 'view')) {   // same gate as campaign.php's Communications tab
+      $comms = donor_communications($id);
+    }
+    if ($donor['donor_type'] === 'organization' && fish_can('donors', 'view')) {
+      $contacts = donor_contacts_get($id);
+      usort($contacts, function ($a, $b) { return $b['is_primary'] <=> $a['is_primary']; });   // main contact first
+    }
   }
 } catch (mysqli_sql_exception $e) {
   // A database fault must not print the exception into the page; log it and show an empty profile.
   error_log('donorProfile.php: ' . $e->getMessage());
   $loadError = true;
-  $cash = $items = $vol = $comms = [];
+  $cash = $items = $vol = $comms = $contacts = [];
   // keep a row that did load; stub only when the donor itself could not be read
   $donor = $donor ?: ['id' => $id, 'display_name' => 'Donor ' . $id, 'is_anonymous' => 0, 'is_active' => 1, 'phone' => '', 'email' => '',
             'city' => '', 'state' => '', 'donor_since_date' => null, 'preferred_contact' => null, 'last_contact_at' => null,
@@ -45,7 +52,12 @@ $canLogHours = fish_can_log_hours() && !$isAnonymous && (int) $donor['is_active'
 $hoursLink = fish_can_log_hours() && !$isAnonymous ? 'Edit' : 'View';
 $hoursSaved = (int) fish_str($_GET, 'hours');
 $hoursDeleted = fish_str($_GET, 'hours_deleted') === '1';
-$openTab = fish_str($_GET, 'tab') === 'vol' ? 'tVol' : 'tCash';
+// Communications tab (UF2-146..148): rows need communications view; a new contact needs an active,
+// non-anonymous donor and the same rights as addCommunication.php.
+$canSeeComms = fish_can('communications', 'view');
+$canLogComm = fish_can_log_communications() && !$isAnonymous && (int) $donor['is_active'] === 1 && !$loadError;
+$commSaved = fish_str($_GET, 'comm') === '1';
+$openTab = ['vol' => 'tVol', 'comm' => 'tComm'][fish_str($_GET, 'tab')] ?? 'tCash';
 
 // Tab footers come from the rows; the tiles come from the view so the list and the profile agree.
 $cashTotal  = array_sum(array_column($cash, 'amount'));
@@ -59,18 +71,36 @@ $volCount   = count($vol);
 $volAvg     = $volCount ? $volHours / $volCount : 0;
 
 function fmt_date($d) { return $d ? date('M j, Y', strtotime($d)) : '&mdash;'; }
+
 function fmt_hours($n) { return rtrim(rtrim(number_format((float) $n, 1), '0'), '.'); }
+
 // Cash and non-cash receipts: sent, pending, or not requested.
 function receipt_badge(array $row) {
   if (!empty($row['receipt_sent_at']) || !empty($row['thanked'])) { return '<span class="status active">Sent</span>'; }
   if (!empty($row['send_receipt'])) { return '<span class="status pending">Pending</span>'; }
   return '<span class="status off">Not requested</span>';
 }
+
 // Communication status straight from the enum; delivery failures stand out.
 function comm_badge($status) {
   $warn = in_array($status, ['bounced', 'failed'], true);
-  return '<span class="status ' . ($warn ? 'pending' : 'active') . '">' . h(ucfirst((string) $status)) . '</span>';
+  return '<span class="status ' . ($warn ? 'pending' : 'active') . '">' . h(comm_status_label($status)) . '</span>';
 }
+
+/**
+ * Returns a contact card as HTML with escaped field values, an email link and an optional Main badge.
+ * Uses the name as its heading, falling back to the title, then 'Contact'; omits empty details.
+ */
+function contact_card(array $c) {
+  $name = $c['name'] !== '' ? $c['name'] : ($c['title'] !== '' ? $c['title'] : 'Contact');
+  $bits = [];
+  if ($c['name'] !== '' && $c['title'] !== '') { $bits[] = h($c['title']); }
+  if ($c['email'] !== '') { $bits[] = '<a href="mailto:' . h($c['email']) . '">' . h($c['email']) . '</a>'; }
+  if ($c['phone'] !== '') { $bits[] = h($c['phone']); }
+  return '<div class="contact-card"><strong>' . h($name) . '</strong>' . ($c['is_primary'] ? ' <span class="status active">Main</span>' : '')
+       . ($bits ? '<p>' . implode(' &middot; ', $bits) . '</p>' : '') . '</div>';
+}
+
 function payment_label(array $g) {
   $labels = ['cash' => 'Cash', 'check' => 'Check', 'card' => 'Card', 'online' => 'Online',
              'digital_token' => 'Digital token', 'stock' => 'Stock', 'other' => 'Other'];
@@ -81,7 +111,9 @@ function payment_label(array $g) {
   }
   return h($label);
 }
+
 function comm_type_label($t) { return h($t === 'in_person' ? 'In person' : ucfirst(str_replace('_', ' ', (string) $t))); }
+
 function count_line($n, $label) {
   return '<div class="pager"><p>Showing ' . ($n ? '1&ndash;' . $n : '0') . ' of ' . $n . ' ' . $label . '</p></div>';
 }
@@ -101,6 +133,7 @@ fishnet_open('Donor profile', 'donor', ['donor.css', 'forms.css']);
       <?php if ($saved): ?><div class="notice" role="status">Donor saved.</div><?php endif; ?>
       <?php if ($giftSaved): ?><div class="notice" role="status">Donation saved.</div><?php endif; ?>
       <?php if ($hoursSaved >= 1): ?><div class="notice" role="status"><?= $hoursSaved === 1 ? 'Hours saved.' : 'Hours saved for ' . $hoursSaved . ' volunteers.' ?></div><?php endif; ?>
+      <?php if ($commSaved): ?><div class="notice" role="status">Communication saved.</div><?php endif; ?>
       <?php if ($hoursDeleted): ?><div class="notice" role="status">Hours entry deleted.</div><?php endif; ?>
       <?php if ($loadError): ?><div class="notice" role="alert">Could not load this donor. Please try again shortly.</div><?php endif; ?>
 
@@ -114,6 +147,19 @@ fishnet_open('Donor profile', 'donor', ['donor.css', 'forms.css']);
         <?php if ($canEdit): ?><a href="updateDonor.php?id=<?= (int)$donor['id'] ?>" class="btn btn-yellow">&#9998; Update profile</a><?php endif; ?>
       </section>
 
+      <?php if ($contacts): $firstTwo = array_slice($contacts, 0, 2); $rest = array_slice($contacts, 2); ?>
+        <section class="card contacts-card">
+          <h3>Contact people</h3>
+          <div class="contact-cards"><?php foreach ($firstTwo as $c) { echo contact_card($c); } ?></div>
+          <?php if ($rest): ?>
+          <details class="contacts-more">
+            <summary>Show <?= count($rest) ?> more</summary>
+            <div class="contact-cards"><?php foreach ($rest as $c) { echo contact_card($c); } ?></div>
+          </details>
+          <?php endif; ?>
+        </section>
+      <?php endif; ?>
+
       <section class="tiles">
         <div class="tile"><p class="label">Lifetime cash</p><p class="num">$<?= number_format((float) $donor['lifetime_cash'], 2) ?></p></div>
         <div class="tile"><p class="label">Items donated</p><p class="num"><?= number_format((float) $donor['items_donated']) ?></p></div>
@@ -125,7 +171,7 @@ fishnet_open('Donor profile', 'donor', ['donor.css', 'forms.css']);
         <input type="radio" name="tab" id="tCash"<?= $openTab === 'tCash' ? ' checked' : '' ?>>
         <input type="radio" name="tab" id="tItems">
         <input type="radio" name="tab" id="tVol"<?= $openTab === 'tVol' ? ' checked' : '' ?>>
-        <input type="radio" name="tab" id="tComm">
+        <input type="radio" name="tab" id="tComm"<?= $openTab === 'tComm' ? ' checked' : '' ?>>
         <div class="tab-bar">
           <label for="tCash">Cash<?php if ($canViewGifts): ?> <span class="count"><?= $cashCount ?></span><?php endif; ?></label>
           <label for="tItems">Non-cash<?php if ($canViewGifts): ?> <span class="count"><?= count($items) ?></span><?php endif; ?></label>
@@ -197,7 +243,10 @@ fishnet_open('Donor profile', 'donor', ['donor.css', 'forms.css']);
 
         <!-- Communications -->
         <div class="panel-tab p-comm">
-          <div class="tab-actions"><a href="logCommunication.php?donor_id=<?= (int)$donor['id'] ?>" class="btn btn-outline pill-btn">+ Log communication</a></div>
+          <?php if ($canLogComm): ?><div class="tab-actions"><a href="addCommunication.php?donor_id=<?= (int)$donor['id'] ?>" class="btn btn-outline pill-btn">+ Log communication</a></div><?php endif; ?>
+          <?php if (!$canSeeComms): ?>
+          <p class="muted">Your account cannot view communications.</p>
+          <?php else: ?>
           <div class="table-wrap"><table>
             <thead><tr><th>Date</th><th>Type</th><th>Subject line</th><th>Campaign</th><th>Status</th></tr></thead>
             <tbody>
@@ -208,6 +257,7 @@ fishnet_open('Donor profile', 'donor', ['donor.css', 'forms.css']);
             </tbody>
           </table></div>
           <?= count_line(count($comms), 'communications') ?>
+          <?php endif; ?>
         </div>
       </section>
 

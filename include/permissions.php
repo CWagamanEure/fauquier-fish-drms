@@ -46,10 +46,34 @@ function fish_can_record_donations() {
     return fish_can('donations', 'view') && fish_can('donations', 'edit') && fish_can('donors', 'view');
 }
 
+/**
+ * Downloading the cash and non-cash donations CSVs (exportData.php, those two rows on dataImports.php):
+ * donations view, so a file never holds more than the donations list and gift pages already show. The
+ * 'data_import' area governs imports only; to stop someone exporting gifts, remove their donations view
+ * (UF2-133, UF2-134).
+ */
+function fish_can_export_donations() {
+    return fish_can('donations', 'view');
+}
+
+/**
+ * Downloading the volunteer hours CSV (exportData.php, the "All volunteer hours" row on dataImports.php): donors
+ * view, the rule hours.php, addHours.php and the profile's Volunteer tab use to show hours (UF2-138).
+ */
+function fish_can_export_hours() {
+    return fish_can('donors', 'view');
+}
+
 // Logging or editing volunteer hours (addHours.php, hours.php and the profile's "+ Log hours"): donors view
 // and edit. The users enum has no volunteers area, so donor permissions govern volunteer records.
 function fish_can_log_hours() {
     return fish_can('donors', 'view') && fish_can('donors', 'edit');
+}
+
+// Logging a one-on-one communication (addCommunication.php and every link to it): communications view and
+// edit, plus donors view to pick the donor.
+function fish_can_log_communications() {
+    return fish_can('communications', 'view') && fish_can('communications', 'edit') && fish_can('donors', 'view');
 }
 
 // Deleting a volunteer hours entry: the edit page's rights plus donors delete, so the delete panel only

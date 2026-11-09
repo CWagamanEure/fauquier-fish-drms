@@ -7,6 +7,7 @@
   var next = list.querySelectorAll('.contact-row').length;
 
   add.addEventListener('click', function () {
+    if (list.querySelectorAll('.contact-row').length >= 10) { return; }
     var row = list.querySelector('.contact-row').cloneNode(true);
     Array.prototype.forEach.call(row.querySelectorAll('input'), function (input) {
       if (input.type === 'radio') {

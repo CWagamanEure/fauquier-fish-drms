@@ -14,6 +14,14 @@ const DONOR_STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID
 // Column lengths from SHOW CREATE TABLE donors; strict-mode MariaDB rejects anything longer.
 const DONOR_FIELD_LIMITS = ['first' => 100, 'middle' => 100, 'last' => 100, 'org_name' => 255, 'email' => 100,
                             'phone' => 30, 'street' => 100, 'city' => 30, 'state' => 30, 'zip' => 30];
+const DONOR_CONTACT_MAX = 10;
+const DONOR_CONTACT_LIMITS = ['name' => 255, 'title' => 100, 'email' => 100, 'phone' => 30];   // donor_contacts column lengths
+const DONOR_CONTACT_TYPES = ['Organization'];
+
+/** Returns whether the form type supports contact people; only 'Organization' currently does. */
+function donor_type_has_contacts($type) {
+    return in_array($type, DONOR_CONTACT_TYPES, true);
+}
 
 function donor_pref_to_enum($label) {
     $enum = array_search($label, DONOR_PREFERRED_LABELS, true);
@@ -33,6 +41,34 @@ function donor_like_escape($s) {
 }
 
 // ---------- reads ----------
+
+/**
+ * Returns a donor's contacts in form order, or an empty list when none exist.
+ * Rows contain name, title, email and phone as strings (null becomes ''), and an integer is_primary.
+ * Callers must already have checked fish_can('donors', 'view').
+ *
+ * @throws mysqli_sql_exception If connecting or reading contacts fails.
+ */
+function donor_contacts_get($donorId) {
+    $con = connect();
+    $stmt = $con->prepare('SELECT name, title, email, phone, is_primary FROM donor_contacts WHERE donor_id = ? ORDER BY sort_order, id');
+    $stmt->bind_param('i', $donorId);
+    $stmt->execute();
+    $rows = [];
+    foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
+        $rows[] = ['name' => (string) $r['name'], 'title' => (string) $r['title'], 'email' => (string) $r['email'],
+                   'phone' => (string) $r['phone'], 'is_primary' => (int) $r['is_primary']];
+    }
+    $stmt->close();
+    mysqli_close($con);
+    return $rows;
+}
+
+/** Returns the first row key with a nonempty is_primary, or 0 if none exists, including an empty list. */
+function donor_contacts_primary_index(array $rows) {
+    foreach ($rows as $i => $r) { if (!empty($r['is_primary'])) { return $i; } }
+    return 0;
+}
 
 // The four tiles on donor.php, all over the same set: active, non-anonymous donors.
 // "Lapsed" is every donor without a gift in the last 12 months (status lybunt, sybunt or inactive).
@@ -161,6 +197,19 @@ function donors_lookup($q, $limit = 10) {
     return $rows;
 }
 
+// id => display name of every active, non-anonymous donor (the same filter as the donor list), for a
+// full donor dropdown such as addCommunication.php's.
+function donor_options() {
+    [$where] = donors_list_where('all', '');
+    $con = connect();
+    $stmt = $con->prepare("SELECT id, display_name FROM donor_summary WHERE $where ORDER BY display_name, id");
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    mysqli_close($con);
+    return array_column($rows, 'display_name', 'id');
+}
+
 // One donor_summary row (active or not), or null.
 function donor_get($id) {
     $con = connect();
@@ -173,7 +222,12 @@ function donor_get($id) {
     return $row ?: null;
 }
 
-// The form-shaped profile addDonor.php and updateDonor.php use, or null.
+/**
+ * Returns the form-shaped donor profile, including contacts and their primary row index, or null
+ * if the donor does not exist. Contacts are included regardless of donor type.
+ *
+ * @throws mysqli_sql_exception If connecting or reading the donor or contacts fails.
+ */
 function donor_profile_fields($id) {
     $con = connect();
     $stmt = $con->prepare('SELECT id, donor_type, `first`, middle_name, `last`, org_name, email, phone, preferred_contact,
@@ -185,6 +239,7 @@ function donor_profile_fields($id) {
     $stmt->close();
     mysqli_close($con);
     if (!$r) { return null; }
+    $contacts = donor_contacts_get((int) $r['id']);
     return ['id' => (int) $r['id'],
             'type' => $r['donor_type'] === 'organization' ? 'Organization' : 'Individual',
             'first' => (string) $r['first'], 'middle' => (string) $r['middle_name'], 'last' => (string) $r['last'],
@@ -195,7 +250,8 @@ function donor_profile_fields($id) {
             'volunteer' => (int) $r['is_volunteer'], 'email_updates' => (int) $r['email_updates'],
             'mail_receipts' => (int) $r['mail_receipts'], 'do_not_contact' => (int) $r['do_not_contact'],
             'notes' => (string) $r['notes'], 'code' => sprintf('D-%05d', (int) $r['id']),
-            'created' => $r['created_at'], 'is_active' => (int) $r['is_active']];
+            'created' => $r['created_at'], 'is_active' => (int) $r['is_active'],
+            'contacts' => $contacts, 'primary_contact' => donor_contacts_primary_index($contacts)];
 }
 
 function donor_history_rows($sql, $id) {
@@ -237,8 +293,60 @@ function donor_communications($id) {
 
 // ---------- form handling shared by addDonor.php and updateDonor.php ----------
 
-// The form array from a POST; only strings are accepted, arrays become ''. (Same rule as fish_str() in
-// include/fishnet-layout.php; repeated here because the data layer must not depend on the page layout.)
+// The posted contacts[n][field] rows, trimmed; rows with every field blank are skipped. Returns [rows, index of
+// the main contact within rows]. The posted primary_contact names a contacts[] key; if that row was skipped the
+// first saved row is the main one.
+function donor_contacts_from_post(array $post) {
+    $raw = isset($post['contacts']) && is_array($post['contacts']) ? $post['contacts'] : [];
+    $mainKey = isset($post['primary_contact']) && is_string($post['primary_contact']) ? $post['primary_contact'] : '';
+    $rows = [];
+    $primary = 0;
+    foreach ($raw as $key => $r) {
+        if (!is_array($r)) { continue; }
+        $row = [];
+        foreach (array_keys(DONOR_CONTACT_LIMITS) as $field) {
+            $row[$field] = isset($r[$field]) && is_string($r[$field]) ? trim($r[$field]) : '';
+        }
+        if (implode('', $row) === '') { continue; }
+        if ((string) $key === $mainKey) { $primary = count($rows); }
+        $rows[] = $row;
+    }
+    return [$rows, $primary];
+}
+
+/**
+ * Returns contact validation errors, or an empty list when valid, for rows from donor_contacts_from_post().
+ * Checks UTF-8 character limits and optional email/phone values; normalizes valid phone numbers in
+ * place to (NNN) NNN-NNNN, accepting an optional leading 1. More than ten rows returns an error
+ * without processing rows. Phone normalization can occur even when other fields have errors.
+ */
+function donor_contacts_validate(array &$rows) {
+    if (count($rows) > DONOR_CONTACT_MAX) { return ['Add at most ' . DONOR_CONTACT_MAX . ' contact people.']; }
+    $errors = [];
+    foreach ($rows as $i => &$r) {
+        $n = $i + 1;
+        foreach (DONOR_CONTACT_LIMITS as $field => $max) {
+            if (mb_strlen($r[$field], 'UTF-8') > $max) { $errors[] = "Contact person $n: $field must be $max characters or fewer."; }
+        }
+        if ($r['email'] !== '' && !filter_var($r['email'], FILTER_VALIDATE_EMAIL)) {
+            $errors[] = "Contact person $n: enter a valid email address.";
+        }
+        if ($r['phone'] !== '') {
+            $digits = donor_phone_digits($r['phone']);
+            if (strlen($digits) === 11 && $digits[0] === '1') { $digits = substr($digits, 1); }
+            if (strlen($digits) !== 10) { $errors[] = "Contact person $n: phone number must have 10 digits."; }
+            else { $r['phone'] = sprintf('(%s) %s-%s', substr($digits, 0, 3), substr($digits, 3, 3), substr($digits, 6)); }
+        }
+    }
+    unset($r);
+    return $errors;
+}
+
+/**
+ * Returns the base form overlaid with posted donor fields and parsed contacts/primary_contact.
+ * Text fields accept only strings and are trimmed; missing or non-string values become ''.
+ * Checkbox presence becomes 1 or 0, and an unknown donor type becomes 'Individual'.
+ */
 function donor_form_from_post(array $post, array $base) {
     $str = function ($k) use ($post) { return isset($post[$k]) && is_string($post[$k]) ? trim($post[$k]) : ''; };
     $form = array_merge($base, [
@@ -250,13 +358,18 @@ function donor_form_from_post(array $post, array $base) {
         'mail_receipts' => isset($post['mail_receipts']) ? 1 : 0, 'do_not_contact' => isset($post['do_not_contact']) ? 1 : 0,
     ]);
     if (!in_array($form['type'], ['Individual', 'Organization'], true)) { $form['type'] = 'Individual'; }
+    [$form['contacts'], $form['primary_contact']] = donor_contacts_from_post($post);
     return $form;
 }
 
-// Validates and normalises $form in place; returns the list of error messages. A posted value that is
-// byte-identical to the stored one ($stored, for edits) is accepted as is, so legacy data that would not
-// pass today's rules survives an edit untouched; an empty value clears the field; a changed value must
-// pass the normal rules and the column lengths.
+/**
+ * Validates and normalizes $form in place; returns error messages, or an empty list when valid.
+ * $stored is the original form-shaped profile for edits. Unchanged donor fields bypass format and
+ * length checks, but required names are still checked. Empty optional values clear their fields.
+ * Changed valid phone numbers are formatted, and unknown changed contact preferences become ''.
+ * Organization contacts are always validated and normalized, even if unchanged; individual contacts
+ * are ignored. Normalization can occur even when validation returns errors.
+ */
 function donor_form_validate(array &$form, ?array $stored = null) {
     $errors = [];
     $unchanged = function ($k) use ($form, $stored) { return $stored !== null && array_key_exists($k, $stored) && $form[$k] === (string) $stored[$k]; };
@@ -293,6 +406,9 @@ function donor_form_validate(array &$form, ?array $stored = null) {
             $errors[] = "$label must be $limit characters or fewer.";
         }
     }
+    if (donor_type_has_contacts($form['type'])) {
+        $errors = array_merge($errors, donor_contacts_validate($form['contacts']));
+    }
     return $errors;
 }
 
@@ -310,11 +426,55 @@ function donor_bind_values(array $form) {
     ];
 }
 
-// Inserts a donor from the validated form; returns the new id or false. donor_since and created_at are
-// left to their column defaults; with no gifts yet its giving status (donor_summary.status) is "inactive".
+/**
+ * Replaces a donor's contacts in row order and clears legacy donors.org_contact (migration 013).
+ * Expects validated rows; an empty list removes all contacts. $primary is the zero-based position in
+ * array_values($rows); an out-of-range value marks no contact as primary. $byUser is the updating
+ * user's identifier. Does nothing for the anonymous donor.
+ * The caller owns the transaction, rollback, connection and permission checks.
+ *
+ * @throws mysqli_sql_exception If deleting, inserting or clearing the legacy contact fails.
+ */
+function donor_contacts_write(mysqli $con, $donorId, array $rows, $primary, $byUser) {
+    if ((int) $donorId === DONOR_ANONYMOUS_ID) { return; }
+    $stmt = $con->prepare('DELETE FROM donor_contacts WHERE donor_id = ?');
+    $stmt->bind_param('i', $donorId);
+    $stmt->execute();
+    $stmt->close();
+    if ($rows) {
+        $stmt = $con->prepare('INSERT INTO donor_contacts (donor_id, name, title, email, phone, is_primary, sort_order, updated_by)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+        $name = $title = $email = $phone = null;
+        $isMain = $sort = 0;
+        $stmt->bind_param('issssiis', $donorId, $name, $title, $email, $phone, $isMain, $sort, $byUser);
+        foreach (array_values($rows) as $i => $r) {
+            $name = $r['name'] === '' ? null : $r['name'];
+            $title = $r['title'] === '' ? null : $r['title'];
+            $email = $r['email'] === '' ? null : $r['email'];
+            $phone = $r['phone'] === '' ? null : $r['phone'];
+            $isMain = $i === (int) $primary ? 1 : 0;
+            $sort = $i;
+            $stmt->execute();
+        }
+        $stmt->close();
+    }
+    $stmt = $con->prepare('UPDATE donors SET org_contact = NULL WHERE id = ? AND id <> ' . DONOR_ANONYMOUS_ID);
+    $stmt->bind_param('i', $donorId);
+    $stmt->execute();
+    $stmt->close();
+}
+
+/**
+ * Inserts a validated donor and, for an organization, its contacts in one transaction.
+ * Returns the new positive ID, or false on a caught database exception or missing positive ID.
+ * Database exceptions trigger a rollback attempt. The caller must check write permission.
+ * $byUser identifies the updating user; donor_since and created_at use their column defaults.
+ */
 function donor_create(array $form, $byUser) {
+    $con = null;
     try {
         $con = connect();
+        $con->begin_transaction();
         $stmt = $con->prepare('INSERT INTO donors (donor_type, `first`, middle_name, `last`, org_name, email, phone, preferred_contact,
                                                    street, city, state, zip, is_volunteer, email_updates, mail_receipts, do_not_contact, updated_by)
                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
@@ -324,20 +484,33 @@ function donor_create(array $form, $byUser) {
         $stmt->execute();
         $id = (int) $con->insert_id;
         $stmt->close();
+        if ($id > 0 && donor_type_has_contacts($form['type'])) {
+            donor_contacts_write($con, $id, $form['contacts'] ?? [], $form['primary_contact'] ?? 0, $byUser);
+        }
+        $con->commit();
         mysqli_close($con);
         return $id > 0 ? $id : false;
     } catch (mysqli_sql_exception $e) {
         error_log('donor_create failed: ' . $e->getMessage());
+        if ($con instanceof mysqli) { try { $con->rollback(); } catch (mysqli_sql_exception $ignored) {} }
         return false;
     }
 }
 
-// Updates only the columns the form carries; org_contact, notes, gender, donor_since and created_at are
-// never touched. Refuses the anonymous donor. Returns true on success.
+/**
+ * Updates validated donor fields and, for organizations, replaces contacts in the same transaction.
+ * Clears org_contact when saving contacts; individual donors retain any existing contact rows.
+ * Leaves notes, gender, donor_since and created_at untouched. $byUser identifies the updating user;
+ * the caller must check write permission. Returns false for the anonymous donor or a caught database
+ * exception, with a rollback attempt on database errors. Returns true after committing, even if no
+ * donor matched the ID.
+ */
 function donor_update($id, array $form, $byUser) {
     if ((int) $id === DONOR_ANONYMOUS_ID) { return false; }
+    $con = null;
     try {
         $con = connect();
+        $con->begin_transaction();
         $stmt = $con->prepare('UPDATE donors SET donor_type = ?, `first` = ?, middle_name = ?, `last` = ?, org_name = ?, email = ?, phone = ?,
                                                  preferred_contact = ?, street = ?, city = ?, state = ?, zip = ?, is_volunteer = ?, email_updates = ?,
                                                  mail_receipts = ?, do_not_contact = ?, updated_by = ?
@@ -347,12 +520,16 @@ function donor_update($id, array $form, $byUser) {
         $values[] = (int) $id;
         $stmt->bind_param('ssssssssssssiiiisi', ...$values);
         $stmt->execute();
-        $ok = $stmt->errno === 0;
         $stmt->close();
+        if (donor_type_has_contacts($form['type'])) {
+            donor_contacts_write($con, (int) $id, $form['contacts'] ?? [], $form['primary_contact'] ?? 0, $byUser);
+        }
+        $con->commit();
         mysqli_close($con);
-        return $ok;
+        return true;
     } catch (mysqli_sql_exception $e) {
         error_log('donor_update failed: ' . $e->getMessage());
+        if ($con instanceof mysqli) { try { $con->rollback(); } catch (mysqli_sql_exception $ignored) {} }
         return false;
     }
 }

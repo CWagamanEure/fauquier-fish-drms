@@ -1,0 +1,36 @@
+{
+ "mode": "code",
+ "subject": "wagaman-eure-export-hours",
+ "round": 1,
+ "approved": true,
+ "reviewed_commit": "d46484cbf24963c39f4ae69da3c23a4b2d97ad43",
+ "tree": "120f39bf1f51d0046740a40e6371a586bb84839af8bac46c579fedd75a373997",
+ "auditors": [
+  {
+   "auditor": "security",
+   "approve": true,
+   "finding_count": 0
+  },
+  {
+   "auditor": "data",
+   "approve": true,
+   "finding_count": 0
+  },
+  {
+   "auditor": "correctness",
+   "approve": true,
+   "finding_count": 1
+  },
+  {
+   "auditor": "verification",
+   "approve": true,
+   "finding_count": 3
+  }
+ ],
+ "findings_by_severity": {
+  "low": 4
+ },
+ "findings_by_status": {
+  "reported": 4
+ }
+}

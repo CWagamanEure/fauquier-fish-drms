@@ -1,0 +1,18 @@
+{
+  "mode": "ticket",
+  "subject": "adu-sprint4-comms-hours",
+  "round": 1,
+  "approved": true,
+  "runner": "Agent tool (Workflow tool unavailable); prompts from .claude/workflows/review-swarm.js",
+  "auditors": [
+    {"auditor": "security", "approve": true, "finding_count": 4},
+    {"auditor": "data", "approve": true, "finding_count": 7},
+    {"auditor": "correctness", "approve": true, "finding_count": 11},
+    {"auditor": "verification", "approve": true, "finding_count": 8}
+  ],
+  "counts": {
+    "by_severity": {"critical": 0, "high": 2, "medium": 12, "low": 16},
+    "by_status": {"reported": 30}
+  },
+  "ticket_commit": "543cd99"
+}
