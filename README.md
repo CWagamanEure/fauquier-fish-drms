@@ -151,6 +151,7 @@ the permission gates, on donors, campaigns and users it creates and removes itse
 `make seed-demo`) runs `tests/exports_integration.py`: the cash (UF2-133) and non-cash (UF2-134) donations
 CSVs and the volunteer hours CSV (UF2-138) from Data & Imports: date ranges, columns, formula escaping, error
 redirects and permission gates, on gifts and hours entries dated in 1901 that it creates and removes itself. Run them only against a local development database.
+`make test-campaigns` (after `make seed-demo`) runs `tests/campaigns_integration.py` (campaign list, detail, add/edit, the per-area gates, and the donation and hours forms that feed campaigns), and `make test-outreach` (after `make seed-demo`) runs `tests/outreach_integration.py` (outreach posts: channels, posted-by, active campaigns, photo upload and its private download).
 
 ## Purpose
 This project is the result of a semester's worth of collaboration among UMW students. The goal of the project was to create a web application that better suits the needs of Rappahannock CASA, specifically as a system to manage their donors. 

@@ -1,13 +1,11 @@
 <?php
-// Add communication: a one-on-one contact with a donor, or an outreach post linked to a campaign.
 // One-on-one contacts save (UF2-146 donor from donor_summary, UF2-147 person contacted from dbpersons,
-// UF2-148 campaign from dbevents) and return to the donor's Communications tab. Outreach is still front end
-// only (UF2-141..144): its POST is refused with a message and writes nothing.
-// ?kind=outreach opens with Outreach picked (for example from a campaign page); ?donor_id=N preselects a donor.
-// Gates: communications view to see the form; communications view + edit and donors view to save (otherwise
-// the form is read-only and a POST gets 403). The layout checks the CSRF token on every POST.
+// UF2-148 campaign from dbevents) and return to the donor's Communications tab.
+// Outreach posts (UF2-141..144) are saved through dbOutreach.php, may be linked to an active campaign,
+// support photo uploads, and appear in the Communications -> Outreach view.
 require_once 'include/fishnet-layout.php';
 require_once 'database/dbCommunications.php';
+require_once 'database/dbOutreach.php';
 
 $isPost = $_SERVER['REQUEST_METHOD'] === 'POST';
 $title = 'Add communication';
@@ -26,9 +24,10 @@ if ($isPost && !$canSave) {
   exit('Your account cannot log communications.');
 }
 
-$donors = $campaigns = $staff = [];   // id => name
+$donors = $campaigns = $staff = $outCampaigns = [];   // id => name
 $loadError = false;
 try {
+  if ($canSave) { $outCampaigns = outreach_campaign_options(); }   // active campaigns only
   if ($canSeeDonors) { $donors = donor_options(); }   // donor names only for accounts that may see donors
   if ($canSave) { $staff = comm_staff_options(); }    // account ids only for accounts that can save
   $campaigns = comm_campaign_options();
@@ -38,6 +37,8 @@ try {
 }
 
 $form = comm_form_blank();
+$outForm = outreach_form_blank(auth_current_user()->get_id());
+if (!outreach_in_map($staff, $outForm['posted_by'])) { $outForm['posted_by'] = ''; }   // default to the signed-in user when they can be picked
 $preselect = fish_str($_GET, 'donor_id');
 if ($preselect !== '' && ctype_digit($preselect) && array_key_exists((int) $preselect, $donors)) { $form['donor'] = $preselect; }
 $outreachFirst = fish_str($_GET, 'kind') === 'outreach';
@@ -49,7 +50,18 @@ if ($isPost) {
     http_response_code(503);
     $errors[] = 'Could not load everything this form needs. Please try again shortly.';
   } elseif ($outreachFirst) {
-    $errors[] = 'Saving outreach posts is not available yet.';
+    $outForm = array_merge($outForm, outreach_form_from_post($_POST));
+    $errors = outreach_form_validate($outForm, $staff, $outCampaigns);
+    [$photo, $photoError] = outreach_photo_check($_FILES['photo'] ?? null);
+    if ($photoError !== null) { $errors[] = $photoError; }
+      if (!$errors) {
+      $oid = outreach_create($outForm, $photo, $staff, auth_current_user()->get_id());
+      if ($oid !== false) {
+        header('Location: communications.php?tab=outreach&saved=1', true, 303);
+        exit;
+      }
+      $errors[] = 'Could not save the outreach post. Please check the campaign is still active and try again.';
+    }
   } else {
     $form = array_merge($form, comm_form_from_post($_POST));
     $errors = comm_form_validate($form, $donors, $staff, $campaigns);
@@ -156,10 +168,10 @@ fishnet_open($title, 'communications', ['forms.css', 'communications.css']);
 
           <!-- ===== Outreach ===== -->
           <div class="only-out">
-            <div class="group-title">2 &middot; Channel</div>
-            <div class="channel-choices" role="radiogroup" aria-label="Channel">
-              <?php foreach (['facebook' => 'Facebook', 'instagram' => 'Instagram', 'x' => 'X / Twitter', 'linkedin' => 'LinkedIn', 'mass_email' => 'Mass email', 'newsletter' => 'Newsletter'] as $v => $label): ?>
-              <label class="channel"><input type="radio" name="channel" value="<?= $v ?>"><span><?= $label ?></span></label>
+            <div class="group-title">2 &middot; Channel <span class="muted">(pick one or more)</span></div>
+            <div class="channel-choices" role="group" aria-label="Channels">
+              <?php foreach (OUTREACH_CHANNELS as $v => $label): ?>
+              <label class="channel"><input type="checkbox" name="channel[]" value="<?= h($v) ?>"<?= in_array($v, $outForm['channels'], true) ? ' checked' : '' ?>><span><?= h($label) ?></span></label>
               <?php endforeach; ?>
             </div>
           </div>
@@ -167,26 +179,28 @@ fishnet_open($title, 'communications', ['forms.css', 'communications.css']);
           <div class="only-out">
             <div class="group-title">3 &middot; Details</div>
             <div class="grid g-out">
-              <div class="field"><label for="campaign_out">Campaign</label>
+              <div class="field"><label for="campaign_out">Campaign (active only)</label>
                 <select id="campaign_out" name="campaign_id"><option value="">None</option>
-                  <?php foreach ($campaigns as $id => $name): ?><option value="<?= (int) $id ?>"><?= h($name) ?></option><?php endforeach; ?></select></div>
-              <div class="field"><label for="posted_on">Post date *</label><input type="date" id="posted_on" name="posted_on"></div>
+                  <?php foreach ($outCampaigns as $id => $name): ?><option value="<?= (int) $id ?>"<?= $sel($id, $outForm['campaign']) ?>><?= h($name) ?></option><?php endforeach; ?></select></div>
+              <div class="field"><label for="posted_on">Post date *</label><input type="date" id="posted_on" name="posted_on" value="<?= h($outForm['posted_on']) ?>"></div>
               <div class="field"><label for="posted_by">Posted by</label>
-                <select id="posted_by" name="posted_by"><option value="">Choose&hellip;</option>
-                  <?php foreach ($staff as $id => $name): ?><option value="<?= h($id) ?>"><?= h($name) ?></option><?php endforeach; ?></select></div>
+                <select id="posted_by" name="posted_by"><option value="">Not recorded</option>
+                  <?php foreach ($staff as $id => $name): ?><option value="<?= h($id) ?>"<?= !empty($outForm['posted_by_staff']) || outreach_in_map($staff, $outForm['posted_by']) ? $sel($id, $outForm['posted_by']) : '' ?>><?= h($name) ?></option><?php endforeach; ?>
+                  <option value="<?= h(OUTREACH_PERSON_OTHER) ?>"<?= $outForm['posted_by'] === OUTREACH_PERSON_OTHER ? ' selected' : '' ?>>Someone else&hellip;</option></select></div>
             </div>
-            <div class="field top-gap"><label for="post_url">Link to post</label><input type="url" id="post_url" name="post_url" placeholder="https://"></div>
-            <div class="field top-gap"><label for="caption">Caption / content</label><textarea id="caption" name="caption" rows="3" placeholder="The post caption, or the text of the email"></textarea></div>
-            <div class="field top-gap"><label for="photo">Photo or screenshot</label><input type="file" id="photo" name="photo" accept="image/*" class="file-input"></div>
+            <div class="field top-gap"><label for="posted_by_other">Name, if someone else posted it</label><input id="posted_by_other" name="posted_by_other" maxlength="255" value="<?= h($outForm['posted_by_other']) ?>"></div>
+            <div class="field top-gap"><label for="post_url">Link to post</label><input type="url" id="post_url" name="post_url" placeholder="https://" maxlength="500" value="<?= h($outForm['post_url']) ?>"></div>
+            <div class="field top-gap"><label for="caption">Caption / content</label><textarea id="caption" name="caption" rows="3" maxlength="5000" placeholder="The post caption, or the text of the email"><?= h($outForm['caption']) ?></textarea></div>
+            <div class="field top-gap"><label for="photo">Photo or screenshot</label><input type="file" id="photo" name="photo" accept="image/jpeg,image/png,image/webp" class="file-input">
+              <p class="hint">JPG, PNG or WEBP, up to 5 MB. After an error, choose the photo again.</p></div>
           </div>
 
           <div class="only-out">
             <div class="group-title">4 &middot; Results <span class="muted">(optional, update later)</span></div>
             <div class="grid g-comm4">
-              <div class="field"><label for="reach">Reach / views</label><input id="reach" name="reach" inputmode="numeric"></div>
-              <div class="field"><label for="likes">Likes</label><input id="likes" name="likes" inputmode="numeric"></div>
-              <div class="field"><label for="shares">Shares</label><input id="shares" name="shares" inputmode="numeric"></div>
-              <div class="field"><label for="comments">Comments</label><input id="comments" name="comments" inputmode="numeric"></div>
+              <?php foreach (OUTREACH_COUNT_LABELS as $k => $label): ?>
+              <div class="field"><label for="<?= $k ?>"><?= $k === 'reach' ? 'Reach / views' : h($label) ?></label><input id="<?= $k ?>" name="<?= $k ?>" inputmode="numeric" value="<?= h($outForm[$k]) ?>"></div>
+              <?php endforeach; ?>
             </div>
           </div>
 
