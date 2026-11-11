@@ -17,7 +17,7 @@ fail() {
 
 [ -f "$LIST" ] || fail "sql/production-applied.txt is missing"
 # One filename per line; comments, blank lines, surrounding whitespace and a trailing CR are ignored.
-applied="$(sed -e 's/\r$//' -e 's/#.*//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$LIST" | grep -v '^$' || true)"
+applied="$(tr -d '\r' < "$LIST" | sed -e 's/#.*//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | grep -v '^$' || true)"
 
 found=0
 missing=""

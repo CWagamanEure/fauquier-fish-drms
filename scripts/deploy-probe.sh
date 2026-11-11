@@ -25,11 +25,15 @@ probe() { # probe <path> <allowed codes, space separated>
 probe login.php "200"
 
 # Tracked files inside denied directories. If one is removed from the repository, pick a new probe here.
-for f in "uploads/CPSC326_Final_Review (1).pdf" "reportGeneration/reports/makeReport.py"; do
+for f in "uploads/CPSC326_Final_Review (1).pdf" "reportGeneration/reports/makeReport.py" python/credentials.py universal.inc ai-email-gen/Dockerfile; do
   [ -f "$ROOT/$f" ] || { echo "FAIL probe file is no longer in the repository: $f"; bad=1; }
 done
 probe "uploads/CPSC326_Final_Review%20(1).pdf" "403"
 probe "reportGeneration/reports/makeReport.py" "403"
+# These three are denied only by the server's root .htaccess, which the deploy cannot see or restore.
+probe "python/credentials.py" "403"
+probe "universal.inc" "403"
+probe "ai-email-gen/Dockerfile" "403"
 
 # python/exports/ tracks only its .htaccess, so this one is weak: a directory without an index is
 # usually refused with or without the deny rule.

@@ -16,9 +16,16 @@ A push to `main` publishes the site to SiteGround with `.github/workflows/deploy
   edited on the server only.
 - The server's root `.htaccess` must keep denying dot-files, `.ini`/`.txt`/`.sql` files and
   `php_errorlog` (the rules mirrored from `docker/apache.conf`). The deploy checks this from outside
-  before and after it runs (`scripts/deploy-probe.sh`) and stops if a private path is served. The probe
+  before and after it runs (`scripts/deploy-probe.sh`). A failed check before the sync stops the deploy.
+  A failed check after the sync means a private path is being served now: fix the server `.htaccess`
+  (or revert the commit and deploy again) straight away; there is no automatic rollback. The probe
   of `python/exports/` is weak (a directory with no index is usually refused anyway), and the probes do
   not check the database.
+- A file removed from `uploads/`, `reportGeneration/reports/` or `python/exports/` in the repository stays
+  on the server (those directories are never cleaned); delete it there by hand. If it is one of the files
+  named in `scripts/deploy-probe.sh`, replace that probe in the same pull request.
+- Re-running an old deploy run cannot publish an older commit: a real deploy checks again that it is the
+  tip of `main` and that deploys are enabled.
 - SiteGround caching can delay a visible change; purge the cache in Site Tools if a page looks stale.
 
 Teammates need no `make dev`, `make migrate` or re-login for this change.

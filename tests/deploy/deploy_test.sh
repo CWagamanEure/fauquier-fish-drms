@@ -36,6 +36,8 @@ echo 'body{}' > css/base.css
 echo x > sql/casadb.sql; echo x > tests/t.py; echo x > .github/workflows/ci.yml; echo x > docs/d.md
 echo x > Go/go.mod; echo x > README.md; echo x > CLAUDE.md; echo x > LICENSE.txt; echo x > Makefile
 echo x > Dockerfile; echo x > compose.yaml; echo x > package.json; echo x > .env.example; echo x > .dockerignore
+echo x > package-lock.json; echo x > .gitattributes; echo x > .coderabbit.yaml
+mkdir -p .githooks .claude .reviews docker; echo x > .githooks/pre-push; echo x > .claude/s.md; echo x > .reviews/r.md; echo x > docker/apache.conf
 printf '.local/\nignored.txt\n' > .gitignore
 echo x > ai-email-gen/Dockerfile; echo x > ai-email-gen/index.php
 echo 'Require all denied' > uploads/.htaccess; echo x > uploads/sample.pdf
@@ -49,7 +51,7 @@ seed_site() {
     mkdir -p ai-email-gen sub .well-known/acme uploads reportGeneration/reports python/exports sql .git fish-site
     echo creds > .htaccess; echo key > .api_env; echo key > ai-email-gen/.api_env
     echo log > php_errorlog; echo log > sub/php_errorlog; echo x > .well-known/acme/x
-    echo user > uploads/user.pdf; echo r > reportGeneration/reports/r.pdf; echo e > python/exports/e.csv
+    mkdir -p python/exports/old; echo user > uploads/user.pdf; echo r > reportGeneration/reports/r.pdf; echo e > python/exports/e.csv
     echo dump > sql/dump.sql; echo ref > .git/HEAD; echo env > .env; echo old > stale.php
     echo '<?php // old' > login.php )
 }
@@ -100,7 +102,11 @@ else bad "real run to a local destination (exit $rc)"; sed 's/^/     /' "$TMP/ou
 cd "$SITE"
 is  "uploads app code"                         grep -q new login.php
 is  "uploads nested app files"                 test -f css/base.css
-for p in sql tests .github docs Go scripts README.md CLAUDE.md LICENSE.txt Makefile Dockerfile compose.yaml package.json .env.example .dockerignore .gitignore; do
+# Every "H" rule of the real filter, except .git (not in an archive) and .env (never tracked).
+hidden="$(sed -n 's|^H /||p' "$ROOT/scripts/deploy-siteground.filter" | sed 's|/$||' | grep -v -e '^\.git$' -e '^\.env$' | sed 's|^\.env\.\*$|.env.example|')"
+[ "$(printf '%s\n' "$hidden" | wc -l)" -ge 20 ] && ok "hide list read from the filter" || bad "hide list read from the filter"
+for p in $hidden; do
+  is  "fixture tracks development path $p"     test -e "$REPO/$p"
   not "does not upload development path $p"    test -e "$p"
 done
 not "deletes sql/dump.sql from the server"     test -e sql/dump.sql
@@ -117,6 +123,7 @@ is  "keeps .well-known"                        test -f .well-known/acme/x
 is  "keeps user uploads"                       test -f uploads/user.pdf
 is  "keeps generated reports"                  test -f reportGeneration/reports/r.pdf
 is  "keeps exports"                            test -f python/exports/e.csv
+is  "keeps an empty directory under a runtime directory" test -d python/exports/old
 is  "uploads tracked uploads/.htaccess"        grep -q denied uploads/.htaccess
 is  "uploads tracked uploads/sample.pdf"       test -f uploads/sample.pdf
 is  "uploads tracked report script"            test -f reportGeneration/reports/makeReport.py
@@ -146,7 +153,8 @@ rc=0; guard --warn || rc=$?
 if [ "$rc" = 0 ] && grep -q '::warning::.*003_c.sql' "$TMP/out"; then ok "guard --warn reports without failing"; else bad "guard --warn (exit $rc)"; fi
 rm "$G"/sql/migrations/*.sql
 not "guard fails when no migration files are found" guard
-is  "the real tree passes the guard"           bash "$ROOT/scripts/deploy-schema-guard.sh" "$ROOT"
+# Warning mode only: a pull request that adds a migration must not fail here (the deploy job is strict).
+is  "the real tree runs through the guard in --warn mode" bash "$ROOT/scripts/deploy-schema-guard.sh" --warn "$ROOT"
 
 echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]

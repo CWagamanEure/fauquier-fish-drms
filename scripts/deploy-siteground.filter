@@ -8,8 +8,11 @@
 - php_errorlog
 
 # 2. Runtime content: never deleted ("P" protects only). Tracked files in these directories still upload.
+P /uploads/
 P /uploads/**
+P /reportGeneration/reports/
 P /reportGeneration/reports/**
+P /python/exports/
 P /python/exports/**
 P /.well-known/
 P /.well-known/**

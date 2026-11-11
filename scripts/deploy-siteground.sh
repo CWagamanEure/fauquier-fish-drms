@@ -88,7 +88,7 @@ cat "$OUT"
 [ "$rc" -eq 0 ] || { echo "deploy: rsync failed with exit $rc" >&2; exit "$rc"; }
 
 # Tripwire: the filter must never let these be deleted. In a dry run this fails before anything changed.
-protected='^\*deleting +(\.htaccess$|(.*/)?\.api_env$|(.*/)?php_errorlog$|uploads/.|reportGeneration/reports/.|python/exports/.|\.well-known(/|$))'
+protected='^\*deleting +(\.htaccess$|(.*/)?\.api_env$|(.*/)?php_errorlog$|uploads(/|$)|reportGeneration/reports(/|$)|python/exports(/|$)|\.well-known(/|$))'
 if grep -E "$protected" "$OUT" >"$WORK/hits"; then
   echo "deploy: the run lists deletion of protected paths:" >&2
   cat "$WORK/hits" >&2

@@ -75,6 +75,19 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Real deploy is still enabled and still the tip of main
+        # Repeats the gate job's checks: "Re-run failed jobs" re-runs only this job and reuses the old
+        # gate output. Uses anonymous git ls-remote, which works because the repository is public.
+        if: needs.gate.outputs.mode == 'real'
+        env:
+          ENABLED: ${{ vars.SG_DEPLOY_ENABLED }}
+          SHA: ${{ github.sha }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          set -euo pipefail
+          [ "$ENABLED" = "true" ] || { echo "::error::Deploy is not enabled (SG_DEPLOY_ENABLED is not 'true')."; exit 1; }
+          tip="$(git ls-remote "$REPO_URL" refs/heads/main | cut -f1)"
+          [ "$tip" = "$SHA" ] || { echo "::error::$SHA is not the tip of main ($tip); refusing to publish an older commit."; exit 1; }
       - name: Deploy script tests on this runner's rsync (no secrets used yet)
         run: make test-deploy
       - name: Required settings are present
