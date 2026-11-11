@@ -1,0 +1,130 @@
+# Publishes main to SiteGround's public_html with rsync. Setup, release order and limits: docs/deploy-siteground.md.
+# - Runs on push to main and on manual dispatch (dry run by default). Never on pull_request or
+#   pull_request_target, so code from a fork can never reach the deploy key.
+# - A real deploy needs the repository variable SG_DEPLOY_ENABLED set to "true". Until then a push only
+#   prints a notice. Dispatched dry runs do not need it.
+# - The "gate" job has no environment and no secrets; only "deploy" enters the production environment.
+# - The database is not deployed. scripts/deploy-schema-guard.sh blocks a real deploy while sql/migrations
+#   has a file that sql/production-applied.txt does not list.
+# - Secrets, variables, inputs and context values reach steps through env:, never inside run: text.
+# actions/checkout is pinned by major tag, as in ci.yml and review-gate.yml.
+name: deploy
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run: list what would change, change nothing"
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: deploy-siteground
+  cancel-in-progress: false
+jobs:
+  gate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      mode: ${{ steps.decide.outputs.mode }}
+    steps:
+      - name: Decide between skip, dry run and real deploy
+        id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          DRY_INPUT: ${{ inputs.dry_run }}
+          ENABLED: ${{ vars.SG_DEPLOY_ENABLED }}
+          SHA: ${{ github.sha }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mode=real
+          if [ "$EVENT" = "workflow_dispatch" ] && [ "$DRY_INPUT" != "false" ]; then mode=dry; fi
+          if [ "$mode" = "real" ]; then
+            if [ "$ENABLED" != "true" ]; then
+              echo "::notice::Deploy is not enabled (repository variable SG_DEPLOY_ENABLED is not 'true'). Nothing was deployed."
+              mode=skip
+            else
+              # A re-run of an old run must not publish an older commit over a newer one.
+              tip="$(git ls-remote "$REPO_URL" refs/heads/main | cut -f1)"
+              if [ "$tip" != "$SHA" ]; then
+                echo "::notice::$SHA is not the tip of main ($tip). Nothing was deployed."
+                mode=skip
+              fi
+            fi
+          fi
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          case "$mode" in
+            real) echo "## REAL DEPLOY of $SHA" >> "$GITHUB_STEP_SUMMARY" ;;
+            dry)  echo "## DRY RUN of $SHA (nothing changes on the server)" >> "$GITHUB_STEP_SUMMARY" ;;
+            skip) echo "## Skipped: nothing was deployed" >> "$GITHUB_STEP_SUMMARY" ;;
+          esac
+  deploy:
+    needs: gate
+    if: needs.gate.outputs.mode == 'dry' || needs.gate.outputs.mode == 'real'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      MODE: ${{ needs.gate.outputs.mode }}
+      SITE_URL: ${{ vars.SG_SITE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Deploy script tests on this runner's rsync (no secrets used yet)
+        run: make test-deploy
+      - name: Required settings are present
+        env:
+          SG_SSH_KEY: ${{ secrets.SG_SSH_KEY }}
+          SG_HOST: ${{ secrets.SG_HOST }}
+          SG_USER: ${{ secrets.SG_USER }}
+          SG_PORT: ${{ secrets.SG_PORT }}
+          SG_PATH: ${{ secrets.SG_PATH }}
+          SG_KNOWN_HOSTS: ${{ secrets.SG_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          missing=""
+          for v in SG_SSH_KEY SG_HOST SG_USER SG_PORT SG_PATH SG_KNOWN_HOSTS SITE_URL; do
+            [ -n "${!v:-}" ] || missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing in the production environment or repository variables (SITE_URL is the variable SG_SITE_URL):$missing"
+            exit 1
+          fi
+      - name: Production schema is recorded as current
+        run: |
+          set -euo pipefail
+          if [ "$MODE" = "real" ]; then scripts/deploy-schema-guard.sh; else scripts/deploy-schema-guard.sh --warn; fi
+      - name: Private paths are not served (before)
+        run: scripts/deploy-probe.sh "$SITE_URL"
+      - name: Write the deploy key and the pinned host key
+        env:
+          SG_SSH_KEY: ${{ secrets.SG_SSH_KEY }}
+          SG_KNOWN_HOSTS: ${{ secrets.SG_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/sg"
+          printf '%s\n' "$SG_SSH_KEY" > "$RUNNER_TEMP/sg/key"
+          printf '%s\n' "$SG_KNOWN_HOSTS" > "$RUNNER_TEMP/sg/known_hosts"
+      - name: rsync to SiteGround
+        env:
+          SG_HOST: ${{ secrets.SG_HOST }}
+          SG_USER: ${{ secrets.SG_USER }}
+          SG_PORT: ${{ secrets.SG_PORT }}
+          SG_PATH: ${{ secrets.SG_PATH }}
+        run: |
+          set -euo pipefail
+          export SG_KEY_FILE="$RUNNER_TEMP/sg/key" SG_KNOWN_HOSTS_FILE="$RUNNER_TEMP/sg/known_hosts"
+          if [ "$MODE" = "real" ]; then export DRY_RUN=false; else export DRY_RUN=true; fi
+          scripts/deploy-siteground.sh
+      - name: Private paths are not served (after)
+        if: needs.gate.outputs.mode == 'real'
+        run: scripts/deploy-probe.sh "$SITE_URL"
+      - name: Remove the deploy key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/sg"

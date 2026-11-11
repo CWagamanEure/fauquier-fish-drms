@@ -1,0 +1,43 @@
+# rsync filter for scripts/deploy-siteground.sh. First matching rule wins.
+# Behaviour is pinned by tests/deploy/deploy_test.sh (make test-deploy); change both together.
+
+# 1. Server-only files: never uploaded, never deleted ("-" hides from the sender and protects on the server).
+#    The root .htaccess holds the database credentials. Subdirectory .htaccess files are tracked and deploy.
+- /.htaccess
+- .api_env
+- php_errorlog
+
+# 2. Runtime content: never deleted ("P" protects only). Tracked files in these directories still upload.
+P /uploads/**
+P /reportGeneration/reports/**
+P /python/exports/**
+P /.well-known/
+P /.well-known/**
+
+# 3. Development-only paths: not uploaded, and deleted from the server if present ("H" hides, no protection).
+#    Root-anchored, so ai-email-gen/Dockerfile and ai-email-gen/Makefile keep deploying.
+H /.git/
+H /.github/
+H /.githooks/
+H /.claude/
+H /.reviews/
+H /sql/
+H /tests/
+H /scripts/
+H /docker/
+H /docs/
+H /Go/
+H /README.md
+H /CLAUDE.md
+H /LICENSE.txt
+H /Makefile
+H /Dockerfile
+H /compose.yaml
+H /package.json
+H /package-lock.json
+H /.gitignore
+H /.gitattributes
+H /.dockerignore
+H /.env
+H /.env.*
+H /.coderabbit.yaml
