@@ -1,0 +1,38 @@
+{
+ "mode": "code",
+ "subject": "adu-comm-donor-search",
+ "round": 1,
+ "approved": true,
+ "reviewed_commit": "cae794c8e401c1e1032b53a818968277b15600e0",
+ "tree": "7c26849bcc36aa9e7043b8a272b3af03d60ab38ceb8a1943518e91383fed7651",
+ "runner": "review-swarm.js prompts run via the Agent tool (Workflow tool unavailable in this session)",
+ "auditors": [
+  {
+   "auditor": "security",
+   "approve": true,
+   "finding_count": 1
+  },
+  {
+   "auditor": "data",
+   "approve": true,
+   "finding_count": 0
+  },
+  {
+   "auditor": "correctness",
+   "approve": true,
+   "finding_count": 2
+  },
+  {
+   "auditor": "verification",
+   "approve": true,
+   "finding_count": 3
+  }
+ ],
+ "findings_by_severity": {
+  "low": 5,
+  "medium": 1
+ },
+ "findings_by_status": {
+  "reported": 6
+ }
+}
