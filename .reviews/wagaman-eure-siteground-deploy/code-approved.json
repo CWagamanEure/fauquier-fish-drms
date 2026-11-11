@@ -1,0 +1,37 @@
+{
+  "mode": "code",
+  "subject": "wagaman-eure-siteground-deploy",
+  "round": 2,
+  "approved": true,
+  "reviewed_commit": "08e3e3097fb90f5bc90a36f651c0f95c77b765a8",
+  "tree": "99fd84199b3b49174302a541c53ae653cbdc5bff2fa6b08964116f5606b86e12",
+  "auditors": [
+    {
+      "auditor": "security",
+      "approve": true,
+      "finding_count": 3
+    },
+    {
+      "auditor": "data",
+      "approve": true,
+      "finding_count": 1
+    },
+    {
+      "auditor": "correctness",
+      "approve": true,
+      "finding_count": 4
+    },
+    {
+      "auditor": "verification",
+      "approve": true,
+      "finding_count": 5
+    }
+  ],
+  "findings_by_severity": {
+    "low": 12,
+    "medium": 1
+  },
+  "findings_by_status": {
+    "reported": 13
+  }
+}
