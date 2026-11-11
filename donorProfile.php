@@ -87,6 +87,10 @@ function comm_badge($status) {
   return '<span class="status ' . ($warn ? 'pending' : 'active') . '">' . h(comm_status_label($status)) . '</span>';
 }
 
+/**
+ * Returns a contact card as HTML with escaped field values, an email link and an optional Main badge.
+ * Uses the name as its heading, falling back to the title, then 'Contact'; omits empty details.
+ */
 function contact_card(array $c) {
   $name = $c['name'] !== '' ? $c['name'] : ($c['title'] !== '' ? $c['title'] : 'Contact');
   $bits = [];

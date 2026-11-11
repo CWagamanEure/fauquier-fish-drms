@@ -6,6 +6,10 @@
   let skip = false;   // set when the page is left by saving or cancelling, which handle the draft themselves
   form.addEventListener('submit', () => { skip = true; });
   document.querySelectorAll('a[data-no-draft]').forEach((a) => a.addEventListener('click', () => { skip = true; }));
+  /**
+   * Queues the current add-form fields as a session draft via sendBeacon unless saving or canceling.
+   * Includes the selected gift kind even if its fieldset is disabled; delivery is not guaranteed.
+   */
   function send() {
     if (skip) return;
     const data = new FormData(form);
