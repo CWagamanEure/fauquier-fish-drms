@@ -1,0 +1,18 @@
+# Migrations applied on the production database (SiteGround, MySQL 8). One filename per line.
+# Only the repository owner edits this file, after applying the migration on SiteGround.
+# scripts/deploy-schema-guard.sh blocks a deploy while sql/migrations has a file not listed here.
+# See docs/deploy-siteground.md. 001-014 were confirmed against the live schema on 2026-11-11.
+001_users_and_permissions.sql
+002_donations_cash_fields.sql
+003_donors_profile_fields.sql
+004_non_cash_donations.sql
+005_volunteer_hours.sql
+006_communications.sql
+007_donor_summary_view.sql
+008_donors_active_flag.sql
+009_campaigns.sql
+010_volunteer_hours_details.sql
+011_donor_giving_status.sql
+012_non_cash_weight.sql
+013_donor_contacts.sql
+014_communications_person_followup.sql

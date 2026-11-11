@@ -61,7 +61,7 @@ before it is pushed. `make dev` installs the pre-push hook that guards against p
 a human review is the real control. Two GitHub Actions checks report on every pull request: `record`
 says whether a review-swarm record is present (advisory since 2026-10-20) and `tests`
 (`.github/workflows/ci.yml`) runs the PHP syntax check, `make test-auth`, `make test-donors`,
-`make test-users`, `make test-donations`, `make test-hours`, `make test-comms`, `make test-exports` and `make test-gate`, so a PR needs no tooling on the author's machine. Read
+`make test-users`, `make test-donations`, `make test-hours`, `make test-comms`, `make test-exports`, `make test-gate` and `make test-deploy`, so a PR needs no tooling on the author's machine. Read
 `docs/process/change-review-process.md` before starting work.
 
 ## Database migrations
@@ -180,6 +180,10 @@ Several types of diagrams describing the design of CASA, including sequence diag
 
 
 ### Localhost to Siteground
+
+A push to `main` deploys the site to SiteGround through `.github/workflows/deploy.yml` (once the owner has
+enabled it). The database is not deployed. Setup, the migration release rule and the limits are in
+`docs/deploy-siteground.md`; `make test-deploy` (on a Mac `make test-deploy-docker`) tests the deploy script.
 
 ### Clearing the SiteGround cache
 #### Chrome
