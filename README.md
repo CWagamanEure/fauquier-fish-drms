@@ -145,7 +145,8 @@ asserts the Jira save-to-display limits only when `DONATIONS_TIMING_STRICT=1`. `
 shift times and the same shift for several volunteers), validation, viewing and editing an entry with its
 change history, delete, the profile's Volunteer tab and the permission gates, on donors, campaigns and
 entries it creates and removes itself. `make test-comms` (after `make seed-demo`) runs
-`tests/communications_integration.py`: the one-on-one form's donor, person contacted and campaign lists,
+`tests/communications_integration.py`: the one-on-one form's donor search (preselect, re-render, no donor names without donors view), person
+contacted and campaign lists,
 saving (including "Someone else" and the follow-up rules), validation, the profile's Communications tab and
 the permission gates, on donors, campaigns and users it creates and removes itself. `make test-exports` (after
 `make seed-demo`) runs `tests/exports_integration.py`: the cash (UF2-133) and non-cash (UF2-134) donations

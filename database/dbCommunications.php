@@ -4,7 +4,7 @@
 // insert, and the status labels the donor and campaign Communications tabs show. Every statement is
 // prepared. The anonymous donor (999) is never written. Outreach saving is UF2-141..144 and is not here.
 require_once __DIR__ . '/dbDonations.php';   // donation_valid_date(), donation_today()
-require_once __DIR__ . '/dbDonors.php';      // donor_options(), DONOR_ANONYMOUS_ID
+require_once __DIR__ . '/dbDonors.php';      // donor_get(), donor_lookup_row(), DONOR_ANONYMOUS_ID
 require_once __DIR__ . '/dbCampaigns.php';   // campaign_owner_options()
 require_once __DIR__ . '/dbVolunteerHours.php';   // hours_campaign_names()
 
@@ -24,6 +24,20 @@ const COMM_TEXT_MAX = ['subject' => 255, 'summary' => 5000, 'person_other' => 25
 function comm_status_label($status) {
     $status = (string) $status;
     return COMM_STATUS_LABELS[$status] ?? ucfirst($status);
+}
+
+// The donor chosen on Add communication (the donor search fills a hidden donor_id): id, name, type and town of
+// the active, non-anonymous donor $id names, or null. $id must be the canonical digits of an id ("007" and
+// "7.0" are refused, as the old dropdown refused them). Throws mysqli_sql_exception like donor_get().
+function comm_donor_choice($id) {
+    if (!is_string($id) || $id === '' || strlen($id) > 10 || !ctype_digit($id) || (string) (int) $id !== $id) {
+        return null;
+    }
+    $row = donor_get((int) $id);
+    if (!$row || (int) $row['is_active'] !== 1 || (int) $row['is_anonymous'] !== 0 || (int) $row['id'] === DONOR_ANONYMOUS_ID) {
+        return null;
+    }
+    return array_intersect_key(donor_lookup_row($row), array_flip(['id', 'name', 'type', 'town']));
 }
 
 // id => name of the active staff accounts (not vmsroot), the choices for Person contacted.

@@ -4,6 +4,8 @@
 // UF2-148 campaign from dbevents) and return to the donor's Communications tab. Outreach is still front end
 // only (UF2-141..144): its POST is refused with a message and writes nothing.
 // ?kind=outreach opens with Outreach picked (for example from a campaign page); ?donor_id=N preselects a donor.
+// The donor is picked with a search (js/commDonorSearch.js -> donorLookup.php) that fills a hidden donor_id;
+// the page only loads the one chosen donor (comm_donor_choice()), never the full donor list.
 // Gates: communications view to see the form; communications view + edit and donors view to save (otherwise
 // the form is read-only and a POST gets 403). The layout checks the CSRF token on every POST.
 require_once 'include/fishnet-layout.php';
@@ -26,10 +28,16 @@ if ($isPost && !$canSave) {
   exit('Your account cannot log communications.');
 }
 
-$donors = $campaigns = $staff = [];   // id => name
+$donors = $campaigns = $staff = [];   // id => name; $donors holds at most the one chosen donor
+$chosenDonor = null;                  // id, name, type, town of that donor, for the search card
 $loadError = false;
 try {
-  if ($canSeeDonors) { $donors = donor_options(); }   // donor names only for accounts that may see donors
+  if ($canSeeDonors) {   // donor names only for accounts that may see donors
+    // A POST uses only the posted donor (the form posts back to ?donor_id=, which must not override it).
+    $wanted = $isPost ? fish_str($_POST, 'donor_id') : fish_str($_GET, 'donor_id');
+    $chosenDonor = comm_donor_choice($wanted);
+    if ($chosenDonor) { $donors = [$chosenDonor['id'] => $chosenDonor['name']]; }
+  }
   if ($canSave) { $staff = comm_staff_options(); }    // account ids only for accounts that can save
   $campaigns = comm_campaign_options();
 } catch (mysqli_sql_exception $e) {
@@ -38,8 +46,7 @@ try {
 }
 
 $form = comm_form_blank();
-$preselect = fish_str($_GET, 'donor_id');
-if ($preselect !== '' && ctype_digit($preselect) && array_key_exists((int) $preselect, $donors)) { $form['donor'] = $preselect; }
+if (!$isPost && $chosenDonor) { $form['donor'] = (string) $chosenDonor['id']; }
 $outreachFirst = fish_str($_GET, 'kind') === 'outreach';
 $errors = [];
 
@@ -64,6 +71,8 @@ if ($isPost) {
   }
 }
 
+// The card shows a donor only when the (validated) form still holds it.
+if ($form['donor'] === '' || !$chosenDonor || (string) $chosenDonor['id'] !== (string) $form['donor']) { $chosenDonor = null; }
 $sel = function ($a, $b) { return (string) $a === (string) $b ? ' selected' : ''; };
 fishnet_open($title, 'communications', ['forms.css', 'communications.css']);
 ?>
@@ -112,11 +121,25 @@ fishnet_open($title, 'communications', ['forms.css', 'communications.css']);
             <div class="group-title">2 &middot; Who</div>
             <div class="grid g-2">
               <div class="field">
-                <label for="donor_id">Donor *</label>
-                <select id="donor_id" name="donor_id">
-                  <option value="">Choose a donor&hellip;</option>
-                  <?php foreach ($donors as $id => $name): ?><option value="<?= (int) $id ?>"<?= $sel($id, $form['donor']) ?>><?= h($name) ?></option><?php endforeach; ?>
-                </select>
+                <label for="donorSearch">Donor *</label>
+                <?php if (!$canSeeDonors): ?>
+                <div class="notice" role="status">Your account cannot view donors.</div>
+                <?php else: ?>
+                <input type="hidden" name="donor_id" id="donor_id" value="<?= h($form['donor']) ?>">
+                <div class="donor-box" id="donorSearchBox"<?= $chosenDonor ? ' hidden' : '' ?>>
+                  <input type="text" id="donorSearch" placeholder="Search donors by name, email or phone..." autocomplete="off" aria-controls="donorResults">
+                  <ul class="results" id="donorResults" aria-live="polite" hidden></ul>
+                </div>
+                <div class="donor-box chosen" id="donorChosen"<?= $chosenDonor ? '' : ' hidden' ?>>
+                  <span class="initials" id="chosenInitials"><?= $chosenDonor ? h(initials($chosenDonor['name'])) : '' ?></span>
+                  <div>
+                    <strong id="chosenName"><?= $chosenDonor ? h($chosenDonor['name']) : '' ?></strong>
+                    <p class="meta" id="chosenMeta"><?= $chosenDonor ? h(implode(' · ', array_filter([$chosenDonor['type'], $chosenDonor['town']], 'strlen'))) : '' ?></p>
+                  </div>
+                  <button type="button" class="link" id="changeDonor">Change</button>
+                </div>
+                <noscript><p class="muted">The donor search needs JavaScript.</p></noscript>
+                <?php endif; ?>
               </div>
               <div class="field">
                 <label for="person">Person contacted</label>
@@ -213,4 +236,7 @@ fishnet_open($title, 'communications', ['forms.css', 'communications.css']);
         </aside>
       </div>
 
+<?php if ($canSeeDonors): ?>
+<script src="js/commDonorSearch.js"></script>
+<?php endif; ?>
 <?php fishnet_close(); ?>
