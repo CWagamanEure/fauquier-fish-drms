@@ -71,6 +71,18 @@ database volume is first created, so existing local databases get new tables and
 from migrations, not from re-importing a dump. `make seed-demo` loads optional FISH demo
 donors, donations, hours and communications for local page work. See `sql/README.md` for how
 to add a migration.
+## Data imports
+
+Data & Imports (`dataImports.php`) takes the templates in `templates/` (donors, cash donations, non-cash
+donations, volunteer hours, communications) as `.xlsx` or `.csv`, at most 2 MB and 2000 rows.
+`importHandler.php` checks every row with the same validate functions as the add pages and stores the
+result (migration 018); `importPreview.php` shows what is ready, what has errors and what looks like a
+duplicate, and nothing is saved until Import. Problem rows wait in Needs review (Fix, Import anyway for
+duplicates, Skip). An upload where no row passed stays at the check step: open it from Recent imports.
+Reading `.xlsx` needs PHP's zip extension (in the Docker image; in XAMPP enable `extension=zip` in
+php.ini); CSV works without it. Known gap: a gift, hours or communication row whose donor is not in
+FISH Net yet goes to Needs review; add the donor first, then Fix the row.
+
 ## Authentication (UF2-2 / UF2-4)
 
 Log in at `login.php` (username first, then password) and sign out with **Log Out** in the
@@ -95,7 +107,9 @@ sign-out requires a form token, destroys the session and expires its cookie, and
 `logout.php` directly shows a confirmation form. Authentication responses are not cached.
 Report, export, import and email handlers release their session locks during long
 operations so sign-out completes immediately, and imports save their result only if the
-original session is still authenticated when processing finishes. Stored report files, legacy exports, uploaded documents and outreach photos (download.php?type=outreach&id=, communications view) are served through download.php; the Data & Imports CSV exports are generated
+original session is still authenticated when processing finishes (the Data & Imports importer,
+`importHandler.php`, keeps its session open while it saves a file's rows, at most 2000, so a sign-out
+waits for it). Stored report files, legacy exports, uploaded documents and outreach photos (download.php?type=outreach&id=, communications view) are served through download.php; the Data & Imports CSV exports are generated
 and streamed by `exportData.php` and follow each export's own permission (the cash and non-cash exports follow
 donations view, the volunteer hours export follows donors view; the 'Data imports' permission area governs imports only); direct file URLs are denied by Apache
 (`docker/apache.conf` and the `.htaccess` files, which must be preserved on other hosts).

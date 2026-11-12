@@ -1,13 +1,13 @@
 <?php
 // Data & Imports: Import (pick a type, get its template, upload one file) beside Export (one row per CSV export),
 // then Recent imports beside Needs review.
-// Imports are FRONT END ONLY: no data yet and no handlers. Backend TODO:
-//   - the import form posts `type` + `file` to an import handler (not built yet); each template link points at its file
+// Imports: the form posts `type` + `file` to importHandler.php, which checks every row and shows
+// importPreview.php; Recent imports and Needs review read import_batches / import_rows (migration 018).
+// templates/fishnet-import-<type>.xlsx are the templates (their headings must match IMPORT_TYPES).
 //   - each export form posts `export` (+ from/to or year) to exportData.php, which streams a CSV. `cash` (UF2-133),
 //     `noncash` (UF2-134) and `hours` (UF2-138) are built; the other rows' buttons say "Coming soon" until their case exists in exportData.php
-//   - fill $recent (one row per import run) and $review (one row per problem row / possible duplicate)
-//   The markup for one row of each table is in the commented example inside it.
 require_once 'include/fishnet-layout.php';
+require_once 'database/dbImports.php';
 
 // key => [label, what the template holds]
 $imports = [
@@ -40,8 +40,28 @@ $exportErrors = [
 ];
 $exportError = $exportErrors[fish_str($_GET, 'export_error')] ?? null;
 
-$recent   = [];   // Backend TODO
-$review   = [];   // Backend TODO
+$importErrors = [
+  'type'   => 'Pick what you are importing.',
+  'nofile' => 'Choose a .csv or .xlsx file to upload.',
+  'size'   => 'The file is too big (2 MB at most). Split it into smaller files.',
+  'failed' => 'The import could not be saved. Try again.',
+];
+$importError = fish_str($_GET, 'import_error');
+$importMessage = $importError === 'file' ? (string) ($_SESSION['import_message'] ?? 'The file could not be read.') : ($importErrors[$importError] ?? null);
+unset($_SESSION['import_message']);
+$reviewNotes = ['imported' => 'Row imported.', 'skipped' => 'Row skipped.', 'failed' => 'That row still has a problem; use Fix.'];
+$reviewNote = $reviewNotes[fish_str($_GET, 'review')] ?? (fish_str($_GET, 'import_done') === 'cancelled' ? 'Import cancelled. Nothing was saved.' : null);
+$canImportAny = false;
+foreach (array_keys($imports) as $k) { $canImportAny = $canImportAny || import_can($k); }
+try {
+  if ($canImportAny) { import_recover_stale(); }   // an Import that was interrupted puts its leftover rows in review
+  $recent = $canImportAny ? array_values(array_filter(import_recent(), fn($b) => import_can($b['import_type']))) : [];
+  $review = $canImportAny ? array_values(array_filter(import_review_rows(), fn($r) => import_can($r['import_type']))) : [];
+} catch (mysqli_sql_exception $e) {   // before migration 018 is run, the tables do not exist yet
+  error_log('dataImports: ' . $e->getMessage());
+  $recent = $review = [];
+}
+$typeLabel = fn($t) => IMPORT_TYPES[$t]['label'] ?? $t;
 $thisYear = (int) date('Y');
 
 fishnet_open('Data & Imports', 'imports', ['donor.css', 'forms.css', 'imports.css']);
@@ -60,8 +80,11 @@ fishnet_open('Data & Imports', 'imports', ['donor.css', 'forms.css', 'imports.cs
         <!-- ===== Import ===== -->
         <section class="card table-card">
           <h2 class="section-title">Import</h2>
-          <form class="import-form" method="post" action="#" enctype="multipart/form-data">
+          <?php if ($importMessage !== null): ?><div class="form-errors" role="alert"><?= h($importMessage) ?></div><?php endif; ?>
+          <?php if ($reviewNote !== null): ?><div class="form-success" role="status"><?= h($reviewNote) ?></div><?php endif; ?>
+          <form class="import-form" method="post" action="importHandler.php" enctype="multipart/form-data">
             <?= auth_csrf_field() ?>
+            <input type="hidden" name="action" value="upload">
             <p class="step">1. Pick what you are importing</p>
             <div class="type-chips" role="radiogroup" aria-label="Import type">
               <?php $first = true; foreach ($imports as $key => [$label]): ?>
@@ -83,7 +106,7 @@ fishnet_open('Data & Imports', 'imports', ['donor.css', 'forms.css', 'imports.cs
               <span class="drop-file" hidden></span>
             </label>
 
-            <button type="submit" class="btn btn-yellow upload-btn">Upload &amp; check</button>
+            <button type="submit" class="btn btn-yellow upload-btn"<?= $canImportAny ? '' : ' disabled title="You do not have access to imports"' ?>>Upload &amp; check</button>
             <p class="fine">Nothing is saved until the file is checked for errors and duplicates.</p>
           </form>
         </section>
@@ -136,12 +159,17 @@ fishnet_open('Data & Imports', 'imports', ['donor.css', 'forms.css', 'imports.cs
             <table>
               <thead><tr><th>Date</th><th>Type</th><th>File</th><th>Rows</th><th>Status</th></tr></thead>
               <tbody>
-                <?php /* Example row:
+                <?php foreach ($recent as $b): $open = (int) $b['open_rows']; ?>
                 <tr>
-                  <td>Nov 4, 2026<span class="sub">Charity Coleman</span></td><td>Cash donations</td><td>october-gifts.xlsx</td>
-                  <td>142<span class="sub">3 need review</span></td>
-                  <td><span class="status active">Done</span></td>   (or: status pending "Needs review", status inactive "Failed")
-                </tr> */ ?>
+                  <td><?= h(date('M j, Y', strtotime($b['created_at']))) ?><span class="sub"><?= h($b['uploaded_by']) ?></span></td>
+                  <td><?= h($typeLabel($b['import_type'])) ?></td>
+                  <td><a href="importPreview.php?id=<?= (int) $b['id'] ?>"><?= h($b['file_name']) ?></a></td>
+                  <td><?= (int) $b['rows_added'] ?> of <?= (int) $b['rows_total'] ?><?php if ($open): ?><span class="sub"><?= $open ?> need review</span><?php endif; ?></td>
+                  <td><?php if ($b['status'] === 'checked'): ?><span class="status pending">Not imported yet</span>
+                      <?php elseif ($open): ?><span class="status pending">Needs review</span>
+                      <?php else: ?><span class="status active">Done</span><?php endif; ?></td>
+                </tr>
+                <?php endforeach; ?>
                 <?php if (!$recent): ?><tr><td colspan="5" class="empty">No imports yet.</td></tr><?php endif; ?>
               </tbody>
             </table>
@@ -155,12 +183,21 @@ fishnet_open('Data & Imports', 'imports', ['donor.css', 'forms.css', 'imports.cs
             <table>
               <thead><tr><th>Import</th><th>Row</th><th>Problem</th><th></th></tr></thead>
               <tbody>
-                <?php /* Example row:
+                <?php foreach ($review as $r): $dup = $r['status'] === 'duplicate'; ?>
                 <tr>
-                  <td>Donors<span class="sub">Nov 4 · donors-2026.xlsx</span></td><td>22</td>
-                  <td><span class="issue dup">Possible duplicate</span><span class="sub">Jane Smith matches donor #418</span></td>   (or: issue error "Date not valid")
-                  <td class="actions"><a href="#" class="edit">Fix</a><a href="#" class="edit">Merge</a><a href="#" class="edit">Skip</a></td>
-                </tr> */ ?>
+                  <td><?= h($typeLabel($r['import_type'])) ?><span class="sub"><?= h(date('M j', strtotime($r['batch_at']))) ?> · <?= h($r['file_name']) ?></span></td>
+                  <td><?= (int) $r['sheet_row'] ?></td>
+                  <td class="problem"><span class="issue <?= $dup ? 'dup' : 'error' ?>"><?= $dup ? 'Possible duplicate' : 'Error' ?></span>
+                      <span class="sub"><?= h(import_row_summary($r['import_type'], $r['data'])) ?></span><span class="sub"><?= h((string) $r['problem']) ?></span></td>
+                  <td class="actions">
+                    <a href="importFix.php?row=<?= (int) $r['id'] ?>" class="edit">Fix</a>
+                    <?php if ($dup): ?>
+                    <form method="post" action="importHandler.php" class="inline-form"><?= auth_csrf_field() ?><input type="hidden" name="action" value="force"><input type="hidden" name="row" value="<?= (int) $r['id'] ?>"><button type="submit" class="edit">Import anyway</button></form>
+                    <?php endif; ?>
+                    <form method="post" action="importHandler.php" class="inline-form"><?= auth_csrf_field() ?><input type="hidden" name="action" value="skip"><input type="hidden" name="row" value="<?= (int) $r['id'] ?>"><button type="submit" class="edit">Skip</button></form>
+                  </td>
+                </tr>
+                <?php endforeach; ?>
                 <?php if (!$review): ?><tr><td colspan="4" class="empty">Nothing needs review.</td></tr><?php endif; ?>
               </tbody>
             </table>
