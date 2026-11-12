@@ -72,7 +72,7 @@ fishnet_open('Data & Imports', 'imports', ['donor.css', 'forms.css', 'imports.cs
             <p class="step">2. Fill in the template, then upload it</p>
             <?php foreach ($imports as $key => [$label, $holds]): ?>
             <p class="template-note" data-type="<?= h($key) ?>">
-              <a href="#" class="template-link">Download <?= h($label) ?> template</a>
+              <a href="templates/fishnet-import-<?= h($key) ?>.xlsx" class="template-link" download>Download <?= h($label) ?> template (.xlsx)</a>
               <small>Columns: <?= h($holds) ?>.</small>
             </p>
             <?php endforeach; ?>
