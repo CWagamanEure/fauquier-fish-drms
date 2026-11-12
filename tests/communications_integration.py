@@ -111,6 +111,20 @@ def options(body, select_id):
             for v, t in re.findall(r'<option value="([^"]*)"[^>]*>(.*?)</option>', block.group(1), re.S)}
 
 
+def donor_value(body):
+    """The hidden donor_id the donor search fills."""
+    match = re.search(r'<input type="hidden" name="donor_id" id="donor_id" value="([^"]*)">', body)
+    assert match, "hidden donor_id"
+    return html.unescape(match.group(1))
+
+
+def chosen_name(body):
+    """The name on the chosen-donor card, or None when the card is hidden."""
+    match = re.search(r'<div class="donor-box chosen" id="donorChosen"( hidden)?>.*?<strong id="chosenName">(.*?)</strong>', body, re.S)
+    assert match, "chosen-donor card"
+    return None if match.group(1) else html.unescape(match.group(2))
+
+
 def selected(body, select_id):
     block = re.search(r'<select id="' + re.escape(select_id) + r'"[^>]*>(.*?)</select>', body, re.S)
     match = re.search(r'<option value="([^"]*)" selected', block.group(1))
@@ -175,16 +189,20 @@ class CommunicationsTests(unittest.TestCase):
     def rows(self, donor="main"):
         return fixture("rows", donor=self.ids[donor])
 
-    # ---- the dropdowns (UF2-146, 147, 148) ----
+    # ---- the donor search and the dropdowns (UF2-146, 147, 148) ----
 
     def test_dropdowns_come_from_the_database(self):
         body = self.get(self.login("staff"), "addCommunication.php")
-        donors = options(body, "donor_id")
-        self.assertEqual(donors[str(self.ids["main"])], "Comm " + self.marker)
-        self.assertEqual(donors[str(self.ids["xss"])], XSS + " " + self.marker)
-        self.assertNotIn(str(self.ids["inactive"]), donors)
-        self.assertNotIn("999", donors)
-        self.assertNotIn(XSS, body)   # escaped everywhere
+        # The donor is a search (js/commDonorSearch.js -> donorLookup.php, covered by the donations suite),
+        # not a dropdown: the page lists no donors and starts with nothing chosen.
+        self.assertNotIn('<select id="donor_id"', body)
+        for needed in ('id="donorSearch"', 'id="donorResults"', 'id="donorChosen"', 'id="changeDonor"',
+                       '<label for="donorSearch">', '<script src="js/commDonorSearch.js"></script>'):
+            self.assertIn(needed, body)
+        self.assertEqual(donor_value(body), "")
+        self.assertIsNone(chosen_name(body))
+        self.assertNotIn("Comm " + self.marker, body)   # no donor names rendered
+        self.assertNotIn(html.escape(XSS), body)
 
         people = options(body, "person")
         self.assertEqual(people[self.users["staff"]["id"]], "Comms Staff")
@@ -197,12 +215,47 @@ class CommunicationsTests(unittest.TestCase):
         self.assertEqual(campaigns[str(self.ids["open"])], "Open comms " + self.marker)
         self.assertNotIn(str(self.ids["done"]), campaigns)
 
-    def test_donor_id_preselects_only_an_offered_donor(self):
+    def test_donor_id_preselects_only_an_active_donor(self):
         staff = self.login("staff")
-        self.assertEqual(selected(self.get(staff, f"addCommunication.php?donor_id={self.ids['main']}"), "donor_id"), str(self.ids["main"]))
-        for bad in (self.ids["inactive"], 999, "abc", "1e3"):
+        body = self.get(staff, f"addCommunication.php?donor_id={self.ids['main']}")
+        self.assertEqual(donor_value(body), str(self.ids["main"]))
+        self.assertEqual(chosen_name(body), "Comm " + self.marker)
+        self.assertIn("Individual · Testville, VA", body)
+        self.assertIn('id="donorSearchBox" hidden', body)   # card shown, search box hidden
+        self.assertIn('id="donorChosen">', body)
+
+        body = self.get(staff, f"addCommunication.php?donor_id={self.ids['xss']}")
+        self.assertEqual(chosen_name(body), XSS + " " + self.marker)
+        self.assertNotIn(XSS, body)   # escaped in the card
+        for bad in (self.ids["inactive"], 999, "abc", "1e3", f"0{self.ids['main']}", "99999999999"):
             with self.subTest(donor=bad):
-                self.assertIsNone(selected(self.get(staff, f"addCommunication.php?donor_id={bad}"), "donor_id"))
+                body = self.get(staff, f"addCommunication.php?donor_id={bad}")
+                self.assertEqual(donor_value(body), "")
+                self.assertIsNone(chosen_name(body))
+
+    def test_rerender_keeps_the_chosen_donor(self):
+        staff = self.login("staff")
+        _, _, body = self.post(staff, self.form(comm_type="fax"), status=200)   # an error that is not about the donor
+        self.assertIn("Choose the type of communication.", body)
+        self.assertEqual(donor_value(body), str(self.ids["main"]))
+        self.assertEqual(chosen_name(body), "Comm " + self.marker)
+        for bad in (str(self.ids["inactive"]), f"0{self.ids['main']}", "999"):
+            with self.subTest(donor=bad):
+                _, _, body = self.post(staff, self.form(donor_id=bad), status=200)
+                self.assertIn("Choose a donor from the list.", body)
+                self.assertEqual(donor_value(body), "")
+                self.assertIsNone(chosen_name(body))
+        self.assertEqual(self.rows(), [])
+
+    def test_posted_donor_wins_over_the_preselect_in_the_url(self):
+        # The form posts back to its own URL, so opening it from donor A's profile and changing to donor B
+        # posts donor_id=B to addCommunication.php?donor_id=A.
+        staff = self.login("staff")
+        pairs = [("csrf_token", staff.token("communications.php"))] + list(self.form(donor_id=str(self.ids["xss"])).items())
+        code, _, body = staff.request(f"addCommunication.php?donor_id={self.ids['main']}", pairs)
+        self.assertEqual(code, 303, body[:500])
+        self.assertEqual(len(self.rows("xss")), 1)
+        self.assertEqual(self.rows("main"), [])
 
     # ---- saving ----
 
@@ -294,6 +347,7 @@ class CommunicationsTests(unittest.TestCase):
             "unknown donor": ({"donor_id": "2147480000"}, "Choose a donor from the list."),
             "long summary": ({"summary": "s" * 5001}, "Summary must be 5000 characters or fewer."),
             "donor not digits": ({"donor_id": f"{self.ids['main']}.0"}, "Choose a donor from the list."),
+            "donor leading zero": ({"donor_id": f"0{self.ids['main']}"}, "Choose a donor from the list."),
             "unknown staff": ({"person_contacted": "nobody_" + self.marker}, "Choose the person contacted from the list."),
             "inactive staff": ({"person_contacted": self.users["gone"]["id"]}, "Choose the person contacted from the list."),
             "staff position 0": ({"person_contacted": "0"}, "Choose the person contacted from the list."),
@@ -353,8 +407,15 @@ class CommunicationsTests(unittest.TestCase):
 
         nodonors = self.login("nodonors")   # communications edit, no donors view: read-only, no donor names
         body = self.get(nodonors, "addCommunication.php")
-        self.assertEqual(set(options(body, "donor_id")), {""})
+        self.assertIn("Your account cannot view donors.", body)
+        self.assertNotIn('id="donorSearch"', body)
+        self.assertNotIn("commDonorSearch.js", body)
         self.assertNotIn("Save contact", body)
+        for donor in ("main", "xss"):   # a preselect link must not leak the name either
+            body = self.get(nodonors, f"addCommunication.php?donor_id={self.ids[donor]}")
+            self.assertNotIn("Comm " + self.marker, body)
+            self.assertNotIn(html.escape(XSS), body)
+            self.assertIn("Your account cannot view donors.", body)
         self.assertEqual(self.post(nodonors, self.form())[0], 403)
 
         nocomms = self.login("nocomms")   # donors view, communications off

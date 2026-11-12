@@ -1,0 +1,39 @@
+{
+ "mode": "ticket",
+ "subject": "adu-comm-donor-search",
+ "round": 1,
+ "approved": true,
+ "runner": "Agent tool (Workflow tool unavailable); prompts from .claude/workflows/review-swarm.js",
+ "auditors": [
+  {
+   "auditor": "security",
+   "approve": true,
+   "finding_count": 2
+  },
+  {
+   "auditor": "data",
+   "approve": true,
+   "finding_count": 2
+  },
+  {
+   "auditor": "correctness",
+   "approve": true,
+   "finding_count": 8
+  },
+  {
+   "auditor": "verification",
+   "approve": true,
+   "finding_count": 6
+  }
+ ],
+ "counts": {
+  "by_severity": {
+   "low": 9,
+   "medium": 7,
+   "high": 2
+  },
+  "by_status": {
+   "reported": 18
+  }
+ }
+}

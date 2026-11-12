@@ -168,8 +168,8 @@ function donors_list($filter, $q, $sort, $page) {
             'filter' => $filter, 'sort' => $sort, 'per_page' => DONORS_PER_PAGE];
 }
 
-// The donor-picker shape used by addDonation.php (UF2-49): name, type and town plus the side-panel
-// figures. Email and phone are matched by donors_lookup() but never returned.
+// The donor-picker shape used by donorLookup.php (Add donation, Add communication, volunteer hours) and
+// addDonation.php's side panel: name, type and town plus the side-panel figures. Email and phone are matched by donors_lookup() but never returned.
 function donor_lookup_row(array $r) {
     $town = implode(', ', array_filter([(string) $r['city'], (string) $r['state']], 'strlen'));
     return ['id' => (int) $r['id'], 'name' => $r['display_name'],
@@ -195,19 +195,6 @@ function donors_lookup($q, $limit = 10) {
     $stmt->close();
     mysqli_close($con);
     return $rows;
-}
-
-// id => display name of every active, non-anonymous donor (the same filter as the donor list), for a
-// full donor dropdown such as addCommunication.php's.
-function donor_options() {
-    [$where] = donors_list_where('all', '');
-    $con = connect();
-    $stmt = $con->prepare("SELECT id, display_name FROM donor_summary WHERE $where ORDER BY display_name, id");
-    $stmt->execute();
-    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-    $stmt->close();
-    mysqli_close($con);
-    return array_column($rows, 'display_name', 'id');
 }
 
 // One donor_summary row (active or not), or null.
