@@ -1,20 +1,25 @@
 <?php
 // Outreach data layer (social posts and mass mailings): the form (blank / from post / validate), the lookups it is
-// checked against, the photo check, the transactional insert and the private photo download. Every statement is
-// prepared. Outreach is not tied to a donor. Writes return false (and log) on a database or file error.
+// checked against, the photo check, the transactional writes, the list and the private photo download. Every
+// statement is prepared. Outreach is not tied to a donor. Writes return false (and log) on a database or file error.
 require_once __DIR__ . '/dbinfo.php';
-require_once __DIR__ . '/dbDonations.php';   // donation_valid_date(), donation_today()
+require_once __DIR__ . '/dbDonations.php';   // donation_valid_date(), donation_today(), donation_recorder_name()
+require_once __DIR__ . '/dbDonors.php';      // donor_like_escape()
 
 const OUTREACH_CHANNELS = ['facebook' => 'Facebook', 'instagram' => 'Instagram', 'x' => 'X / Twitter',
                            'linkedin' => 'LinkedIn', 'mass_email' => 'Mass email', 'newsletter' => 'Newsletter'];
 const OUTREACH_PERSON_OTHER = '__other__';
-const OUTREACH_PHOTO_MAX = 5242880;          // 5 MB; SiteGround's PHP limits (upload_max_filesize, post_max_size) must be at least this
+const OUTREACH_PHOTO_MAX = 5242880;          // 5 MB; PHP's upload_max_filesize and post_max_size must be at least this
 const OUTREACH_PHOTO_PIXELS = 10000;         // longest side
 const OUTREACH_PHOTO_TYPES = [IMAGETYPE_JPEG => ['image/jpeg', 'jpg'], IMAGETYPE_PNG => ['image/png', 'png'],
                               IMAGETYPE_WEBP => ['image/webp', 'webp']];
 const OUTREACH_TEXT_MAX = ['caption' => 5000, 'url' => 500, 'person_other' => 255];
 const OUTREACH_COUNT_MAX = 2000000000;
 const OUTREACH_COUNT_LABELS = ['reach' => 'Reach', 'likes' => 'Likes', 'shares' => 'Shares', 'comments' => 'Comments'];
+const OUTREACH_PER_PAGE = 10;
+const OUTREACH_TAB_LIMIT = 50;
+const OUTREACH_EMAIL_CHANNELS = ['mass_email', 'newsletter'];
+const OUTREACH_SORTS = ['newest' => 'Sort: Newest', 'oldest' => 'Sort: Oldest', 'campaign' => 'Sort: Campaign', 'reach' => 'Sort: Reach'];
 
 function outreach_dir() {
     return dirname(__DIR__) . '/uploads/outreach';
@@ -27,8 +32,16 @@ function outreach_in_map(array $map, $key) {
     return false;
 }
 
-// id => name of the active campaigns only (campaign_summary.status = 'active'). Upcoming ones can be added
-// here later by changing the WHERE clause.
+function outreach_stored_name_ok($name) {
+    return (bool) preg_match('/^[a-f0-9]{32}\.(jpg|png|webp)$/', (string) $name);
+}
+
+function outreach_unlink_stored($name) {
+    $path = outreach_dir() . '/' . $name;
+    if (outreach_stored_name_ok($name) && is_file($path)) { @unlink($path); }
+}
+
+// id => name of the active campaigns only (campaign_summary.status = 'active').
 function outreach_campaign_options() {
     $con = connect();
     $stmt = $con->prepare("SELECT id, name FROM campaign_summary WHERE status = 'active' ORDER BY name, id");
@@ -39,33 +52,55 @@ function outreach_campaign_options() {
     return array_column($rows, 'name', 'id');
 }
 
+// ---------- the add form ----------
+
 function outreach_form_blank($myId) {
-    return ['channels' => [], 'campaign' => '', 'posted_on' => donation_today(), 'posted_by' => (string) $myId,
-            'posted_by_other' => '', 'post_url' => '', 'caption' => '',
+    return ['channels' => [], 'urls' => [], 'campaign' => '', 'posted_on' => donation_today(), 'posted_by' => (string) $myId,
+            'posted_by_other' => '', 'caption' => '',
             'reach' => '', 'likes' => '', 'shares' => '', 'comments' => ''];
 }
 
-// The form array from a POST; only strings are accepted, arrays become ''. channel[] may repeat.
+// The form array from a POST; only strings are accepted, arrays become ''. channel[] may repeat;
+// channel_url[<channel>] holds one link per channel.
 function outreach_form_from_post(array $post) {
     $str = function ($k) use ($post) { return isset($post[$k]) && is_string($post[$k]) ? trim($post[$k]) : ''; };
     $channels = [];
     if (isset($post['channel']) && is_array($post['channel'])) {
         foreach ($post['channel'] as $c) { if (is_string($c)) { $channels[] = trim($c); } }
     }
-    return ['channels' => array_values(array_unique($channels)), 'campaign' => $str('campaign_id'),
+    $urls = [];
+    if (isset($post['channel_url']) && is_array($post['channel_url'])) {
+        foreach ($post['channel_url'] as $k => $v) { if (is_string($k) && is_string($v)) { $urls[$k] = trim($v); } }
+    }
+    return ['channels' => array_values(array_unique($channels)), 'urls' => $urls, 'campaign' => $str('campaign_id'),
             'posted_on' => $str('posted_on'), 'posted_by' => $str('posted_by'), 'posted_by_other' => $str('posted_by_other'),
-            'post_url' => $str('post_url'), 'caption' => str_replace("\r\n", "\n", $str('caption')),
+            'caption' => str_replace("\r\n", "\n", $str('caption')),
             'reach' => $str('reach'), 'likes' => $str('likes'), 'shares' => $str('shares'), 'comments' => $str('comments')];
 }
 
 // Validates and normalises $form in place against the lists the form offered (id => name); returns the list of
-// error messages. Sets $form['posted_by_staff'] to whether a staff account was picked.
+// error messages. Sets $form['posted_by_staff'] to whether a staff account was picked. Links typed for channels
+// that are not ticked are dropped; links for ticked channels are kept as typed so an error page shows them again.
 function outreach_form_validate(array &$form, array $staff, array $campaigns) {
     $errors = [];
     $valid = array_values(array_filter($form['channels'], function ($c) { return array_key_exists($c, OUTREACH_CHANNELS); }));
     if (count($valid) !== count($form['channels'])) { $errors[] = 'Choose a channel from the list.'; }
     elseif (!$valid) { $errors[] = 'Choose at least one channel.'; }
     $form['channels'] = $valid;
+
+    $kept = [];
+    foreach ($valid as $c) {
+        $u = $form['urls'][$c] ?? '';
+        if ($u === '') { continue; }
+        $kept[$c] = $u;
+        $label = OUTREACH_CHANNELS[$c];
+        if (mb_strlen($u, 'UTF-8') > OUTREACH_TEXT_MAX['url']) {
+            $errors[] = "$label link must be " . OUTREACH_TEXT_MAX['url'] . ' characters or fewer.';
+        } elseif (!preg_match('#^https?://#i', $u) || filter_var($u, FILTER_VALIDATE_URL) === false) {
+            $errors[] = "$label: enter a full link starting with http:// or https://.";
+        }
+    }
+    $form['urls'] = $kept;
 
     if (!donation_valid_date($form['posted_on'])) {
         $errors[] = 'Enter the post date.';
@@ -91,14 +126,6 @@ function outreach_form_validate(array &$form, array $staff, array $campaigns) {
         $errors[] = 'Choose an active campaign from the list, or None.';
         $form['campaign'] = '';
     }
-
-    if ($form['post_url'] !== '') {
-        if (mb_strlen($form['post_url'], 'UTF-8') > OUTREACH_TEXT_MAX['url']) {
-            $errors[] = 'The link must be ' . OUTREACH_TEXT_MAX['url'] . ' characters or fewer.';
-        } elseif (!preg_match('#^https?://#i', $form['post_url']) || filter_var($form['post_url'], FILTER_VALIDATE_URL) === false) {
-            $errors[] = 'Enter a full link starting with http:// or https://.';
-        }
-    }
     if (mb_strlen($form['caption'], 'UTF-8') > OUTREACH_TEXT_MAX['caption']) {
         $errors[] = 'Caption must be ' . OUTREACH_TEXT_MAX['caption'] . ' characters or fewer.';
     }
@@ -113,6 +140,8 @@ function outreach_form_validate(array &$form, array $staff, array $campaigns) {
     }
     return $errors;
 }
+
+// ---------- photo ----------
 
 // Checks one uploaded photo ($_FILES['photo'] or null). Returns [photo|null, error|null]; no file chosen is
 // [null, null]. The content is checked, not the file name or the browser's type: only real JPG, PNG and WEBP images.
@@ -140,16 +169,96 @@ function outreach_photo_check($file) {
     return [['tmp' => $tmp, 'mime' => $mime, 'ext' => $ext, 'size' => (int) $size, 'original' => $original], null];
 }
 
-// Inserts the post, its channels and its photo in one transaction. The photo is moved into place before the
-// commit; on any failure the transaction rolls back and the moved file is removed, so there is never a half-saved
-// post or a file with no row. $form must have passed outreach_form_validate(). Returns the new id or false.
+// Moves the upload into the private folder and inserts its row, inside the caller's transaction. Sets $dest to the
+// moved file so the caller can remove it if a later step fails.
+function outreach_store_photo(mysqli $con, $id, array $photo, &$dest) {
+    $dir = outreach_dir();
+    if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) { throw new RuntimeException('cannot create ' . $dir); }
+    $name = bin2hex(random_bytes(16)) . '.' . $photo['ext'];
+    $path = $dir . '/' . $name;
+    if (!move_uploaded_file($photo['tmp'], $path)) { throw new RuntimeException('cannot store the photo'); }
+    $dest = $path;
+    $stmt = $con->prepare('INSERT INTO outreach_files (outreach_id, stored_name, original_name, mime_type, size_bytes) VALUES (?, ?, ?, ?, ?)');
+    $stmt->bind_param('isssi', $id, $name, $photo['original'], $photo['mime'], $photo['size']);
+    $stmt->execute();
+    $stmt->close();
+}
+
+function outreach_file_names(mysqli $con, $id) {
+    $stmt = $con->prepare('SELECT stored_name FROM outreach_files WHERE outreach_id = ?');
+    $stmt->bind_param('i', $id);
+    $stmt->execute();
+    $names = array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'stored_name');
+    $stmt->close();
+    return $names;
+}
+
+// Adds a photo to a post, or replaces its current one. The new file is moved in and the old rows deleted in one
+// transaction; the old file is removed from disk only after the commit. Returns true, or false on any failure
+// (the post is unchanged and no stray file is left).
+function outreach_set_photo($id, array $photo) {
+    $con = null;
+    $dest = null;
+    try {
+        $con = connect();
+        $con->begin_transaction();
+        $stmt = $con->prepare('SELECT id FROM outreach WHERE id = ? FOR UPDATE');
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $exists = $stmt->get_result()->fetch_row() !== null;
+        $stmt->close();
+        if (!$exists) { $con->rollback(); mysqli_close($con); return false; }
+        $old = outreach_file_names($con, $id);
+        $stmt = $con->prepare('DELETE FROM outreach_files WHERE outreach_id = ?');
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $stmt->close();
+        outreach_store_photo($con, $id, $photo, $dest);
+        $con->commit();
+        mysqli_close($con);
+        foreach ($old as $name) { outreach_unlink_stored($name); }
+        return true;
+    } catch (Throwable $e) {
+        error_log('outreach_set_photo failed: ' . $e->getMessage());
+        if ($con instanceof mysqli) { try { $con->rollback(); } catch (Throwable $ignored) {} }
+        if ($dest !== null && is_file($dest)) { @unlink($dest); }
+        return false;
+    }
+}
+
+// Removes a post's photo (row, then file). Returns true when a photo was removed.
+function outreach_remove_photo($id) {
+    $con = null;
+    try {
+        $con = connect();
+        $con->begin_transaction();
+        $names = outreach_file_names($con, $id);
+        $stmt = $con->prepare('DELETE FROM outreach_files WHERE outreach_id = ?');
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $stmt->close();
+        $con->commit();
+        mysqli_close($con);
+        foreach ($names as $name) { outreach_unlink_stored($name); }
+        return count($names) > 0;
+    } catch (Throwable $e) {
+        error_log('outreach_remove_photo failed: ' . $e->getMessage());
+        if ($con instanceof mysqli) { try { $con->rollback(); } catch (Throwable $ignored) {} }
+        return false;
+    }
+}
+
+// ---------- create ----------
+
+// Inserts the post, its channels (each with its own link) and its photo in one transaction. The photo is moved into
+// place before the commit; on any failure the transaction rolls back and the moved file is removed. $form must have
+// passed outreach_form_validate(). Returns the new id or false.
 function outreach_create(array $form, ?array $photo, array $staff, $byUser) {
     $con = null;
     $dest = null;
     $postedBy = !empty($form['posted_by_staff']) ? $form['posted_by'] : null;
     $postedName = $postedBy === null && $form['posted_by'] === OUTREACH_PERSON_OTHER ? $form['posted_by_other'] : null;
     $campaignId = $form['campaign'] === '' ? null : (int) $form['campaign'];
-    $url = $form['post_url'] === '' ? null : $form['post_url'];
     $caption = $form['caption'] === '' ? null : $form['caption'];
     $counts = [];
     foreach (array_keys(OUTREACH_COUNT_LABELS) as $k) { $counts[$k] = $form[$k] === '' ? null : (int) $form[$k]; }
@@ -164,32 +273,26 @@ function outreach_create(array $form, ?array $photo, array $staff, $byUser) {
             $stmt->close();
             if (!$ok) { $con->rollback(); mysqli_close($con); return false; }
         }
-        $stmt = $con->prepare('INSERT INTO outreach (campaign_id, posted_on, posted_by, posted_by_name, post_url, caption,
+        $stmt = $con->prepare('INSERT INTO outreach (campaign_id, posted_on, posted_by, posted_by_name, caption,
                                    reach, likes, shares, comments, recorded_by)
-                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-        $stmt->bind_param('isssssiiiis', $campaignId, $form['posted_on'], $postedBy, $postedName, $url, $caption,
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $stmt->bind_param('issssiiiis', $campaignId, $form['posted_on'], $postedBy, $postedName, $caption,
                           $counts['reach'], $counts['likes'], $counts['shares'], $counts['comments'], $byUser);
         $stmt->execute();
         $id = (int) $con->insert_id;
         $stmt->close();
 
-        $stmt = $con->prepare('INSERT INTO outreach_channels (outreach_id, channel) VALUES (?, ?)');
+        $stmt = $con->prepare('INSERT INTO outreach_channels (outreach_id, channel, post_url) VALUES (?, ?, ?)');
         $channel = '';
-        $stmt->bind_param('is', $id, $channel);
-        foreach ($form['channels'] as $channel) { $stmt->execute(); }
+        $chanUrl = null;
+        $stmt->bind_param('iss', $id, $channel, $chanUrl);
+        foreach ($form['channels'] as $channel) {
+            $chanUrl = ($form['urls'][$channel] ?? '') === '' ? null : $form['urls'][$channel];
+            $stmt->execute();
+        }
         $stmt->close();
 
-        if ($photo !== null) {
-            $dir = outreach_dir();
-            if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) { throw new RuntimeException('cannot create ' . $dir); }
-            $name = bin2hex(random_bytes(16)) . '.' . $photo['ext'];
-            $dest = $dir . '/' . $name;
-            if (!move_uploaded_file($photo['tmp'], $dest)) { $dest = null; throw new RuntimeException('cannot store the photo'); }
-            $stmt = $con->prepare('INSERT INTO outreach_files (outreach_id, stored_name, original_name, mime_type, size_bytes) VALUES (?, ?, ?, ?, ?)');
-            $stmt->bind_param('isssi', $id, $name, $photo['original'], $photo['mime'], $photo['size']);
-            $stmt->execute();
-            $stmt->close();
-        }
+        if ($photo !== null) { outreach_store_photo($con, $id, $photo, $dest); }
         $con->commit();
         mysqli_close($con);
         return $id;
@@ -218,7 +321,7 @@ function outreach_send_file($fileId) {
         $stmt->close();
         mysqli_close($con);
     }
-    $path = $row && preg_match('/^[a-f0-9]{32}\.(jpg|png|webp)$/', $row['stored_name']) ? outreach_dir() . '/' . $row['stored_name'] : '';
+    $path = $row && outreach_stored_name_ok($row['stored_name']) ? outreach_dir() . '/' . $row['stored_name'] : '';
     if ($path === '' || !is_file($path)) {
         http_response_code(404);
         exit('File not found.');
@@ -231,10 +334,8 @@ function outreach_send_file($fileId) {
     readfile($path);
     exit;
 }
+
 // ---------- list, view, results and delete ----------
-const OUTREACH_PER_PAGE = 10;
-const OUTREACH_TAB_LIMIT = 50;
-const OUTREACH_EMAIL_CHANNELS = ['mass_email', 'newsletter'];
 
 // An item whose every channel is an email channel is shown as an email, anything else as a post.
 function outreach_is_email(array $channels) {
@@ -259,7 +360,8 @@ function outreach_filter_campaigns() {
     return array_column($rows, 'name', 'id');
 }
 
-function outreach_where($channel, $campaign, $q) {
+// WHERE clause and bound values shared by the list and its count. The count query must join dbpersons as p.
+function outreach_where($channel, $campaign, $q, $from = '', $to = '') {
     $where = ['1 = 1'];
     $types = '';
     $values = [];
@@ -273,21 +375,34 @@ function outreach_where($channel, $campaign, $q) {
         $types .= 'i';
         $values[] = (int) $campaign;
     }
+    if ($from !== '') { $where[] = 'o.posted_on >= ?'; $types .= 's'; $values[] = $from; }
+    if ($to !== '')   { $where[] = 'o.posted_on <= ?'; $types .= 's'; $values[] = $to; }
     if ($q !== '') {
         $like = '%' . donor_like_escape($q) . '%';
-        $where[] = "(o.caption LIKE ? ESCAPE '\\\\' OR o.posted_by_name LIKE ? ESCAPE '\\\\')";
-        $types .= 'ss';
+        $where[] = "(o.caption LIKE ? ESCAPE '\\\\' OR o.posted_by_name LIKE ? ESCAPE '\\\\'
+                     OR TRIM(CONCAT_WS(' ', p.first_name, p.last_name)) LIKE ? ESCAPE '\\\\')";
+        $types .= 'sss';
+        $values[] = $like;
         $values[] = $like;
         $values[] = $like;
     }
     return [implode(' AND ', $where), $types, $values];
 }
 
-// One page of posts, newest first: id, date, caption, reach, campaign, by, channels (labels).
-function outreach_list($channel, $campaign, $q, $page) {
-    [$where, $types, $values] = outreach_where($channel, $campaign, $q);
+// One page of posts: id, date, caption, reach, campaign, by, channels (labels). Unknown sort falls back to newest;
+// an invalid date is ignored and a reversed range is swapped. Returns the effective filters too.
+function outreach_list($channel, $campaign, $q, $page, $from = '', $to = '', $sort = 'newest') {
+    $from = donation_valid_date($from) ? $from : '';
+    $to = donation_valid_date($to) ? $to : '';
+    if ($from !== '' && $to !== '' && $from > $to) { [$from, $to] = [$to, $from]; }
+    $sort = array_key_exists($sort, OUTREACH_SORTS) ? $sort : 'newest';
+    $orderBy = ['newest' => 'o.posted_on DESC, o.id DESC',
+                'oldest' => 'o.posted_on ASC, o.id DESC',
+                'campaign' => 'e.name IS NULL, e.name ASC, o.posted_on DESC, o.id DESC',
+                'reach' => 'o.reach IS NULL, o.reach DESC, o.posted_on DESC, o.id DESC'][$sort];
+    [$where, $types, $values] = outreach_where($channel, $campaign, $q, $from, $to);
     $con = connect();
-    $stmt = $con->prepare("SELECT COUNT(*) FROM outreach o WHERE $where");
+    $stmt = $con->prepare("SELECT COUNT(*) FROM outreach o LEFT JOIN dbpersons p ON p.id = o.posted_by WHERE $where");
     if ($types !== '') { $stmt->bind_param($types, ...$values); }
     $stmt->execute();
     $total = (int) $stmt->get_result()->fetch_row()[0];
@@ -302,7 +417,7 @@ function outreach_list($channel, $campaign, $q, $page) {
                            FROM outreach o
                            LEFT JOIN dbevents e ON e.id = o.campaign_id
                            LEFT JOIN dbpersons p ON p.id = o.posted_by
-                           WHERE $where ORDER BY o.posted_on DESC, o.id DESC LIMIT ? OFFSET ?");
+                           WHERE $where ORDER BY $orderBy LIMIT ? OFFSET ?");
     $allTypes = $types . 'ii';
     $allValues = array_merge($values, [$limit, $offset]);
     $stmt->bind_param($allTypes, ...$allValues);
@@ -316,7 +431,8 @@ function outreach_list($channel, $campaign, $q, $page) {
     }
     $stmt->close();
     mysqli_close($con);
-    return ['rows' => $rows, 'total' => $total, 'page' => $page, 'pages' => $pages, 'per_page' => OUTREACH_PER_PAGE];
+    return ['rows' => $rows, 'total' => $total, 'page' => $page, 'pages' => $pages, 'per_page' => OUTREACH_PER_PAGE,
+            'from' => $from, 'to' => $to, 'sort' => $sort];
 }
 
 // Posts linked to one campaign (latest OUTREACH_TAB_LIMIT) and their total, for campaign.php.
@@ -344,10 +460,10 @@ function outreach_for_campaign($campaignId) {
     return ['rows' => $rows, 'total' => $total];
 }
 
-// One post with its channels and photo, or null.
+// One post with its channels, per-channel links ('links': channel => url) and photo, or null.
 function outreach_get($id) {
     $con = connect();
-    $stmt = $con->prepare("SELECT o.id, o.campaign_id, e.name AS campaign, o.posted_on, o.post_url, o.caption,
+    $stmt = $con->prepare("SELECT o.id, o.campaign_id, e.name AS campaign, o.posted_on, o.caption,
                                   o.reach, o.likes, o.shares, o.comments, UNIX_TIMESTAMP(o.created_at) AS created_ts,
                                   COALESCE(o.posted_by_name, NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), '')) AS by_name,
                                   rp.first_name AS rec_first, rp.last_name AS rec_last
@@ -361,10 +477,15 @@ function outreach_get($id) {
     $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
     if (!$row) { mysqli_close($con); return null; }
-    $stmt = $con->prepare('SELECT channel FROM outreach_channels WHERE outreach_id = ? ORDER BY channel');
+    $stmt = $con->prepare('SELECT channel, post_url FROM outreach_channels WHERE outreach_id = ? ORDER BY channel');
     $stmt->bind_param('i', $id);
     $stmt->execute();
-    $row['channels'] = array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'channel');
+    $row['channels'] = [];
+    $row['links'] = [];
+    foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $c) {
+        $row['channels'][] = $c['channel'];
+        if ($c['post_url'] !== null && $c['post_url'] !== '' && preg_match('#^https?://#i', $c['post_url'])) { $row['links'][$c['channel']] = $c['post_url']; }
+    }
     $stmt->close();
     $stmt = $con->prepare('SELECT id, original_name FROM outreach_files WHERE outreach_id = ? ORDER BY id LIMIT 1');
     $stmt->bind_param('i', $id);
@@ -393,7 +514,7 @@ function outreach_counts_validate(array &$vals) {
     return $errors;
 }
 
-// Saves the four result counts (a blank clears one). Returns true, or false on an error or an unknown id.
+// Saves the four result counts (a blank clears one). Returns true, or false on an error.
 function outreach_update_results($id, array $vals) {
     $n = function ($k) use ($vals) { return ($vals[$k] ?? '') === '' ? null : (int) $vals[$k]; };
     $reach = $n('reach'); $likes = $n('likes'); $shares = $n('shares'); $comments = $n('comments');
@@ -419,11 +540,7 @@ function outreach_delete($id) {
     try {
         $con = connect();
         $con->begin_transaction();
-        $stmt = $con->prepare('SELECT stored_name FROM outreach_files WHERE outreach_id = ?');
-        $stmt->bind_param('i', $id);
-        $stmt->execute();
-        $names = array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'stored_name');
-        $stmt->close();
+        $names = outreach_file_names($con, $id);
         $stmt = $con->prepare('DELETE FROM outreach WHERE id = ?');
         $stmt->bind_param('i', $id);
         $stmt->execute();
@@ -431,12 +548,7 @@ function outreach_delete($id) {
         $stmt->close();
         $con->commit();
         mysqli_close($con);
-        if ($deleted) {
-            foreach ($names as $name) {
-                $path = outreach_dir() . '/' . $name;
-                if (preg_match('/^[a-f0-9]{32}\.(jpg|png|webp)$/', $name) && is_file($path)) { @unlink($path); }
-            }
-        }
+        if ($deleted) { foreach ($names as $name) { outreach_unlink_stored($name); } }
         return $deleted;
     } catch (mysqli_sql_exception $e) {
         error_log('outreach_delete failed: ' . $e->getMessage());

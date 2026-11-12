@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help dev stop logs status migrate seed-demo db-shell test-auth hooks test-gate test-donors test-users test-donations test-hours test-comms test-exports
+.PHONY: help dev stop logs status migrate seed-demo db-shell test-auth hooks test-gate test-donors test-users test-donations test-hours test-comms test-campaigns test-outreach test-exports
 
 help:
 	@echo "make dev        Build and start the Docker app and database, then apply migrations"
@@ -15,6 +15,8 @@ help:
 	@echo "make test-donations Run the donation page integration tests (needs make seed-demo)"
 	@echo "make test-hours  Run the volunteer hours page integration tests (needs make seed-demo)"
 	@echo "make test-comms  Run the one-on-one communications integration tests (needs make seed-demo)"
+	@echo "make test-campaigns Run the campaign page integration tests (needs make seed-demo)"
+	@echo "make test-outreach Run the outreach integration tests"
 	@echo "make test-exports Run the Data & Imports CSV export integration tests (needs make seed-demo)"
 	@echo "make hooks      Point git at .githooks (pre-push review gate); make dev does this too"
 	@echo "make test-gate  Test the pre-push review gate in a temporary repository"
@@ -76,6 +78,12 @@ test-hours:
 
 test-comms:
 	docker compose exec -T web python tests/communications_integration.py
+
+test-campaigns:
+	docker compose exec -T web python tests/campaigns_integration.py
+
+test-outreach:
+	docker compose exec -T web python tests/outreach_integration.py
 
 test-exports:
 	docker compose exec -T web python tests/exports_integration.py

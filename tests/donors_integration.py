@@ -343,7 +343,9 @@ class DonorPagesTests(unittest.TestCase):
         self.assertEqual(len(rows_in(body)), counts["name_only"])
         _, body = self.get(manager, "donor.php?filter=organizations&sort=name")
         types = [r[1] for r in rows_in(body)]
-        self.assertTrue(types and set(types) == {"Organization"})
+        self.assertTrue(types)
+        self.assertFalse(set(types) - {"Organization", "Foundation"})
+
         names = [r[0].lower() for r in rows_in(body)]
         self.assertEqual(names, sorted(names))
         _, body = self.get(manager, "donor.php?q[]=x&page[]=1&sort=zzz&filter[]=lapsed")

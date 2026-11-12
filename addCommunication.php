@@ -186,10 +186,14 @@ fishnet_open($title, 'communications', ['forms.css', 'communications.css']);
               <div class="field"><label for="posted_by">Posted by</label>
                 <select id="posted_by" name="posted_by"><option value="">Not recorded</option>
                   <?php foreach ($staff as $id => $name): ?><option value="<?= h($id) ?>"<?= !empty($outForm['posted_by_staff']) || outreach_in_map($staff, $outForm['posted_by']) ? $sel($id, $outForm['posted_by']) : '' ?>><?= h($name) ?></option><?php endforeach; ?>
-                  <option value="<?= h(OUTREACH_PERSON_OTHER) ?>"<?= $outForm['posted_by'] === OUTREACH_PERSON_OTHER ? ' selected' : '' ?>>Someone else&hellip;</option></select></div>
+                  <option value="<?= h(OUTREACH_PERSON_OTHER) ?>"<?= $outForm['posted_by'] === OUTREACH_PERSON_OTHER ? ' selected' : '' ?>>Other</option></select></div>
             </div>
-            <div class="field top-gap"><label for="posted_by_other">Name, if someone else posted it</label><input id="posted_by_other" name="posted_by_other" maxlength="255" value="<?= h($outForm['posted_by_other']) ?>"></div>
-            <div class="field top-gap"><label for="post_url">Link to post</label><input type="url" id="post_url" name="post_url" placeholder="https://" maxlength="500" value="<?= h($outForm['post_url']) ?>"></div>
+            <div class="field top-gap poster-other-field"><label for="posted_by_other">Name of poster</label><input id="posted_by_other" name="posted_by_other" maxlength="255" value="<?= h($outForm['posted_by_other']) ?>"></div>
+            <div class="chan-links">
+              <?php foreach (OUTREACH_CHANNELS as $v => $label): ?>
+              <div class="field top-gap chan-link" data-channel="<?= h($v) ?>"><label for="url_<?= h($v) ?>"><?= h($label) ?> link</label><input type="url" id="url_<?= h($v) ?>" name="channel_url[<?= h($v) ?>]" placeholder="https://" maxlength="500" value="<?= h($outForm['urls'][$v] ?? '') ?>"></div>
+              <?php endforeach; ?>
+            </div>
             <div class="field top-gap"><label for="caption">Caption / content</label><textarea id="caption" name="caption" rows="3" maxlength="5000" placeholder="The post caption, or the text of the email"><?= h($outForm['caption']) ?></textarea></div>
             <div class="field top-gap"><label for="photo">Photo or screenshot</label><input type="file" id="photo" name="photo" accept="image/jpeg,image/png,image/webp" class="file-input">
               <p class="hint">JPG, PNG or WEBP, up to 5 MB. After an error, choose the photo again.</p></div>

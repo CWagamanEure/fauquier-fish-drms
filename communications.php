@@ -12,15 +12,18 @@ $loadError = false;
 $channel = fish_str($_GET, 'channel');
 $campaign = fish_str($_GET, 'campaign');
 $q = fish_str($_GET, 'q');
+$from = fish_str($_GET, 'from');
+$to = fish_str($_GET, 'to');
+$sort = fish_str($_GET, 'sort');
 $page = max(1, (int) fish_str($_GET, 'page'));
-$list = ['rows' => [], 'total' => 0, 'page' => 1, 'pages' => 1, 'per_page' => OUTREACH_PER_PAGE];
+$list = ['rows' => [], 'total' => 0, 'page' => 1, 'pages' => 1, 'per_page' => OUTREACH_PER_PAGE, 'from' => '', 'to' => '', 'sort' => 'newest'];
 $outTotal = 0;
 $campaigns = [];
 if ($canView) {
   try {
     $outTotal = outreach_list('', '', '', 1)['total'];
     if ($tab === 'outreach') {
-      $list = outreach_list($channel, $campaign, $q, $page);
+      $list = outreach_list($channel, $campaign, $q, $page, $from, $to, $sort);
       $campaigns = outreach_filter_campaigns();
     }
   } catch (mysqli_sql_exception $e) {
@@ -30,9 +33,13 @@ if ($canView) {
 }
 $rows = $list['rows'];
 $page = $list['page'];
+$from = $list['from'];
+$to = $list['to'];
+$sort = $list['sort'];
 $offset = ($page - 1) * $list['per_page'];
 $saved = fish_str($_GET, 'saved') === '1';
 $deleted = fish_str($_GET, 'deleted') === '1';
+$filtered = $channel !== '' || $campaign !== '' || $q !== '' || $from !== '' || $to !== '' || $sort !== 'newest';
 
 function comm_page_url($p) {
   $params = array_filter($_GET, 'is_string');
@@ -82,7 +89,7 @@ fishnet_open('Communications', 'communications', ['donor.css', 'forms.css', 'com
               <option>Last 30 days</option><option>Last 90 days</option><option>This year</option><option>All time</option>
             </select>
           </div>
-          <div class="tools"><input type="search" name="q" placeholder="Search donor, person or subject..." aria-label="Search"></div>
+          <div class="tools"><input type="search" name="q" placeholder="Search donor, person or subject..." aria-label="Search" autocomplete="off"></div>
         </form>
         <div class="table-wrap">
           <table>
@@ -95,19 +102,24 @@ fishnet_open('Communications', 'communications', ['donor.css', 'forms.css', 'com
         <div class="pager"><p>Showing 0 of 0</p></div>
 
         <?php else: ?>
-        <form class="toolbar comm-toolbar" method="get">
+        <form class="toolbar comm-toolbar" method="get" data-live>
           <input type="hidden" name="tab" value="outreach">
           <div class="tools">
-            <select name="channel" aria-label="Channel" onchange="this.form.submit()">
+            <select name="channel" aria-label="Channel">
               <option value="">Channel: All</option>
               <?php foreach (OUTREACH_CHANNELS as $v => $label): ?><option value="<?= h($v) ?>"<?= $channel === $v ? ' selected' : '' ?>><?= h($label) ?></option><?php endforeach; ?>
             </select>
-            <select name="campaign" aria-label="Campaign" onchange="this.form.submit()">
+            <select name="campaign" aria-label="Campaign">
               <option value="">Campaign: All</option>
               <?php foreach ($campaigns as $id => $name): ?><option value="<?= (int) $id ?>"<?= $campaign === (string) $id ? ' selected' : '' ?>><?= h($name) ?></option><?php endforeach; ?>
             </select>
+            <span class="date-range"><input type="date" name="from" value="<?= h($from) ?>" aria-label="From date"> to <input type="date" name="to" value="<?= h($to) ?>" aria-label="To date"></span>
+            <select name="sort" aria-label="Sort">
+              <?php foreach (OUTREACH_SORTS as $v => $label): ?><option value="<?= h($v) ?>"<?= $sort === $v ? ' selected' : '' ?>><?= h($label) ?></option><?php endforeach; ?>
+            </select>
+            <?php if ($filtered): ?><a href="communications.php?tab=outreach" class="comm-reset" title="Clear every filter">&#8635; Reset</a><?php endif; ?>
           </div>
-          <div class="tools"><input type="search" name="q" value="<?= h($q) ?>" placeholder="Search caption or poster..." aria-label="Search"></div>
+          <div class="tools"><input type="search" name="q" value="<?= h($q) ?>" placeholder="Search caption or poster..." aria-label="Search" autocomplete="off"></div>
         </form>
         <div class="table-wrap">
           <table>
@@ -124,7 +136,7 @@ fishnet_open('Communications', 'communications', ['donor.css', 'forms.css', 'com
               </tr>
               <?php endforeach; ?>
               <?php if (!$rows): ?>
-              <tr><td colspan="6" class="empty"><?= ($channel !== '' || $campaign !== '' || $q !== '') ? 'No outreach matches your filters.' : 'No outreach yet.' ?><?php if ($canLog && $channel === '' && $campaign === '' && $q === ''): ?> <a href="addCommunication.php?kind=outreach" class="select">Log a post</a><?php endif; ?></td></tr>
+              <tr><td colspan="6" class="empty"><?= $filtered ? 'No outreach matches your filters.' : 'No outreach yet.' ?><?php if ($canLog && !$filtered): ?> <a href="addCommunication.php?kind=outreach" class="select">Log a post</a><?php endif; ?></td></tr>
               <?php endif; ?>
             </tbody>
           </table>
@@ -140,6 +152,7 @@ fishnet_open('Communications', 'communications', ['donor.css', 'forms.css', 'com
             <?php if ($page < $list['pages']): ?><a href="<?= h(comm_page_url($page + 1)) ?>" class="pg wide">Next &rsaquo;</a><?php endif; ?>
           </div>
         </div>
+        <script src="js/liveFilter.js"></script>
         <?php endif; ?>
       </section>
       <?php endif; ?>

@@ -13,7 +13,7 @@ import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
-
+import datetime
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from auth_integration import Browser, ROOT, assert_no_php_errors_in  # noqa: E402
 
@@ -41,15 +41,15 @@ $run = function ($sql, $types = '', ...$values) use ($con) {
 switch ($req['action']) {
 
     case 'post':
-        $run('INSERT INTO outreach (campaign_id, posted_on, posted_by_name, post_url, caption, reach, likes) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                'issssii', $req['campaign'], $req['date'], $req['by'], $req['url'], $req['caption'], $req['reach'], $req['likes']);
+        $run('INSERT INTO outreach (campaign_id, posted_on, posted_by_name, caption, reach, likes) VALUES (?, ?, ?, ?, ?, ?)',
+             'isssii', $req['campaign'], $req['date'], $req['by'], $req['caption'], $req['reach'], $req['likes']);
         $id = (int) $con->insert_id;
-        foreach ($req['channels'] as $c) { $run('INSERT INTO outreach_channels (outreach_id, channel) VALUES (?, ?)', 'is', $id, $c); }
+        foreach ($req['channels'] as $c) { $run('INSERT INTO outreach_channels (outreach_id, channel, post_url) VALUES (?, ?, ?)', 'iss', $id, $c, $req['url']); }
         $out = ['id' => $id, 'file' => null];
         if (!empty($req['file'])) {
             file_put_contents('uploads/outreach/' . $req['file'], base64_decode($req['data']));
             $run('INSERT INTO outreach_files (outreach_id, stored_name, original_name, mime_type, size_bytes) VALUES (?, ?, ?, ?, ?)',
-                    'isssi', $id, $req['file'], 'seed.png', 'image/png', strlen(base64_decode($req['data'])));
+                 'isssi', $id, $req['file'], 'seed.png', 'image/png', strlen(base64_decode($req['data'])));
             $out['file'] = (int) $con->insert_id;
         }
         break;
@@ -95,10 +95,11 @@ switch ($req['action']) {
         $run('DELETE FROM outreach WHERE caption LIKE ?', 's', $req['marker'] . '%');
         break;
     case 'rows':
-        $out = $run('SELECT id, campaign_id, posted_on, posted_by, posted_by_name, post_url, caption, reach, likes, shares, comments, recorded_by
-                     FROM outreach WHERE caption LIKE ? ORDER BY id', 's', $req['marker'] . '%');
+        $out = $run('SELECT id, campaign_id, posted_on, posted_by, posted_by_name, caption, reach, likes, shares, comments, recorded_by
+            FROM outreach WHERE caption LIKE ? ORDER BY id', 's', $req['marker'] . '%');
         foreach ($out as &$r) {
             $r['channels'] = array_column($run('SELECT channel FROM outreach_channels WHERE outreach_id = ? ORDER BY channel', 'i', $r['id']), 'channel');
+            $r['links'] = array_column($run('SELECT channel, post_url FROM outreach_channels WHERE outreach_id = ?', 'i', $r['id']), 'post_url', 'channel');
             $r['files'] = $run('SELECT id, stored_name, original_name, mime_type, size_bytes FROM outreach_files WHERE outreach_id = ?', 'i', $r['id']);
         }
         unset($r);
@@ -214,13 +215,23 @@ class OutreachTests(unittest.TestCase):
         assert_no_php_errors_in(self, text)
         return code, response_headers, text
 
-    def form(self, channels=("facebook",), **overrides):
+    def day(self, n):
+        return (datetime.date.fromisoformat(self.today) + datetime.timedelta(days=n)).isoformat()
+
+    def form(self, channels=("facebook",), urls=None, **overrides):
         data = {"kind": "outreach", "campaign_id": str(self.ids["open"]), "posted_on": self.today,
-                "posted_by": self.users["staff"]["id"], "posted_by_other": "",
-                "post_url": "https://facebook.com/fauquierfish/posts/1", "caption": self.marker + " caption",
+                "posted_by": self.users["staff"]["id"], "posted_by_other": "", "caption": self.marker + " caption",
                 "reach": "2,340", "likes": "128", "shares": "37", "comments": "14"}
         data.update(overrides)
-        return [("channel[]", c) for c in channels] + [(k, v) for k, v in data.items() if v is not None]
+        urls = {"facebook": "https://facebook.com/fauquierfish/posts/1"} if urls is None else urls
+        return ([("channel[]", c) for c in channels] + [(f"channel_url[{c}]", u) for c, u in urls.items()]
+                + [(k, v) for k, v in data.items() if v is not None])
+
+    def multi(self, browser, path, pairs, file=None):
+        body, headers = multipart([("csrf_token", browser.token("communications.php"))] + list(pairs), file)
+        code, response_headers, text = browser.request(path, body, headers)
+        assert_no_php_errors_in(self, text)
+        return code, response_headers, text
 
     def rows(self):
         return fixture("rows", marker=self.marker)
@@ -264,9 +275,10 @@ class OutreachTests(unittest.TestCase):
         self.assertNotIn(self.users["gone"]["id"], people)    # inactive account
         self.assertNotIn("vmsroot", people)
         self.assertEqual(people[""], "Not recorded")
-        self.assertEqual(people[OTHER], "Someone else…")
+        self.assertEqual(people[OTHER], "Other")
         self.assertEqual(selected(body, "posted_by"), self.users["staff"]["id"])   # defaults to the signed-in user
-
+        self.assertEqual(len(re.findall(r'name="channel_url\[', body)), 6)
+        self.assertIn("Name of poster", body)
         campaigns = options(body, "campaign_out")
         self.assertEqual(campaigns[str(self.ids["open"])], "Open out " + self.marker)
         for key in ("upcoming", "done", "ended"):             # active only
@@ -276,25 +288,26 @@ class OutreachTests(unittest.TestCase):
 
     def test_save_with_several_channels(self):
         staff = self.login("staff")
-        status, headers, _ = self.post(staff, self.form(channels=("facebook", "instagram", "mass_email")))
+        status, headers, _ = self.post(staff, self.form(channels=("facebook", "instagram", "mass_email"),
+                        urls={"facebook": "https://facebook.com/p/1", "instagram": "https://instagram.com/p/2"}))
         self.assertEqual((status, headers["Location"]), (303, "communications.php?tab=outreach&saved=1"))
         [row] = self.rows()
         self.assertEqual(row["channels"], ["facebook", "instagram", "mass_email"])
         self.assertEqual((row["campaign_id"], row["posted_on"], row["posted_by"], row["posted_by_name"]),
                          (self.ids["open"], self.today, self.users["staff"]["id"], None))
         self.assertEqual((row["reach"], row["likes"], row["shares"], row["comments"]), (2340, 128, 37, 14))
-        self.assertEqual(row["post_url"], "https://facebook.com/fauquierfish/posts/1")
+        self.assertEqual(row["links"], {"facebook": "https://facebook.com/p/1", "instagram": "https://instagram.com/p/2", "mass_email": None})
         self.assertEqual((row["recorded_by"], row["files"]), (self.users["staff"]["id"], []))
 
         # Optional everything: one channel, no campaign, no link, no results.
         fixture("clean", marker=self.marker)
-        self.post(staff, self.form(channels=("x", "x"), campaign_id="", post_url="", posted_by="", reach="", likes="",
+        self.post(staff, self.form(channels=("x", "x"), campaign_id="", urls={}, posted_by="", reach="", likes="",
                                    shares="", comments=""))
         [row] = self.rows()
         self.assertEqual(row["channels"], ["x"])                # a repeated channel is stored once
-        self.assertEqual((row["campaign_id"], row["posted_by"], row["post_url"], row["reach"], row["comments"]),
-                         (None, None, None, None, None))
-
+        self.assertEqual((row["campaign_id"], row["posted_by"], row["reach"], row["comments"]), (None, None, None, None))
+        self.assertEqual(row["links"], {"x": None})
+        
     def test_posted_by_variants(self):
         staff = self.login("staff")
         self.post(staff, self.form(posted_by=OTHER, posted_by_other="  Guest <b>Poster</b>  "))
@@ -318,8 +331,8 @@ class OutreachTests(unittest.TestCase):
             "no date": (dict(posted_on=""), "Enter the post date."),
             "bad date": (dict(posted_on="2026-02-30"), "Enter the post date."),
             "far future": (dict(posted_on=self.far), "The post date cannot be more than a year ahead."),
-            "javascript link": (dict(post_url="javascript:alert(1)"), "Enter a full link starting with http:// or https://."),
-            "no scheme": (dict(post_url="facebook.com/post"), "Enter a full link starting with http:// or https://."),
+            "javascript link": (dict(urls={"facebook": "javascript:alert(1)"}), "Facebook: enter a full link starting with http:// or https://."),
+            "no scheme": (dict(urls={"facebook": "facebook.com/post"}), "Facebook: enter a full link starting with http:// or https://."),
             "upcoming campaign": (dict(campaign_id=str(self.ids["upcoming"])), "Choose an active campaign from the list, or None."),
             "completed campaign": (dict(campaign_id=str(self.ids["done"])), "Choose an active campaign from the list, or None."),
             "ended campaign": (dict(campaign_id=str(self.ids["ended"])), "Choose an active campaign from the list, or None."),
@@ -400,10 +413,26 @@ class OutreachTests(unittest.TestCase):
 
             # ---- list, view, results, delete ----
 
-    def make_post(self, caption, channels=("facebook",), campaign=None, by="Guest Poster", url="https://example.test/p", file=False):
+    def make_post(self, caption, channels=("facebook",), campaign=None,
+        by="Guest Poster",
+        url="https://example.test/p",
+        file=False,
+        date=None,
+        reach=500):
         stored = secrets.token_hex(16) + ".png" if file else None
-        return fixture("post", campaign=campaign, date=self.today, by=by, url=url, caption=self.marker + " " + caption,
-                       reach=500, likes=7, channels=list(channels), file=stored, data=base64.b64encode(PNG).decode()) | {"stored": stored}
+        return fixture(
+            "post",
+            campaign=campaign,
+            date=date or self.today,
+            by=by,
+            url=url,
+            caption=self.marker + " " + caption,
+            reach=reach,
+            likes=7,
+            channels=list(channels),
+            file=stored,
+            data=base64.b64encode(PNG).decode()
+        ) | {"stored": stored}
 
     def pairs(self, browser, path, data):
         token = browser.token("communications.php")
@@ -498,6 +527,94 @@ class OutreachTests(unittest.TestCase):
         self.assertIn("zeta campaign post", body)
         self.assertRegex(body, r'Communications <span class="count">1</span>')
 
+    def test_search_finds_staff_poster(self):
+        staff = self.login("staff")
+        self.post(staff, self.form())                    # posted_by is the staff account
+        body = self.get(staff, "communications.php?tab=outreach&q=Outreach+Staff")
+        self.assertIn(self.marker + " caption", body)
+
+    def test_links_are_per_channel_and_unticked_ones_are_dropped(self):
+        staff = self.login("staff")
+        self.post(staff, self.form(channels=("facebook",), urls={"facebook": "https://facebook.com/a", "instagram": "https://instagram.com/b"}))
+        [row] = self.rows()
+        self.assertEqual(row["links"], {"facebook": "https://facebook.com/a"})       # the Instagram link was for an unticked channel
+        status, _, body = self.post(staff, self.form(channels=("facebook", "x"), posted_on="", urls={"facebook": "https://f.test/1", "x": "https://x.test/2"}))
+        self.assertEqual(status, 200)
+        self.assertIn('value="https://x.test/2"', body)                              # typed links survive an error
+
+    def test_view_shows_every_link(self):
+        p = self.make_post("links", ("facebook", "x"), url="https://example.test/p")
+        body = self.get(self.login("viewer"), f"viewCommunication.php?id={p['id']}")
+        self.assertIn('href="https://example.test/p"', body)
+        self.assertIn("View on Facebook", body)
+        self.assertIn("View on X / Twitter", body)
+
+    def test_photo_add_replace_remove_from_view_page(self):
+        p = self.make_post("theta", file=True)
+        path = f"viewCommunication.php?id={p['id']}"
+        old = UPLOAD_DIR / p["stored"]
+        staff = self.login("staff")
+        before = fixture("counts")
+        # Bad uploads change nothing.
+        status, _, body = self.multi(staff, path, [("action", "photo")], ("photo", "a.gif", GIF, "image/gif"))
+        self.assertEqual(status, 200)
+        self.assertIn("The photo must be a JPG, PNG or WEBP image.", html.unescape(body))
+        status, _, body = self.multi(staff, path, [("action", "photo")])
+        self.assertIn("Choose a photo first.", body)
+        self.assertEqual((fixture("counts"), old.exists()), (before, True))
+        # Replace.
+        status, headers, _ = self.multi(staff, path, [("action", "photo")], ("photo", "new.png", PNG, "image/png"))
+        self.assertEqual((status, headers["Location"]), (303, path + "&saved=photo"))
+        [row] = self.rows()
+        [photo] = row["files"]
+        self.assertEqual(photo["original_name"], "new.png")
+        self.assertNotEqual(photo["stored_name"], p["stored"])
+        self.assertFalse(old.exists())
+        self.assertTrue((UPLOAD_DIR / photo["stored_name"]).exists())
+        self.assertEqual(fixture("counts")["disk"], before["disk"])                  # still one file on disk
+        # Remove.
+        status, headers, _ = self.multi(staff, path, [("action", "photo_remove")])
+        self.assertEqual((status, headers["Location"]), (303, path + "&saved=removed"))
+        self.assertEqual(self.rows()[0]["files"], [])
+        self.assertEqual(fixture("counts")["disk"], before["disk"] - 1)
+        # Add to a post that has none; viewers cannot do any of it.
+        self.assertEqual(self.multi(staff, path, [("action", "photo")], ("photo", "again.png", PNG, "image/png"))[0], 303)
+        viewer = self.login("viewer")
+        self.assertNotIn('value="photo"', self.get(viewer, path))
+        self.assertEqual(self.multi(viewer, path, [("action", "photo_remove")])[0], 403)
+        self.assertEqual(self.multi(viewer, path, [("action", "photo")], ("photo", "x.png", PNG, "image/png"))[0], 403)
+
+    def test_results_error_is_inside_the_results_card(self):
+        p = self.make_post("iota")
+        body = self.pairs(self.login("staff"), f"viewCommunication.php?id={p['id']}", {"action": "results", "reach": "1", "likes": "", "shares": "", "comments": "abc"})[2]
+        card = body.split('id="results"')[1].split("</section>")[0]
+        self.assertIn("Comments must be a whole number of 0 or more.", card)
+
+    def ids_in(self, body):
+        return [int(i) for i in re.findall(r"viewCommunication\.php\?id=(\d+)", body)]
+
+    def test_list_sort_date_range_search_and_reset(self):
+        a = self.make_post("sorta", campaign=self.ids["open"])
+        b = self.make_post("sortb")
+        old = self.make_post("sortold", date=self.day(-10), reach=900)
+        viewer = self.login("viewer")
+        base = f"communications.php?tab=outreach&q={self.marker}"
+        self.assertEqual(self.ids_in(self.get(viewer, base)), [b["id"], a["id"], old["id"]])                  # newest, then newest id
+        self.assertEqual(self.ids_in(self.get(viewer, base + "&sort=oldest")), [old["id"], b["id"], a["id"]])
+        self.assertEqual(self.ids_in(self.get(viewer, base + "&sort=campaign"))[0], a["id"])                  # no-campaign rows last
+        self.assertEqual(self.ids_in(self.get(viewer, base + "&sort=reach"))[0], old["id"])                   # 900 beats 500
+        self.assertEqual(self.ids_in(self.get(viewer, base + f"&from={self.day(-3)}")), [b["id"], a["id"]])
+        self.assertEqual(self.ids_in(self.get(viewer, base + f"&to={self.day(-5)}")), [old["id"]])
+        self.assertEqual(len(self.ids_in(self.get(viewer, base + f"&from={self.today}&to={self.day(-20)}"))), 3)   # reversed range is swapped
+        self.assertEqual(len(self.ids_in(self.get(viewer, base + "&from=abc&to=2026-02-30&sort=zzz"))), 3)         # junk is ignored
+        self.assertIn("comm-reset", self.get(viewer, base))
+        self.assertNotIn("comm-reset", self.get(viewer, "communications.php?tab=outreach"))
+        self.assertIn('autocomplete="off"', self.get(viewer, "communications.php?tab=outreach"))
+
+    def test_search_finds_staff_poster(self):
+        staff = self.login("staff")
+        self.post(staff, self.form())
+        self.assertIn(self.marker + " caption", self.get(staff, "communications.php?tab=outreach&q=Outreach+Staff"))
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
