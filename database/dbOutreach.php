@@ -397,7 +397,7 @@ function outreach_list($channel, $campaign, $q, $page, $from = '', $to = '', $so
     if ($from !== '' && $to !== '' && $from > $to) { [$from, $to] = [$to, $from]; }
     $sort = array_key_exists($sort, OUTREACH_SORTS) ? $sort : 'newest';
     $orderBy = ['newest' => 'o.posted_on DESC, o.id DESC',
-                'oldest' => 'o.posted_on ASC, o.id DESC',
+                'oldest' => 'o.posted_on ASC, o.id ASC',
                 'campaign' => 'e.name IS NULL, e.name ASC, o.posted_on DESC, o.id DESC',
                 'reach' => 'o.reach IS NULL, o.reach DESC, o.posted_on DESC, o.id DESC'][$sort];
     [$where, $types, $values] = outreach_where($channel, $campaign, $q, $from, $to);

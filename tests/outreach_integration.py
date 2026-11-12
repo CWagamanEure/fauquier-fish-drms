@@ -600,7 +600,7 @@ class OutreachTests(unittest.TestCase):
         viewer = self.login("viewer")
         base = f"communications.php?tab=outreach&q={self.marker}"
         self.assertEqual(self.ids_in(self.get(viewer, base)), [b["id"], a["id"], old["id"]])                  # newest, then newest id
-        self.assertEqual(self.ids_in(self.get(viewer, base + "&sort=oldest")), [old["id"], b["id"], a["id"]])
+        self.assertEqual(self.ids_in(self.get(viewer, base + "&sort=oldest")), [old["id"], a["id"], b["id"]])
         self.assertEqual(self.ids_in(self.get(viewer, base + "&sort=campaign"))[0], a["id"])                  # no-campaign rows last
         self.assertEqual(self.ids_in(self.get(viewer, base + "&sort=reach"))[0], old["id"])                   # 900 beats 500
         self.assertEqual(self.ids_in(self.get(viewer, base + f"&from={self.day(-3)}")), [b["id"], a["id"]])
