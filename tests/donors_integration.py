@@ -367,10 +367,18 @@ class DonorPagesTests(unittest.TestCase):
             with self.subTest(case=label):
                 self.assertEqual(fixture("donor_read", id=donor_id)["summary"]["status"], expected[label])
         _, body = self.get(manager, "donor.php?sort=name&q=" + marker)
-        shown = {r[0].split(marker)[1]: r[5] for r in rows_in(body)}
+        shown = {
+            r[0].split(marker, 1)[1]: r[5]
+            for r in rows_in(body)
+            if marker in r[0]
+        }
         self.assertEqual(shown, expected)
         _, body = self.get(manager, "donor.php?filter=lapsed&sort=name&q=" + marker)
-        lapsed = sorted(r[0].split(marker)[1] for r in rows_in(body))
+        lapsed = sorted(
+            r[0].split(marker, 1)[1]
+            for r in rows_in(body)
+            if marker in r[0]
+        )       
         self.assertEqual(lapsed, sorted(k for k, v in expected.items() if v != "active"))
 
     # ---- organization contacts (UF2-129) ----
