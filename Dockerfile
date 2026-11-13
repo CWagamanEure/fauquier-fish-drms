@@ -17,4 +17,7 @@ RUN pip install --no-cache-dir -r /tmp/python-requirements.txt \
 COPY docker/php.ini /usr/local/etc/php/conf.d/fish.ini
 COPY docker/apache.conf /etc/apache2/conf-available/fish.conf
 RUN a2enconf fish
+RUN mkdir -p /var/www/html/uploads/outreach \
+    && chown -R www-data:www-data /var/www/html/uploads \
+    && chmod 750 /var/www/html/uploads/outreach
 WORKDIR /var/www/html
