@@ -78,6 +78,10 @@ jobs:
         run: make test-donations
       - name: Volunteer hours page tests
         run: make test-hours
+      - name: Campaign page tests
+        run: make test-campaigns
+      - name: Outreach tests
+        run: make test-outreach
       - name: Communications page tests
         run: make test-comms
       - name: Export tests

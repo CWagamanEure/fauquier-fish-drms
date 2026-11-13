@@ -18,7 +18,7 @@ const CAMPAIGN_FIELD_LIMITS = ['name' => 255, 'description' => 2000, 'fund' => 1
 
 // Display name for a donors row aliased dn (same rule as donor_summary; the anonymous donor reads "Anonymous").
 const CAMPAIGN_DONOR_NAME_SQL = "CASE WHEN dn.id = 999 THEN 'Anonymous'
-        WHEN dn.donor_type = 'organization' AND COALESCE(dn.org_name, '') <> '' THEN dn.org_name
+        WHEN dn.donor_type IN ('organization', 'foundation') AND COALESCE(dn.org_name, '') <> '' THEN dn.org_name
         ELSE TRIM(CONCAT_WS(' ', dn.`first`, dn.`last`)) END";
 
 // ---------------------------------------------------------------------------------------------

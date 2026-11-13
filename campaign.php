@@ -7,6 +7,7 @@ require_once 'include/campaigns-common.php';
 require_once 'database/dbCampaigns.php';
 require_once 'database/dbVolunteerHours.php';
 require_once 'database/dbCommunications.php';   // comm_status_label()
+require_once 'database/dbOutreach.php';   // outreach_for_campaign()
 
 if (!fish_can('campaigns', 'view')) {
   campaign_stop_page(403, 'Campaigns', 'Your account cannot view campaigns.');
@@ -25,6 +26,7 @@ $canSeeComms  = fish_can('communications', 'view');
 $c = null;
 try {
   $c = $id > 0 ? campaign_get($id) : null;
+  $outreach = []; $outCount = 0;  
   if ($c) {
     $people     = campaign_donor_counts($id);
     $giftPage   = $canSeeGifts ? campaign_gifts($c, $kind, $page)
@@ -34,6 +36,9 @@ try {
     $volunteers = $canSeeDonors ? campaign_volunteers($id) : [];
     $comms      = $canSeeComms ? campaign_communications($id) : [];
     $commCount  = $canSeeComms ? campaign_comm_count($id) : 0;
+    $outInfo    = $canSeeComms ? outreach_for_campaign($id) : ['rows' => [], 'total' => 0];
+    $outreach   = $outInfo['rows'];
+    $outCount   = $outInfo['total'];
   }
 } catch (mysqli_sql_exception $e) {
   // A database fault must not print the exception into the page; log it and go back to the list with a notice.
@@ -145,7 +150,7 @@ fishnet_open($c['name'], 'campaigns', ['donor.css', 'forms.css', 'campaigns.css'
         <div class="tab-bar">
           <label for="tGifts">Donations<?php if ($canSeeGifts): ?> <span class="count"><?= (int) $giftTotal ?></span><?php endif; ?></label>
           <label for="tVols">Volunteers<?php if ($canSeeDonors): ?> <span class="count"><?= (int) $c['shifts'] ?></span><?php endif; ?></label>
-          <label for="tComms">Communications<?php if ($canSeeComms): ?> <span class="count"><?= (int) $commCount ?></span><?php endif; ?></label>
+          <label for="tComms">Communications<?php if ($canSeeComms): ?> <span class="count"><?= (int) $commCount + (int) $outCount ?></span><?php endif; ?></label>
         </div>
 
         <div class="panel-tab p-gifts">
@@ -248,6 +253,24 @@ fishnet_open($c['name'], 'campaigns', ['donor.css', 'forms.css', 'campaigns.css'
           </table></div>
           <?php if ($commCount > count($comms)): ?>
           <div class="pager"><p>Showing the latest <?= count($comms) ?> of <?= (int) $commCount ?> communications</p></div>
+          <?php endif; ?>
+                    <?php if ($outreach): ?>
+          <h3 class="top-gap">Outreach</h3>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Date</th><th>Channels</th><th>Caption</th><th>Reach</th><th></th></tr></thead>
+            <tbody>
+              <?php foreach ($outreach as $o): ?>
+              <tr>
+                <td><?= fmt_date($o['date']) ?></td>
+                <td><?= h(implode(', ', $o['labels'])) ?></td>
+                <td><?= $o['caption'] !== '' ? h(mb_strimwidth($o['caption'], 0, 80, '…', 'UTF-8')) : '&mdash;' ?></td>
+                <td><?= $o['reach'] === null ? '&mdash;' : number_format($o['reach']) ?></td>
+                <td><a href="viewCommunication.php?id=<?= (int) $o['id'] ?>" class="select">Open &rarr;</a></td>
+              </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table></div>
+          <?php if ($outCount > count($outreach)): ?><div class="pager"><p>Showing the latest <?= count($outreach) ?> of <?= (int) $outCount ?> outreach posts</p></div><?php endif; ?>
           <?php endif; ?>
           <?php endif; ?>
         </div>

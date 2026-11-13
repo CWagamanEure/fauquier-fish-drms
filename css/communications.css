@@ -125,6 +125,30 @@ td .sub { display: block; font-size: 0.8rem; color: var(--muted); margin-top: 2p
 
 /* Person contacted: the name box only matters for "Someone else" (stays visible where :has() is unsupported) */
 .comm-form:has(#person option[value="__other__"]:not(:checked)) .person-other-field { display: none; }
+/* ===== Outreach list filters ===== */
+.comm-toolbar .tools { flex-wrap: wrap; align-items: center; }
+.comm-toolbar .date-range { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.9rem; }
+.comm-toolbar input[type="date"] { width: 150px; padding: 7px 12px; border: 1px solid #b9bec5; border-radius: 999px; font: inherit; font-size: 0.9rem; background: #fff; }
+.comm-reset { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border: 1.5px solid var(--navy); border-radius: 999px; background: #fff; font-size: 0.9rem; font-weight: bold; }
+.comm-reset:hover { background: var(--yellow); }
+
+/* ===== View page: fields must stay inside their card ===== */
+.view-side .grid > *, .view-side .field { min-width: 0; }
+.view-side .field input { width: 100%; min-width: 0; }
+a.ctag:hover { text-decoration: underline; }
+.post-links { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.photo-current { margin-bottom: 10px; font-size: 0.9rem; }
+.photo-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+
+/* ===== Add form: poster name only for "Other"; one link field per ticked channel (no JavaScript) ===== */
+.comm-form:has(#posted_by option[value="__other__"]:not(:checked)) .poster-other-field { display: none; }
+.chan-link { display: none; }
+.comm-form:has(input[name="channel[]"][value="facebook"]:checked)   .chan-link[data-channel="facebook"],
+.comm-form:has(input[name="channel[]"][value="instagram"]:checked)  .chan-link[data-channel="instagram"],
+.comm-form:has(input[name="channel[]"][value="x"]:checked)          .chan-link[data-channel="x"],
+.comm-form:has(input[name="channel[]"][value="linkedin"]:checked)   .chan-link[data-channel="linkedin"],
+.comm-form:has(input[name="channel[]"][value="mass_email"]:checked) .chan-link[data-channel="mass_email"],
+.comm-form:has(input[name="channel[]"][value="newsletter"]:checked) .chan-link[data-channel="newsletter"] { display: flex; }
 
 /* Donor search on Add communication (same look as Add donation's; .link and .initials sizing are in forms.css) */
 .comm-form .donor-box {

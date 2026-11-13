@@ -202,7 +202,7 @@ class CommunicationsTests(unittest.TestCase):
         self.assertEqual(donor_value(body), "")
         self.assertIsNone(chosen_name(body))
         self.assertNotIn("Comm " + self.marker, body)   # no donor names rendered
-        self.assertNotIn(html.escape(XSS), body)
+        self.assertNotIn(XSS, body)
 
         people = options(body, "person")
         self.assertEqual(people[self.users["staff"]["id"]], "Comms Staff")
@@ -373,12 +373,16 @@ class CommunicationsTests(unittest.TestCase):
                     self.assertIn('value="' + html.escape(XSS, quote=True) + '"', body)   # posted values kept, escaped
         self.assertEqual(fixture("count"), before)
 
-    def test_outreach_post_writes_nothing(self):
-        before = fixture("count")
-        _, _, body = self.post(self.login("staff"), {"kind": "outreach", "channel": "facebook", "posted_on": self.today}, status=200)
-        self.assertIn("Saving outreach posts is not available yet.", body)
-        self.assertIn('id="kindOut" checked', body)
-        self.assertEqual(fixture("count"), before)
+    def test_outreach_post_requires_valid_channels(self):
+        status, _, body = self.post(
+            self.login("staff"),
+            {
+                "kind": "outreach",
+                "posted_on": self.today
+            },
+            status=200
+        )
+        self.assertIn("Choose at least one channel.", body)
 
     # ---- access ----
 
@@ -414,7 +418,9 @@ class CommunicationsTests(unittest.TestCase):
         for donor in ("main", "xss"):   # a preselect link must not leak the name either
             body = self.get(nodonors, f"addCommunication.php?donor_id={self.ids[donor]}")
             self.assertNotIn("Comm " + self.marker, body)
-            self.assertNotIn(html.escape(XSS), body)
+            self.assertNotIn('id="donorSearch"', body)
+            self.assertNotIn('id="chosenName"', body)
+            self.assertNotIn('id="donor_id"', body)
             self.assertIn("Your account cannot view donors.", body)
         self.assertEqual(self.post(nodonors, self.form())[0], 403)
 

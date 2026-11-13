@@ -32,9 +32,8 @@ $preferredOptions = array_values(DONOR_PREFERRED_LABELS);
               <label for="typeInd">Individual</label>
               <input type="radio" name="type" id="typeOrg" value="Organization" <?= $form['type'] === 'Organization' ? 'checked' : '' ?>>
               <label for="typeOrg">Organization</label>
-              <!-- Foundation is not saved yet (donors.donor_type has no foundation value); enabled with that ticket. -->
-              <input type="radio" name="type" id="typeFdn" value="Foundation" disabled>
-              <label for="typeFdn" title="Coming soon: foundations cannot be saved yet">Foundation (coming soon)</label>
+              <input type="radio" name="type" id="typeFdn" value="Foundation" <?= $form['type'] === 'Foundation' ? 'checked' : '' ?>>
+              <label for="typeFdn">Foundation</label>
             </div>
           </div>
 

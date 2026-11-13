@@ -10,3 +10,4 @@ node_modules
 ai-email-gen/ollama-data
 output
 .playwright-cli
+uploads/outreach/*
