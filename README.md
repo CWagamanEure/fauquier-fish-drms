@@ -60,7 +60,7 @@ Every change goes through the four-auditor review swarm twice, on the ticket dra
 before it is pushed. `make dev` installs the pre-push hook that guards against pushing unreviewed code;
 a human review is the real control. Two GitHub Actions checks report on every pull request: `record`
 says whether a review-swarm record is present (advisory since 2026-10-20) and `tests`
-(`.github/workflows/ci.yml`) runs the PHP syntax check, `make test-hours`, `make test-campaigns`, `make test-outreach`, `make test-comms`, `make test-exports` and `make test-gate`, so a PR needs no tooling on the author's machine. Read
+(`.github/workflows/ci.yml`) runs the PHP syntax check, `make test-hours`, `make test-campaigns`, `make test-outreach`, `make test-comms`, `make test-exports`, `make test-users`, `make test-donations`, `make test-gate`, and `make test-deploy`, so a PR needs no tooling on the author's machine. Read
 `docs/process/change-review-process.md` before starting work.
 
 ## Database migrations
@@ -148,7 +148,8 @@ asserts the Jira save-to-display limits only when `DONATIONS_TIMING_STRICT=1`. `
 shift times and the same shift for several volunteers), validation, viewing and editing an entry with its
 change history, delete, the profile's Volunteer tab and the permission gates, on donors, campaigns and
 entries it creates and removes itself. `make test-comms` (after `make seed-demo`) runs
-`tests/communications_integration.py`: the one-on-one form's donor, person contacted and campaign lists,
+`tests/communications_integration.py`: the one-on-one form's donor search (preselect, re-render, no donor names without donors view), person
+contacted and campaign lists,
 saving (including "Someone else" and the follow-up rules), validation, the profile's Communications tab and
 the permission gates, on donors, campaigns and users it creates and removes itself. `make test-exports` (after
 `make seed-demo`) runs `tests/exports_integration.py`: the cash (UF2-133) and non-cash (UF2-134) donations
@@ -184,6 +185,10 @@ Several types of diagrams describing the design of CASA, including sequence diag
 
 
 ### Localhost to Siteground
+
+A push to `main` deploys the site to SiteGround through `.github/workflows/deploy.yml` (once the owner has
+enabled it). The database is not deployed. Setup, the migration release rule and the limits are in
+`docs/deploy-siteground.md`; `make test-deploy` (on a Mac `make test-deploy-docker`) tests the deploy script.
 
 ### Clearing the SiteGround cache
 #### Chrome

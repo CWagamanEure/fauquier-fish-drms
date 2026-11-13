@@ -88,6 +88,10 @@ jobs:
         run: make test-exports
       - name: Review gate tests
         run: make test-gate
+      - name: Deploy script tests (no network, no secrets)
+        run: make test-deploy
+      - name: Migrations not yet recorded as applied on production (warning only)
+        run: scripts/deploy-schema-guard.sh --warn
       - name: Service state and logs
         if: failure()
         run: |

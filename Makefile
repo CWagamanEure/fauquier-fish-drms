@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help dev stop logs status migrate seed-demo db-shell test-auth hooks test-gate test-donors test-users test-donations test-hours test-comms test-campaigns test-outreach test-exports
+.PHONY: help dev stop logs status migrate seed-demo db-shell test-auth hooks test-gate test-donors test-users test-donations test-hours test-comms test-campaigns test-outreach test-exports test-deploy test-deploy-docker
 
 help:
 	@echo "make dev        Build and start the Docker app and database, then apply migrations"
@@ -20,6 +20,8 @@ help:
 	@echo "make test-exports Run the Data & Imports CSV export integration tests (needs make seed-demo)"
 	@echo "make hooks      Point git at .githooks (pre-push review gate); make dev does this too"
 	@echo "make test-gate  Test the pre-push review gate in a temporary repository"
+	@echo "make test-deploy Test the SiteGround deploy script and filter (needs GNU rsync 3; no network)"
+	@echo "make test-deploy-docker Same test in a throwaway container, for Macs (openrsync is refused)"
 
 # Never overwrite existing local credentials or database seed settings.
 .env:
@@ -63,6 +65,13 @@ hooks:
 
 test-gate:
 	@tests/review_gate.sh
+
+# SiteGround deploy (docs/deploy-siteground.md). The test never touches the network.
+test-deploy:
+	@tests/deploy/deploy_test.sh
+
+test-deploy-docker:
+	docker run --rm -v "$(CURDIR)":/repo:ro -w /repo alpine:3.20 sh -c 'apk add --no-cache -q bash git rsync && bash tests/deploy/deploy_test.sh'
 
 test-donors:
 	docker compose exec -T web python tests/donors_integration.py

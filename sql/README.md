@@ -38,6 +38,12 @@ Files are run through the `mariadb` client, so `DELIMITER` works for triggers.
 `IF NOT EXISTS` guards need rewriting with `information_schema` checks like the foreign-key
 guard in `002_donations_cash_fields.sql`.
 
+**Production (SiteGround) runs MySQL 8 and is not migrated by these files or by the deploy.** The
+repository owner ports each new migration to MySQL 8, applies it on SiteGround, and then adds its
+filename to `sql/production-applied.txt`. The deploy job refuses to publish `main` while a migration is
+missing from that list (the pull request check shows a warning). See `docs/deploy-siteground.md`,
+"Releasing a migration".
+
 ## Sprint 1 schema (migrations 001-008, plus 010)
 
 | Table / view | Purpose | Ticket |

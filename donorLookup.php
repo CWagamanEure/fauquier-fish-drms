@@ -1,6 +1,6 @@
 <?php
-// Donor search for the Add donation form (UF2-49): GET ?q= returns up to 10 matching active donors as
-// JSON. JSON errors instead of the login redirect, so the form can tell the user what happened.
+// Donor search for the Add donation (UF2-49), Add communication and volunteer hours forms: GET ?q= returns
+// up to 10 matching active donors as JSON. JSON errors instead of the login redirect, so the form can tell the user what happened.
 require_once 'include/auth.php';
 require_authentication(1, true);
 require_once 'include/permissions.php';
