@@ -57,3 +57,19 @@ td.actions .edit { margin-right: 6px; }
 
 @media (max-width: 1100px) { .data-cols, .data-cols.even { grid-template-columns: 1fr; } }
 @media (max-width: 640px)  { .export-row { grid-template-columns: 1fr; } .export-filters { flex-wrap: wrap; } }
+
+/* ===== import preview / fix / review actions (importPreview.php, importFix.php) ===== */
+.form-success { background: #e6f4ee; border: 1px solid #9ccfb8; border-radius: 8px; padding: 12px 16px; color: #1f6b5c; font-size: 0.92rem; margin: 12px 0; }
+.import-form + .form-errors, .card > .form-errors { margin: 10px 0; }
+.preview-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+.inline-form { display: inline; margin: 0; }
+button.edit { font: inherit; cursor: pointer; }
+td.actions .edit, td.actions .inline-form { display: inline-block; margin: 0 6px 4px 0; }
+.tile.warn .num { color: #9b2c22; }
+.fix-form { margin-top: 18px; }
+.fix-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px 18px; margin-bottom: 12px; }
+button.edit { background: none; color: inherit; }
+tbody td.problem { white-space: normal; min-width: 240px; }
+.problem .sub { overflow-wrap: anywhere; }
+.data-cols > * { min-width: 0; }
+td.actions { white-space: normal; min-width: 120px; }

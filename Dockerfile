@@ -1,8 +1,8 @@
 FROM php:8.2-apache-bookworm
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends python3 python3-venv \
-    && docker-php-ext-install mysqli pdo_mysql \
+    && apt-get install -y --no-install-recommends python3 python3-venv libzip-dev \
+    && docker-php-ext-install mysqli pdo_mysql zip \
     && python3 -m venv /opt/venv \
     && rm -rf /var/lib/apt/lists/*
 ENV PATH="/opt/venv/bin:${PATH}" \
