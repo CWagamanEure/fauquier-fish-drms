@@ -1,0 +1,17 @@
+{
+ "mode": "code",
+ "subject": "TCD-imports",
+ "round": 3,
+ "approved": true,
+ "reviewed_commit": "68874ed61ad3f37d9a68ba6b3115fc6702fa0b57",
+ "tree": "d3a255e723547924955578f0c916f06b0facd74539c02c0951cbd3bc8f91977e",
+ "runner": "review-swarm.js auditor prompts run via the Agent tool (Workflow tool unavailable in this session); no criticals in any round, so no skeptic round. Round 1 highs (xlsx size/coordinate limits [security], double-submit Import, Docker zip) and round 2 mediums fixed before round 3; round 3 mediums accepted or disputed in code-round-3-responses.md.",
+ "auditors": [
+  {"auditor": "security", "approve": true, "finding_count": 1},
+  {"auditor": "data", "approve": true, "finding_count": 2},
+  {"auditor": "correctness", "approve": true, "finding_count": 2},
+  {"auditor": "verification", "approve": true, "finding_count": 1}
+ ],
+ "findings_by_severity": {"medium": 3, "low": 3},
+ "findings_by_status": {"accepted": 5, "disputed": 1}
+}
