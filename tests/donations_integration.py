@@ -153,9 +153,12 @@ echo json_encode($out, JSON_THROW_ON_ERROR);
 
 def fixture(action, **payload):
     result = subprocess.run(["php", "-r", FIXTURES_PHP], input=json.dumps({"action": action, **payload}),
-                            text=True, check=True, cwd=ROOT, capture_output=True)
+                            text=True, cwd=ROOT, capture_output=True)
+    if result.returncode:
+        print("PHP STDOUT:", result.stdout)
+        print("PHP STDERR:", result.stderr)
+    result.check_returncode()
     return json.loads(result.stdout)
-
 
 def embedded(body, name):
     """The JSON value a page embeds as `const NAME = ...;`."""

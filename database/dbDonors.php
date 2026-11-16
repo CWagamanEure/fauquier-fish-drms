@@ -16,7 +16,17 @@ const DONOR_FIELD_LIMITS = ['first' => 100, 'middle' => 100, 'last' => 100, 'org
                             'phone' => 30, 'street' => 100, 'city' => 30, 'state' => 30, 'zip' => 30];
 const DONOR_CONTACT_MAX = 10;
 const DONOR_CONTACT_LIMITS = ['name' => 255, 'title' => 100, 'email' => 100, 'phone' => 30];   // donor_contacts column lengths
-const DONOR_CONTACT_TYPES = ['Organization'];
+const DONOR_CONTACT_TYPES = ['Organization', 'Foundation'];   // form types that keep contact people
+const DONOR_TYPE_LABELS = ['individual' => 'Individual', 'organization' => 'Organization', 'foundation' => 'Foundation'];
+
+function donor_type_label($enum) {
+    return DONOR_TYPE_LABELS[$enum] ?? 'Individual';
+}
+
+function donor_type_enum($label) {
+    $enum = strtolower((string) $label);
+    return isset(DONOR_TYPE_LABELS[$enum]) ? $enum : 'individual';
+}
 
 /** Returns whether the form type supports contact people; only 'Organization' currently does. */
 function donor_type_has_contacts($type) {
@@ -107,7 +117,7 @@ function donors_list_where($filter, $q) {
     $types = '';
     $values = [];
     if ($filter === 'individuals') { $where[] = "donor_type = 'individual'"; }
-    if ($filter === 'organizations') { $where[] = "donor_type = 'organization'"; }
+    if ($filter === 'organizations') { $where[] = "donor_type IN ('organization', 'foundation')"; }
     if ($filter === 'lapsed') { $where[] = "status <> 'active'"; }   // LYBUNT, SYBUNT and inactive
     if ($q !== '') {
         $like = '%' . donor_like_escape($q) . '%';
@@ -157,7 +167,7 @@ function donors_list($filter, $q, $sort, $page) {
     $rows = [];
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
         $rows[] = ['id' => (int) $r['id'], 'name' => $r['display_name'],
-                   'type' => $r['donor_type'] === 'organization' ? 'Organization' : 'Individual',
+                   'type' => donor_type_label($r['donor_type']),
                    'contact' => $r['email'] !== null && $r['email'] !== '' ? $r['email'] : (string) $r['phone'],
                    'lifetime' => (float) $r['lifetime_cash'], 'last_gift' => $r['last_gift_date'] ?? '',
                    'status' => $r['status']];
@@ -168,12 +178,12 @@ function donors_list($filter, $q, $sort, $page) {
             'filter' => $filter, 'sort' => $sort, 'per_page' => DONORS_PER_PAGE];
 }
 
-// The donor-picker shape used by addDonation.php (UF2-49): name, type and town plus the side-panel
-// figures. Email and phone are matched by donors_lookup() but never returned.
+// The donor-picker shape used by donorLookup.php (Add donation, Add communication, volunteer hours) and
+// addDonation.php's side panel: name, type and town plus the side-panel figures. Email and phone are matched by donors_lookup() but never returned.
 function donor_lookup_row(array $r) {
     $town = implode(', ', array_filter([(string) $r['city'], (string) $r['state']], 'strlen'));
     return ['id' => (int) $r['id'], 'name' => $r['display_name'],
-            'type' => $r['donor_type'] === 'organization' ? 'Organization' : 'Individual',
+            'type' => donor_type_label($r['donor_type']),
             'town' => $town, 'since' => $r['donor_since_date'] === null ? '' : substr($r['donor_since_date'], 0, 4),
             'cash' => (float) $r['lifetime_cash'], 'items' => (int) $r['items_donated'],
             'last_gift' => $r['last_gift_date'] ?? '', 'hours' => (float) $r['volunteer_hours']];
@@ -195,19 +205,6 @@ function donors_lookup($q, $limit = 10) {
     $stmt->close();
     mysqli_close($con);
     return $rows;
-}
-
-// id => display name of every active, non-anonymous donor (the same filter as the donor list), for a
-// full donor dropdown such as addCommunication.php's.
-function donor_options() {
-    [$where] = donors_list_where('all', '');
-    $con = connect();
-    $stmt = $con->prepare("SELECT id, display_name FROM donor_summary WHERE $where ORDER BY display_name, id");
-    $stmt->execute();
-    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-    $stmt->close();
-    mysqli_close($con);
-    return array_column($rows, 'display_name', 'id');
 }
 
 // One donor_summary row (active or not), or null.
@@ -241,7 +238,7 @@ function donor_profile_fields($id) {
     if (!$r) { return null; }
     $contacts = donor_contacts_get((int) $r['id']);
     return ['id' => (int) $r['id'],
-            'type' => $r['donor_type'] === 'organization' ? 'Organization' : 'Individual',
+            'type' => donor_type_label($r['donor_type']),
             'first' => (string) $r['first'], 'middle' => (string) $r['middle_name'], 'last' => (string) $r['last'],
             'org_name' => (string) $r['org_name'], 'email' => (string) $r['email'], 'phone' => (string) $r['phone'],
             'preferred' => $r['preferred_contact'] === null ? '' : donor_pref_label($r['preferred_contact']),
@@ -357,7 +354,7 @@ function donor_form_from_post(array $post, array $base) {
         'volunteer' => isset($post['volunteer']) ? 1 : 0, 'email_updates' => isset($post['email_updates']) ? 1 : 0,
         'mail_receipts' => isset($post['mail_receipts']) ? 1 : 0, 'do_not_contact' => isset($post['do_not_contact']) ? 1 : 0,
     ]);
-    if (!in_array($form['type'], ['Individual', 'Organization'], true)) { $form['type'] = 'Individual'; }
+    if (!in_array($form['type'], ['Individual', 'Organization', 'Foundation'], true)) { $form['type'] = 'Individual'; }
     [$form['contacts'], $form['primary_contact']] = donor_contacts_from_post($post);
     return $form;
 }
@@ -377,7 +374,7 @@ function donor_form_validate(array &$form, ?array $stored = null) {
         if ($form['first'] === '') { $errors[] = 'First name is required.'; }
         if ($form['last'] === '') { $errors[] = 'Last name is required.'; }
     } elseif ($form['org_name'] === '') {
-        $errors[] = 'Organization name is required.';
+        $errors[] = $form['type'] . ' name is required.';
     }
     if ($form['email'] !== '' && !$unchanged('email') && !filter_var($form['email'], FILTER_VALIDATE_EMAIL)) {
         $errors[] = 'Enter a valid email address.';
@@ -417,7 +414,7 @@ function donor_form_validate(array &$form, ?array $stored = null) {
 function donor_bind_values(array $form) {
     $nullable = function ($v) { return $v === '' ? null : $v; };
     return [
-        $form['type'] === 'Organization' ? 'organization' : 'individual',
+        donor_type_enum($form['type']),
         $nullable($form['first']), $nullable($form['middle']), $nullable($form['last']), $nullable($form['org_name']),
         $nullable($form['email']), $nullable($form['phone']),
         $form['preferred'] === '' ? null : donor_pref_to_enum($form['preferred']),

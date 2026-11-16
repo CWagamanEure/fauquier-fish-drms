@@ -14,3 +14,5 @@ python/exports/*
 !python/exports/.htaccess
 # review swarm: full round records stay local (public repo); stubs and responses are committed
 .reviews/**/*-round-*.json
+uploads/outreach/*
+!uploads/outreach/.htaccess

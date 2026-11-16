@@ -12,6 +12,7 @@ services:
     volumes:
       - .:/var/www/html
       - php-sessions:/var/lib/php/sessions
+      - outreach-uploads:/var/www/html/uploads/outreach
     depends_on:
       db:
         condition: service_healthy
@@ -52,3 +53,4 @@ services:
 volumes:
   db-data:
   php-sessions:
+  outreach-uploads:

@@ -1,0 +1,37 @@
+/* Reports page: reports.php. Loaded after fishnet.css, donor.css (tiles, tables, .empty) and forms.css. */
+
+.rp-filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rp-filters select { width: auto; padding: 8px 10px; border: 1.5px solid #c9ccc4; border-radius: 6px; font: inherit; color: var(--text); background: #fff; }
+
+.rp-card { margin-top: 20px; padding: 24px 26px; }
+.rp-tabs { display: flex; gap: 26px; border-bottom: 1px solid #e5e7e2; margin-bottom: 18px; }
+.rp-tabs a { padding: 8px 2px; color: var(--muted); border-bottom: 3px solid transparent; }
+.rp-tabs a.on { color: var(--text); font-weight: bold; border-bottom-color: var(--teal); }
+.rp-title, .card .rp-title { font-size: 1.25rem; font-weight: bold; color: var(--text); }
+.rp-note { color: var(--muted); font-size: 0.9rem; margin-bottom: 12px; }
+.rp-split { display: grid; grid-template-columns: 1.4fr 1fr; gap: 32px; align-items: start; }
+.rp-split > * { min-width: 0; }
+
+/* bar chart: heights inline as % of the tallest value */
+.rp-bars { display: flex; align-items: flex-end; gap: 12px; height: 200px; border-bottom: 2px solid #c9ccc4; }
+.rp-bars .grp { flex: 1; display: flex; align-items: flex-end; justify-content: center; gap: 3px; height: 100%; }
+.rp-bars i { flex: 1; max-width: 34px; min-height: 2px; border-radius: 4px 4px 0 0; }
+.rp-labels { display: flex; gap: 12px; }
+.rp-labels span { flex: 1; text-align: center; font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
+.c1 { background: #458c9c; }
+.c2 { background: #f2c744; }
+
+.donut { width: 170px; height: 170px; border-radius: 50%; margin: 6px auto 14px; position: relative; }
+.donut::after { content: ''; position: absolute; inset: 36px; background: #fff; border-radius: 50%; }
+
+.legend { display: flex; gap: 18px; font-size: 0.9rem; margin-top: 10px; flex-wrap: wrap; }
+.legend.col { flex-direction: column; gap: 6px; }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.chart-empty { color: var(--muted); text-align: center; padding: 56px 0; border: 2px dashed #d6d9d1; border-radius: 10px; }
+
+.num-col { text-align: right; }
+.meter { height: 8px; border-radius: 999px; background: #e5e7e2; overflow: hidden; min-width: 120px; }
+.meter span { display: block; height: 100%; background: var(--teal); }
+.rp-tiles { margin-top: 20px; }
+
+@media (max-width: 900px) { .rp-split { grid-template-columns: 1fr; } .rp-tabs { gap: 16px; overflow-x: auto; } }

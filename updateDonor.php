@@ -17,7 +17,7 @@ if (!$stored || $id === DONOR_ANONYMOUS_ID) { header('Location: donor.php', true
 $canEdit = fish_can('donors', 'edit');
 $errors = [];
 $form = $stored;
-$displayName = $stored['type'] === 'Organization'
+$displayName = $stored['type'] !== 'Individual'
   ? $stored['org_name']
   : trim(implode(' ', array_filter([$stored['first'], $stored['middle'], $stored['last']])));
 

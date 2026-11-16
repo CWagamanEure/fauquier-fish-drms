@@ -66,17 +66,17 @@ fishnet_open('Donors', 'donor', 'donor.css');
       </section>
 
       <section class="card table-card">
-        <form class="toolbar" method="get">
+        <form class="toolbar" method="get" data-live>
           <!-- Hidden default button: pressing Enter in the search box keeps the current filter instead of resetting to "All" -->
           <button type="submit" name="filter" value="<?= h($filter) ?>" hidden></button>
           <div class="pills">
-            <?php foreach (['all'=>'All','individuals'=>'Individuals','organizations'=>'Organizations','lapsed'=>'Lapsed'] as $v => $label): ?>
+            <?php foreach (['all'=>'All','individuals'=>'Individuals','organizations'=>'Org/Foundations','lapsed'=>'Lapsed'] as $v => $label): ?>
               <button type="submit" name="filter" value="<?= $v ?>" class="pill<?= $filter === $v ? ' on' : '' ?>"><?= $label ?></button>
             <?php endforeach; ?>
           </div>
           <div class="tools">
-            <input type="search" name="q" value="<?= h($q) ?>" placeholder="Search name, email or phone...">
-            <select name="sort" onchange="this.form.querySelector('button[name=filter][hidden]').click()">
+            <input type="search" name="q" value="<?= h($q) ?>" placeholder="Search name, email or phone..." autocomplete="off">
+            <select name="sort">
               <option value="last_gift" <?= $sort === 'last_gift' ? 'selected' : '' ?>>Sort: Last gift</option>
               <option value="name"      <?= $sort === 'name'      ? 'selected' : '' ?>>Sort: Name</option>
               <option value="lifetime"  <?= $sort === 'lifetime'  ? 'selected' : '' ?>>Sort: Lifetime giving</option>
@@ -118,5 +118,6 @@ fishnet_open('Donors', 'donor', 'donor.css');
           </div>
         </div>
       </section>
+    <script src="js/liveFilter.js"></script>
 
 <?php fishnet_close(); ?>

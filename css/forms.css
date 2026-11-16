@@ -187,7 +187,6 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; display: conten
 .contacts-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .contacts-head .lbl { font-weight: bold; font-size: 0.9rem; }
 .contacts-note { margin: 0; font-size: 0.85rem; color: #7a5a00; background: #fdf6dc; border-radius: 8px; padding: 8px 12px; }
-#typeFdn[disabled] + label { opacity: 0.55; cursor: not-allowed; }   /* only the coming-soon option, not read-only forms */
 .contact-list { display: flex; flex-direction: column; gap: 10px; }
 .contact-row {
   display: grid;
@@ -231,3 +230,10 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; display: conten
 .fish-popup form { text-align: right; }
 .fish-popup-backdrop { position: fixed; inset: 0; z-index: 1000; background: rgba(29, 46, 68, 0.45); }
 .fish-popup:not([open]) + .fish-popup-backdrop { display: none; }
+/* Outreach: channel chips are checkboxes now (pick one or more) */
+.channel-choices { display: flex; flex-wrap: wrap; gap: 10px; }
+.channel-choices .channel input { position: absolute; opacity: 0; pointer-events: none; }
+.channel-choices .channel span { display: inline-block; padding: 8px 18px; border: 1.5px solid var(--navy); border-radius: 999px; background: #fff; cursor: pointer; }
+.channel-choices .channel input:checked + span { background: var(--navy); color: #fff; font-weight: bold; }
+.channel-choices .channel input:focus-visible + span { outline: 2px solid var(--teal); outline-offset: 2px; }
+.outreach-photo { max-width: 100%; height: auto; border-radius: 8px; display: block; }

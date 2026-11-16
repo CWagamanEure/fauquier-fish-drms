@@ -22,7 +22,7 @@ try {
     if (fish_can('communications', 'view')) {   // same gate as campaign.php's Communications tab
       $comms = donor_communications($id);
     }
-    if ($donor['donor_type'] === 'organization' && fish_can('donors', 'view')) {
+    if (in_array($donor['donor_type'], ['organization', 'foundation'], true) && fish_can('donors', 'view')) {
       $contacts = donor_contacts_get($id);
       usort($contacts, function ($a, $b) { return $b['is_primary'] <=> $a['is_primary']; });   // main contact first
     }

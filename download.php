@@ -8,6 +8,14 @@ $documents = [
     'resources' => ['dir' => __DIR__ . '/uploads',                  'ext' => ['pdf', 'doc', 'docx'],  'level' => 1],
 ];
 
+if (($_GET['type'] ?? '') === 'outreach') {      // photos are looked up by id and need communications view
+    require_authentication(1);
+    require_once __DIR__ . '/include/permissions.php';
+    require_once __DIR__ . '/database/dbOutreach.php';
+    $fileId = $_GET['id'] ?? '';
+    outreach_send_file(is_string($fileId) && ctype_digit($fileId) ? (int) $fileId : 0);
+}
+
 $type = $_GET['type'] ?? '';
 if (!is_string($type) || !isset($documents[$type])) {
     require_authentication(1);

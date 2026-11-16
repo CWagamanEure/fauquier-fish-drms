@@ -60,8 +60,7 @@ Every change goes through the four-auditor review swarm twice, on the ticket dra
 before it is pushed. `make dev` installs the pre-push hook that guards against pushing unreviewed code;
 a human review is the real control. Two GitHub Actions checks report on every pull request: `record`
 says whether a review-swarm record is present (advisory since 2026-10-20) and `tests`
-(`.github/workflows/ci.yml`) runs the PHP syntax check, `make test-auth`, `make test-donors`,
-`make test-users`, `make test-donations`, `make test-hours`, `make test-comms`, `make test-exports`, `make test-gate` and `make test-deploy`, so a PR needs no tooling on the author's machine. Read
+(`.github/workflows/ci.yml`) runs the PHP syntax check, `make test-hours`, `make test-campaigns`, `make test-outreach`, `make test-comms`, `make test-exports`, `make test-users`, `make test-donations`, `make test-gate`, and `make test-deploy`, so a PR needs no tooling on the author's machine. Read
 `docs/process/change-review-process.md` before starting work.
 
 ## Database migrations
@@ -72,6 +71,18 @@ database volume is first created, so existing local databases get new tables and
 from migrations, not from re-importing a dump. `make seed-demo` loads optional FISH demo
 donors, donations, hours and communications for local page work. See `sql/README.md` for how
 to add a migration.
+## Data imports
+
+Data & Imports (`dataImports.php`) takes the templates in `templates/` (donors, cash donations, non-cash
+donations, volunteer hours, communications) as `.xlsx` or `.csv`, at most 2 MB and 2000 rows.
+`importHandler.php` checks every row with the same validate functions as the add pages and stores the
+result (migration 018); `importPreview.php` shows what is ready, what has errors and what looks like a
+duplicate, and nothing is saved until Import. Problem rows wait in Needs review (Fix, Import anyway for
+duplicates, Skip). An upload where no row passed stays at the check step: open it from Recent imports.
+Reading `.xlsx` needs PHP's zip extension (in the Docker image; in XAMPP enable `extension=zip` in
+php.ini); CSV works without it. Known gap: a gift, hours or communication row whose donor is not in
+FISH Net yet goes to Needs review; add the donor first, then Fix the row.
+
 ## Authentication (UF2-2 / UF2-4)
 
 Log in at `login.php` (username first, then password) and sign out with **Log Out** in the
@@ -96,8 +107,9 @@ sign-out requires a form token, destroys the session and expires its cookie, and
 `logout.php` directly shows a confirmation form. Authentication responses are not cached.
 Report, export, import and email handlers release their session locks during long
 operations so sign-out completes immediately, and imports save their result only if the
-original session is still authenticated when processing finishes. Stored report files, legacy
-exports and uploaded documents are served through `download.php`; the Data & Imports CSV exports are generated
+original session is still authenticated when processing finishes (the Data & Imports importer,
+`importHandler.php`, keeps its session open while it saves a file's rows, at most 2000, so a sign-out
+waits for it). Stored report files, legacy exports, uploaded documents and outreach photos (download.php?type=outreach&id=, communications view) are served through download.php; the Data & Imports CSV exports are generated
 and streamed by `exportData.php` and follow each export's own permission (the cash and non-cash exports follow
 donations view, the volunteer hours export follows donors view; the 'Data imports' permission area governs imports only); direct file URLs are denied by Apache
 (`docker/apache.conf` and the `.htaccess` files, which must be preserved on other hosts).
@@ -122,7 +134,12 @@ fall back to their role's preset. Manage Users (`manageUsers.php`, `addUser.php`
 names, email, role and per-area boxes, sets passwords, and deactivates or reactivates (an inactive account
 cannot sign in and its open session ends on its next request; its records are kept). Changing the role
 resets the boxes to that role's preset. Only an admin manages admin accounts, nobody deactivates their own,
-and the last active administrator (`vmsroot` not counted) cannot be demoted or deactivated.
+and the last active administrator (`vmsroot` not counted) cannot be demoted or deactivated. 
+Outreach posts (the Outreach tab of `communications.php`, `viewCommunication.php`, and the Outreach choice on
+`addCommunication.php`) use the same area: viewing needs `communications` view; logging needs `communications`
+edit plus `donors` view; updating a post's results or photo needs `communications` edit; deleting a post needs
+`communications` delete (`manager`, `admin`). Photos are up to 5 MB, so PHP's `upload_max_filesize` and
+`post_max_size` must allow that on every host.
 
 With `make dev` running, `make test-auth` runs `tests/auth_integration.py` against the real
 PHP/MariaDB stack. It creates uniquely named temporary accounts and files and removes them
@@ -145,12 +162,14 @@ asserts the Jira save-to-display limits only when `DONATIONS_TIMING_STRICT=1`. `
 shift times and the same shift for several volunteers), validation, viewing and editing an entry with its
 change history, delete, the profile's Volunteer tab and the permission gates, on donors, campaigns and
 entries it creates and removes itself. `make test-comms` (after `make seed-demo`) runs
-`tests/communications_integration.py`: the one-on-one form's donor, person contacted and campaign lists,
+`tests/communications_integration.py`: the one-on-one form's donor search (preselect, re-render, no donor names without donors view), person
+contacted and campaign lists,
 saving (including "Someone else" and the follow-up rules), validation, the profile's Communications tab and
 the permission gates, on donors, campaigns and users it creates and removes itself. `make test-exports` (after
 `make seed-demo`) runs `tests/exports_integration.py`: the cash (UF2-133) and non-cash (UF2-134) donations
 CSVs and the volunteer hours CSV (UF2-138) from Data & Imports: date ranges, columns, formula escaping, error
 redirects and permission gates, on gifts and hours entries dated in 1901 that it creates and removes itself. Run them only against a local development database.
+`make test-outreach` runs `tests/outreach_integration.py` (outreach posts: channels with one link each, posted-by, active campaigns, photo upload, replace and remove with its private download, the list's search, filters, sorting and date range, updating results, and delete).
 
 ## Purpose
 This project is the result of a semester's worth of collaboration among UMW students. The goal of the project was to create a web application that better suits the needs of Rappahannock CASA, specifically as a system to manage their donors. 
