@@ -1,0 +1,37 @@
+{
+ "mode": "code",
+ "subject": "wagaman-eure-release-sprint5",
+ "round": 1,
+ "approved": true,
+ "reviewed_commit": "e6d36fc96c20a1fbb622b025749a3b6e3bb5a6c9",
+ "tree": "0c10db62230f9cc98b67ffbcceb3caa6a0173a3febb16c059a73cff8e7014a31",
+ "auditors": [
+  {
+   "auditor": "security",
+   "approve": true,
+   "finding_count": 3
+  },
+  {
+   "auditor": "data",
+   "approve": true,
+   "finding_count": 3
+  },
+  {
+   "auditor": "correctness",
+   "approve": true,
+   "finding_count": 3
+  },
+  {
+   "auditor": "verification",
+   "approve": true,
+   "finding_count": 5
+  }
+ ],
+ "findings_by_severity": {
+  "medium": 5,
+  "low": 9
+ },
+ "findings_by_status": {
+  "reported": 14
+ }
+}
