@@ -1,0 +1,36 @@
+{
+ "mode": "code",
+ "subject": "wagaman-eure-export-lapsed",
+ "round": 1,
+ "approved": true,
+ "reviewed_commit": "5d07157",
+ "tree": "beee64b32c6e7c67d0ae80dca02b42821fbecc51afdced4bfd92b99a3a1b4f9e",
+ "auditors": [
+  {
+   "auditor": "security",
+   "approve": true,
+   "finding_count": 0
+  },
+  {
+   "auditor": "data",
+   "approve": true,
+   "finding_count": 0
+  },
+  {
+   "auditor": "correctness",
+   "approve": true,
+   "finding_count": 2
+  },
+  {
+   "auditor": "verification",
+   "approve": true,
+   "finding_count": 4
+  }
+ ],
+ "findings_by_severity": {
+  "low": 6
+ },
+ "findings_by_status": {
+  "reported": 6
+ }
+}

@@ -1,7 +1,7 @@
 <?php
 // Data & Imports exports (UF2-132..139): every Export form on dataImports.php posts `export` (+ from/to or
 // year) here, and the answer is a CSV download or a redirect back with a fixed error code. Built so far: `cash`
-// (UF2-133), `noncash` (UF2-134), `hours` (UF2-138), `emails` (UF2-132), `donor-list` (UF2-136), `donor-totals` (UF2-135) and `tax-receipt` (UF2-137); each later export adds a case with its own permission
+// (UF2-133), `noncash` (UF2-134), `hours` (UF2-138), `emails` (UF2-132), `donor-list` (UF2-136), `donor-totals` (UF2-135), `tax-receipt` (UF2-137) and `lapsed` (UF2-139); each later export adds a case with its own permission
 // check and query.
 // Including the layout signs in the visitor and checks the CSRF token on every POST (require_authentication).
 require_once 'include/fishnet-layout.php';
@@ -396,6 +396,47 @@ switch (fish_str($_POST, 'export')) {
                       ['Donor ID', 'Donor', 'Type', 'Main contact', 'Main contact email', 'Email', 'Street', 'City',
                        'State', 'ZIP', 'Mail receipts', 'Do not contact', 'Active', 'Cash gifts', 'Cash total (gross)',
                        'Gifts with no amount', 'Non-cash gifts', 'Non-cash items'],
+                      $rows);
+        $stmt->close();
+        $con->close();
+        exit;
+
+    case 'lapsed':
+        // Donors view, as the donor list. An outreach list, like the emails export: active donors whose rolling
+        // status (donor_summary, last gift 12-24 / 24-36 months ago) is LYBUNT or SYBUNT, leaving out Do not contact,
+        // deactivated donors and 999 (author defaults, 2026-11-23). The main contact as in the donor list export.
+        if (!fish_can_export_lapsed()) {
+            http_response_code(403);
+            header('Content-Type: text/plain; charset=utf-8');
+            echo 'You do not have access to the LYBUNT and SYBUNT export.';
+            exit;
+        }
+        session_write_close();
+        [$con, $stmt, $result] = export_query(
+            "SELECT s.id, s.display_name, s.donor_type, s.status, s.last_gift_date, s.email, s.phone, s.street, s.city,
+                    s.state, s.zip, c.name AS contact_name, c.email AS contact_email, c.phone AS contact_phone,
+                    s.preferred_contact, s.email_updates, s.mail_receipts
+             FROM donor_summary s
+             LEFT JOIN donor_contacts c ON c.donor_id = s.id AND c.is_primary = 1
+                                       AND s.donor_type IN ('organization', 'foundation')
+             WHERE s.is_anonymous = 0 AND s.is_active = 1 AND s.do_not_contact = 0
+               AND s.status IN ('lybunt', 'sybunt')
+             ORDER BY FIELD(s.status, 'lybunt', 'sybunt'), s.display_name, s.id", 'lapsed');
+        $yesNo = fn($v) => (int) $v === 1 ? 'Yes' : 'No';
+        $rows = (function () use ($result, $yesNo) {
+            while ($r = $result->fetch_assoc()) {
+                yield [
+                    $r['id'], $r['display_name'], donor_type_label($r['donor_type']), donor_status_label($r['status']),
+                    $r['last_gift_date'], $r['email'], $r['phone'], $r['street'], $r['city'], $r['state'], $r['zip'],
+                    $r['contact_name'], $r['contact_email'], $r['contact_phone'],
+                    donor_pref_label($r['preferred_contact']), $yesNo($r['email_updates']), $yesNo($r['mail_receipts']),
+                ];
+            }
+        })();
+        fish_csv_send('fish-lybunt-sybunt-' . date('Y-m-d') . '.csv',
+                      ['Donor ID', 'Donor', 'Type', 'Status', 'Last gift', 'Email', 'Phone', 'Street', 'City', 'State',
+                       'ZIP', 'Main contact', 'Main contact email', 'Main contact phone', 'Preferred contact',
+                       'Email updates', 'Mail receipts'],
                       $rows);
         $stmt->close();
         $con->close();
