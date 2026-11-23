@@ -64,6 +64,14 @@ function fish_can_export_hours() {
     return fish_can('donors', 'view');
 }
 
+/**
+ * Downloading the donor emails CSV (exportData.php, the "All emails" row on dataImports.php): donors view, the rule
+ * the donor profile uses to show a donor's email and their organization's contact people (UF2-132).
+ */
+function fish_can_export_emails() {
+    return fish_can('donors', 'view');
+}
+
 // Logging or editing volunteer hours (addHours.php, hours.php and the profile's "+ Log hours"): donors view
 // and edit. The users enum has no volunteers area, so donor permissions govern volunteer records.
 function fish_can_log_hours() {

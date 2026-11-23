@@ -1,7 +1,7 @@
 <?php
 // Data & Imports exports (UF2-132..139): every Export form on dataImports.php posts `export` (+ from/to or
 // year) here, and the answer is a CSV download or a redirect back with a fixed error code. Built so far: `cash`
-// (UF2-133), `noncash` (UF2-134) and `hours` (UF2-138); each later export adds a case with its own permission
+// (UF2-133), `noncash` (UF2-134), `hours` (UF2-138) and `emails` (UF2-132); each later export adds a case with its own permission
 // check and query.
 // Including the layout signs in the visitor and checks the CSRF token on every POST (require_authentication).
 require_once 'include/fishnet-layout.php';
@@ -190,6 +190,57 @@ switch (fish_str($_POST, 'export')) {
         fish_csv_send('fish-volunteer-hours-' . date('Y-m-d') . '.csv',
                       ['Entry ID', 'Date', 'Volunteer ID', 'Volunteer', 'Hours', 'Start time', 'End time', 'Job',
                        'Location', 'Campaign', 'Verified', 'Counts for letter', 'Recorded by', 'Notes'],
+                      $rows);
+        $stmt->close();
+        $con->close();
+        exit;
+
+    case 'emails':
+        // Donors view, as on the donor profile. No dates: one row per email of every active donor that is not Do
+        // not contact, then one per email of their organization or foundation contact people (decided 2026-11-23).
+        if (!fish_can_export_emails()) {
+            http_response_code(403);
+            header('Content-Type: text/plain; charset=utf-8');
+            echo 'You do not have access to the email export.';
+            exit;
+        }
+        session_write_close();
+        // A UNION's ORDER BY may only name output columns, so each branch selects its sort keys under aliases.
+        [$con, $stmt, $result] = export_query(
+            "SELECT s.id AS donor_id, s.display_name, NULL AS contact_name, NULL AS contact_title, s.email,
+                    s.email_updates, 0 AS row_kind, 0 AS contact_primary, 0 AS contact_sort, 0 AS contact_id
+             FROM donor_summary s
+             WHERE s.is_anonymous = 0 AND s.is_active = 1 AND s.do_not_contact = 0
+               AND COALESCE(s.email, '') REGEXP '[^[:space:]]'
+             UNION ALL
+             SELECT s.id, s.display_name, c.name, c.title, c.email,
+                    s.email_updates, 1, c.is_primary, c.sort_order, c.id
+             FROM donor_contacts c
+             JOIN donor_summary s ON s.id = c.donor_id
+             WHERE s.is_anonymous = 0 AND s.is_active = 1 AND s.do_not_contact = 0
+               AND s.donor_type IN ('organization', 'foundation')
+               AND COALESCE(c.email, '') REGEXP '[^[:space:]]'
+             ORDER BY display_name, donor_id, row_kind, contact_primary DESC, contact_sort, contact_id", 'emails');
+        $rows = (function () use ($result) {
+            while ($r = $result->fetch_assoc()) {
+                // Trim Unicode spaces too (a no-break space passes the SQL check); never write a blank email.
+                // preg_replace() returns null on invalid UTF-8 (legacy data); fall back to plain trim() then.
+                $email = preg_replace('/^[\s\x{00A0}]+|[\s\x{00A0}]+$/u', '', (string) $r['email']) ?? trim((string) $r['email']);
+                if ($email === '') {
+                    continue;
+                }
+                yield [
+                    $r['donor_id'],
+                    $r['display_name'],
+                    $r['contact_name'],
+                    $r['contact_title'],
+                    $email,
+                    (int) $r['email_updates'] === 1 ? 'Yes' : 'No',
+                ];
+            }
+        })();
+        fish_csv_send('fish-donor-emails-' . date('Y-m-d') . '.csv',
+                      ['Donor ID', 'Donor', 'Contact person', 'Contact title', 'Email', 'Email updates'],
                       $rows);
         $stmt->close();
         $con->close();
