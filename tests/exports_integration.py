@@ -26,6 +26,9 @@ EMAILS_HEADER = ["Donor ID", "Donor", "Contact person", "Contact title", "Email"
 DONOR_LIST_HEADER = ["Donor ID", "Donor", "Type", "Email", "Phone", "Street", "City", "State", "ZIP", "Main contact",
                      "Main contact email", "Main contact phone", "Preferred contact", "Do not contact", "Email updates",
                      "Mail receipts", "Status", "Last gift", "Donor since"]
+LAPSED_HEADER = ["Donor ID", "Donor", "Type", "Status", "Last gift", "Email", "Phone", "Street", "City", "State", "ZIP",
+                 "Main contact", "Main contact email", "Main contact phone", "Preferred contact", "Email updates",
+                 "Mail receipts"]
 TAX_HEADER = ["Donor ID", "Donor", "Type", "Main contact", "Main contact email", "Email", "Street", "City", "State",
               "ZIP", "Mail receipts", "Do not contact", "Active", "Cash gifts", "Cash total (gross)",
               "Gifts with no amount", "Non-cash gifts", "Non-cash items"]
@@ -223,7 +226,10 @@ switch ($req['action']) {
         $out['status_donors'] = [];
         $out['status_gifts'] = [];
         foreach (['active' => ['Active', '-6 months'], 'lybunt' => ['Lybunt', '-18 months'],
-                  'sybunt' => ['Sybunt', '-30 months']] as $key => [$first, $ago]) {
+                  'sybunt' => ['Sybunt', '-30 months'],
+                  // LYBUNT / SYBUNT export (UF2-139): left out (Do not contact, deactivated) and an organization row.
+                  'lybunt_dnc' => ['Dnclapsed', '-18 months'], 'sybunt_gone' => ['Gonelapsed', '-30 months'],
+                  'lybunt_org' => ['Lapsedorg', '-18 months']] as $key => [$first, $ago]) {
             $run("INSERT INTO donors (donor_type, `first`, `last`, notes, donor_since) VALUES ('individual', ?, ?, 'export suite', '1900-06-01')",
                  'ss', $first, $m);
             $id = (int) $con->insert_id;
@@ -236,6 +242,14 @@ switch ($req['action']) {
         $run("UPDATE donors SET email = ?, phone = '540-555-0111', street = '=1 Main St', city = 'Warrenton', state = 'VA',
               zip = '20186', preferred_contact = 'mail', mail_receipts = 1, email_updates = 1 WHERE id = ?",
              'si', "active.$m@example.test", $out['status_donors']['active']);
+        $st = $out['status_donors'];
+        $run('UPDATE donors SET do_not_contact = 1 WHERE id = ?', 'i', $st['lybunt_dnc']);
+        $run('UPDATE donors SET is_active = 0 WHERE id = ?', 'i', $st['sybunt_gone']);
+        $run("UPDATE donors SET donor_type = 'organization', org_name = ?, email = ?, street = '=2 Elm St', city = 'Warrenton',
+              state = 'VA', zip = '20186', phone = '+1 540 555 0120', preferred_contact = 'phone', email_updates = 1,
+              mail_receipts = 1 WHERE id = ?", 'ssi', "=Lapsed Org $m", "lapsed.$m@example.test", $st['lybunt_org']);
+        $run('INSERT INTO donor_contacts (donor_id, name, email, phone, is_primary) VALUES (?, ?, ?, ?, 1)', 'isss',
+             $st['lybunt_org'], "-Pat $m", "pat.$m@example.test", '540-555-0121');
         // Donor totals (UF2-135): an items-only donor and a volunteer-only donor, each with one row on the suite
         // campaign dated outside the March ranges.
         $out['totals_donors'] = [];
@@ -275,6 +289,11 @@ switch ($req['action']) {
         $out = array_map(function ($r) { return (int) $r['id']; },
                          $run('SELECT id FROM donor_summary WHERE is_anonymous = 0 AND is_active = 1'));
         break;
+    case 'lapsed_ids':
+        $out = array_map(function ($r) { return (int) $r['id']; },
+                         $run("SELECT id FROM donor_summary WHERE is_anonymous = 0 AND is_active = 1 AND do_not_contact = 0
+                               AND status IN ('lybunt', 'sybunt')"));
+        break;
     case 'today':
         $out = date('Y-m-d');
         break;
@@ -303,7 +322,7 @@ def parse_csv(body):
 
 class CashExportTests(unittest.TestCase):
     """UF2-133 cash, UF2-134 non-cash, UF2-138 volunteer hours, UF2-132 donor emails, UF2-136 donor list and UF2-135
-    donor totals and UF2-137 tax receipt exports, against gifts and volunteer hours entries dated in 1901 (one on
+    donor totals UF2-137 tax receipt and UF2-139 LYBUNT / SYBUNT exports, against gifts and volunteer hours entries dated in 1901 (one on
     1900-12-31; setup checks 1900-12-31..1902-12-31 is otherwise empty) and donors the suite makes."""
 
     @classmethod
@@ -424,7 +443,7 @@ class CashExportTests(unittest.TestCase):
         """Exports that are not built redirect as unavailable, whatever the permission."""
         for role in ("manager", "noexport"):
             browser = self.login(role)
-            for name in ("lapsed", "junk", ""):
+            for name in ("junk", ""):   # every export listed on the page is built
                 with self.subTest(role=role, export=name):
                     status, headers, _ = self.export(browser, {"export": name})
                     self.assertEqual(status, 303)
@@ -462,15 +481,15 @@ class CashExportTests(unittest.TestCase):
         """Button states and error messages on dataImports.php."""
         _, _, body = Browser.request(self.login("staff"), "dataImports.php")
         assert_no_php_errors_in(self, body)
-        self.assertEqual(body.count('action="exportData.php"'), 7)
-        self.assertEqual(body.count(">Coming soon</button>"), 1)
+        self.assertEqual(body.count('action="exportData.php"'), 8)
+        self.assertEqual(body.count(">Coming soon</button>"), 0)
         self.assertNotIn(">No access</button>", body)
         self.assertIn('id="export"', body)
         _, _, body = self.login("noexport").request("dataImports.php")
         self.assertEqual(body.count(">No access</button>"), 4)
-        self.assertEqual(body.count(">Export CSV</button>"), 3)
+        self.assertEqual(body.count(">Export CSV</button>"), 4)
         _, _, body = self.login("nodonors").request("dataImports.php")
-        self.assertEqual(body.count(">No access</button>"), 5)
+        self.assertEqual(body.count(">No access</button>"), 6)
         self.assertEqual(body.count(">Export CSV</button>"), 2)
         manager = self.login("manager")
         for code, text in (("dates", "Pick a From date on or before the To date."),
@@ -878,6 +897,68 @@ class CashExportTests(unittest.TestCase):
         manager = self.login("manager")
         status, headers, body = manager.request("exportData.php", {"export": "tax-receipt", "year": "1901",
                                                                     "csrf_token": "0" * 64})
+        self.assertEqual(status, 403)
+        self.assertNotIn(self.marker, body)
+        self.assertNotIn("text/csv", headers.get("Content-Type", ""))
+
+    def lapsed(self, browser):
+        """Requests the LYBUNT / SYBUNT export (UF2-139); posted dates and year are ignored."""
+        return self.export(browser, {"export": "lapsed", "from": "1901-03-01", "to": "1901-03-31", "year": "1901"})
+
+    def test_lapsed_export_file(self):
+        """UF2-139: headers, filename date, who is in and out, order, labels, main contact and escaping."""
+        before = fixture("today")
+        status, headers, body = self.lapsed(self.login("manager"))
+        after = fixture("today")
+        self.assertEqual(status, 200, body[:300])
+        self.assertEqual(headers["Content-Type"], "text/csv; charset=utf-8")
+        self.assertIn(headers["Content-Disposition"],
+                      {f'attachment; filename="fish-lybunt-sybunt-{d}.csv"' for d in (before, after)})
+        self.assertIn("no-store", headers["Cache-Control"])
+        assert_no_php_errors_in(self, body)
+        rows = parse_csv(body)
+        self.assertEqual(rows[0], LAPSED_HEADER)
+        self.assertTrue(all(len(r) == len(LAPSED_HEADER) for r in rows))
+        ids = [int(r[0]) for r in rows[1:]]
+        self.assertEqual(len(ids), len(set(ids)), "a donor appears twice")
+        # lapsed_ids mirrors the export's filter; the named fixtures below are what prove the filter itself.
+        self.assertEqual(set(ids), set(fixture("lapsed_ids")))
+        self.assertNotIn(999, ids)
+        statuses = [r[3] for r in rows[1:]]
+        self.assertEqual(statuses, sorted(statuses, key=["LYBUNT", "SYBUNT"].index), "LYBUNT rows first")
+        m, st, gifts = self.marker, self.ids["status_donors"], self.ids["status_gifts"]
+        order = [st["lybunt_org"], st["lybunt"], st["sybunt"]]
+        suite = set(st.values()) | {self.ids["donor"]} | set(self.ids["email_donors"].values())
+        self.assertEqual([i for i in ids if i in suite], order)
+        for left_out in ("active", "lybunt_dnc", "sybunt_gone"):
+            self.assertNotIn(st[left_out], ids, left_out)
+        by_id = {int(r[0]): r for r in rows[1:]}
+        blank = [""] * 9
+        expected = {
+            st["lybunt_org"]: [str(st["lybunt_org"]), f"'=Lapsed Org {m}", "Organization", "LYBUNT", gifts["lybunt_org"],
+                               f"lapsed.{m}@example.test", "'+1 540 555 0120", "'=2 Elm St", "Warrenton", "VA", "20186",
+                               f"'-Pat {m}", f"pat.{m}@example.test", "540-555-0121", "Phone", "Yes", "Yes"],
+            st["lybunt"]: [str(st["lybunt"]), f"Lybunt {m}", "Individual", "LYBUNT", gifts["lybunt"], *blank, "", "No", "No"],
+            st["sybunt"]: [str(st["sybunt"]), f"Sybunt {m}", "Individual", "SYBUNT", gifts["sybunt"], *blank, "", "No", "No"],
+        }
+        for donor_id, want in expected.items():
+            with self.subTest(donor=donor_id):
+                self.assertEqual(by_id[donor_id], want)
+
+    def test_lapsed_permissions(self):
+        """Donors view only: staff, viewer and noexport (no donations view) get the file; nodonors gets 403; a bad
+        CSRF token gets 403."""
+        for role in ("staff", "viewer", "noexport"):
+            with self.subTest(role=role):
+                status, _, body = self.lapsed(self.login(role))
+                self.assertEqual(status, 200, body[:300])
+                self.assertIn(f"Lybunt {self.marker}", body)
+        status, headers, body = self.lapsed(self.login("nodonors"))
+        self.assertEqual(status, 403)
+        self.assertEqual(body, "You do not have access to the LYBUNT and SYBUNT export.")
+        self.assertNotIn("text/csv", headers.get("Content-Type", ""))
+        manager = self.login("manager")
+        status, headers, body = manager.request("exportData.php", {"export": "lapsed", "csrf_token": "0" * 64})
         self.assertEqual(status, 403)
         self.assertNotIn(self.marker, body)
         self.assertNotIn("text/csv", headers.get("Content-Type", ""))

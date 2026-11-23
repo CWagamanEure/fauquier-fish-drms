@@ -99,6 +99,14 @@ function fish_can_export_tax_receipts() {
     return fish_can('donations', 'view') && fish_can('donors', 'view');
 }
 
+/**
+ * Downloading the LYBUNT and SYBUNT contact list CSV (exportData.php, the "LYBUNT and SYBUNT contact list" row on
+ * dataImports.php): donors view, as the donor list export; status and last gift date only, no amounts (UF2-139).
+ */
+function fish_can_export_lapsed() {
+    return fish_can('donors', 'view');
+}
+
 // Logging or editing volunteer hours (addHours.php, hours.php and the profile's "+ Log hours"): donors view
 // and edit. The users enum has no volunteers area, so donor permissions govern volunteer records.
 function fish_can_log_hours() {
