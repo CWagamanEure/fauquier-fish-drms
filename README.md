@@ -60,7 +60,7 @@ Every change goes through the four-auditor review swarm twice, on the ticket dra
 before it is pushed. `make dev` installs the pre-push hook that guards against pushing unreviewed code;
 a human review is the real control. Two GitHub Actions checks report on every pull request: `record`
 says whether a review-swarm record is present (advisory since 2026-10-20) and `tests`
-(`.github/workflows/ci.yml`) runs the PHP syntax check, `make test-hours`, `make test-campaigns`, `make test-outreach`, `make test-comms`, `make test-exports`, `make test-users`, `make test-donations`, `make test-gate`, and `make test-deploy`, so a PR needs no tooling on the author's machine. Read
+(`.github/workflows/ci.yml`) runs the PHP syntax check, `make test-hours`, `make test-campaigns`, `make test-outreach`, `make test-comms`, `make test-exports`, `make test-treasurer`, `make test-users`, `make test-donations`, `make test-gate`, and `make test-deploy`, so a PR needs no tooling on the author's machine. Read
 `docs/process/change-review-process.md` before starting work.
 
 ## Database migrations
@@ -168,7 +168,11 @@ saving (including "Someone else" and the follow-up rules), validation, the profi
 the permission gates, on donors, campaigns and users it creates and removes itself. `make test-exports` (after
 `make seed-demo`) runs `tests/exports_integration.py`: the cash (UF2-133) and non-cash (UF2-134) donations
 CSVs and the volunteer hours CSV (UF2-138) from Data & Imports: date ranges, columns, formula escaping, error
-redirects and permission gates, on gifts and hours entries dated in 1901 that it creates and removes itself. Run them only against a local development database.
+redirects and permission gates, on gifts and hours entries dated in 1901 that it creates and removes itself. `make test-treasurer` (after
+`make seed-demo`) runs `tests/treasurer_integration.py`: the Treasurer log of cash donations and expenses, the
+Money in / Money out / Net / Entries cards, the fund and show filters, date fallback, the year chart and the
+permission gate, on donors, campaigns, gifts and expenses dated in 1901 (or today, asserted as a change) that it
+creates and removes itself. Run them only against a local development database.
 `make test-outreach` runs `tests/outreach_integration.py` (outreach posts: channels with one link each, posted-by, active campaigns, photo upload, replace and remove with its private download, the list's search, filters, sorting and date range, updating results, and delete).
 
 ## Purpose

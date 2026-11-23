@@ -1,35 +1,51 @@
 <?php
-// Treasurer: a detailed log of money in (donations) and money out (expenses) for a date range, then
-// donations vs expenses year over year.
-// FRONT END ONLY: no data yet. Backend TODO:
-//   - fill $log for [$from, $to] (newest first). Each row:
-//       ['date' => 'Y-m-d', 'kind' => 'donation'|'expense', 'who' => donor or payee, 'detail' => check # / method
-//        or expense category, 'fund' => 'General' or a campaign name, 'amount' => positive number]
-//     Donations come from `donations` (donation_date, amount); expenses need a new `expenses` table (migration).
-//   - honour the filters: $show ('all' | 'donations' | 'expenses') and $fund ('' = all; fill $funds for the select)
-//   - fill $years: one row per calendar year, oldest first: ['year' => 2025, 'donations' => 85000.0, 'expenses' => 76000.0]
-//   - "+ Add expense" and "Download CSV" need their own pages / handlers.
+// Treasurer: a detailed log of money in (cash donations) and money out (expenses) for a date range and fund,
+// then donations vs expenses year over year (UF2-163..167). Data comes from database/dbTreasurer.php; the
+// fund is the campaign's Fund / designation, General Fund when there is none.
+// Still TODO: "+ Add expense" (UF2-168) and "Download CSV" need their own pages / handlers.
 require_once 'include/fishnet-layout.php';
+require_once 'include/permissions.php';
+require_once 'database/dbTreasurer.php';
+$canView = fish_can('donations', 'view');   // expenses have no permission area of their own
 
 // ---------- filters (GET, validated) ----------
-$isDate = fn($v) => is_string($v) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $v) && strtotime($v) !== false;
-$from = $isDate($_GET['from'] ?? null) ? $_GET['from'] : date('Y-m-01');
-$to   = $isDate($_GET['to'] ?? null)   ? $_GET['to']   : date('Y-m-t');
-if ($from > $to) { [$from, $to] = [$to, $from]; }
-$show = in_array($_GET['show'] ?? '', ['donations', 'expenses'], true) ? $_GET['show'] : 'all';
-$funds = [];                                   // Backend TODO: fund / campaign names
-$fund  = in_array($_GET['fund'] ?? '', $funds, true) ? $_GET['fund'] : '';
-$span  = (int) ($_GET['years'] ?? 3) === 5 ? 5 : 3;
-
-$log   = [];                                   // Backend TODO
-$years = [];                                   // Backend TODO
-
-// ---------- totals from $log ----------
-$in = 0.0; $out = 0.0;
-foreach ($log as $r) {
-  if ($r['kind'] === 'donation') { $in += (float) $r['amount']; } else { $out += (float) $r['amount']; }
+// Both dates must be real calendar dates, or the whole range falls back to this month: keeping one half of
+// a bad range would silently widen it (e.g. this month's start .. 1901).
+if (treasurer_valid_date($_GET['from'] ?? null) && treasurer_valid_date($_GET['to'] ?? null)) {
+  [$from, $to] = [$_GET['from'], $_GET['to']];
+  if ($from > $to) { [$from, $to] = [$to, $from]; }
+} else {
+  [$from, $to] = [date('Y-m-01'), date('Y-m-t')];
 }
-$net = $in - $out;
+$show = in_array($_GET['show'] ?? '', TREASURER_SHOW, true) ? $_GET['show'] : 'all';
+$span = (int) fish_str($_GET, 'years') === 5 ? 5 : 3;
+$funds = [];
+$fund  = '';
+$log   = [];
+$years = [];
+$totals = ['in' => 0.0, 'out' => 0.0, 'donations' => 0, 'expenses' => 0];
+$loadError = false;
+if ($canView) {
+  try {
+    $funds  = treasurer_funds();
+    $fund   = in_array($_GET['fund'] ?? '', $funds, true) ? $_GET['fund'] : '';
+    $log    = treasurer_log($from, $to, $show, $fund);
+    $totals = treasurer_totals($from, $to, $fund);
+    $years  = treasurer_years($span, $fund);
+  } catch (mysqli_sql_exception $e) {
+    // A database fault must not print the exception into the page; log it and render empty figures.
+    error_log('treasurer.php: ' . $e->getMessage());
+    $loadError = true;
+    $funds = []; $fund = ''; $log = []; $years = [];
+    $totals = ['in' => 0.0, 'out' => 0.0, 'donations' => 0, 'expenses' => 0];
+  }
+}
+
+// ---------- the cards (UF2-164..167): the range and fund, whatever the "show" filter ----------
+$in = $totals['in'];
+$out = $totals['out'];
+$net = round($in - $out, 2);
+$entries = $totals['donations'] + $totals['expenses'];
 $money = fn(float $n) => '$' . number_format($n, 2);
 $rangeLabel = date('M j', strtotime($from)) . ' – ' . date('M j, Y', strtotime($to));
 
@@ -57,11 +73,15 @@ fishnet_open('Treasurer', 'treasurer', ['donor.css', 'forms.css', 'treasurer.css
         </div>
       </section>
 
+      <?php if (!$canView): ?>
+      <div class="notice" role="status">Your account cannot view donations.</div>
+      <?php else: ?>
+      <?php if ($loadError): ?><div class="notice" role="alert">Could not load treasurer figures. Please try again shortly.</div><?php endif; ?>
       <section class="tiles">
         <div class="tile"><p class="label">Money in</p><p class="num in">+<?= h($money($in)) ?></p><p class="sub"><?= h($rangeLabel) ?></p></div>
         <div class="tile"><p class="label">Money out</p><p class="num out">&minus;<?= h($money($out)) ?></p><p class="sub"><?= h($rangeLabel) ?></p></div>
         <div class="tile"><p class="label">Net</p><p class="num"><?= $net < 0 ? '&minus;' : '' ?><?= h($money(abs($net))) ?></p><p class="sub">in minus out</p></div>
-        <div class="tile"><p class="label">Entries</p><p class="num"><?= count($log) ?></p><p class="sub">donations and expenses</p></div>
+        <div class="tile"><p class="label">Entries</p><p class="num"><?= (int) $entries ?></p><p class="sub">donations and expenses</p></div>
       </section>
 
       <!-- ===== Detailed log ===== -->
@@ -81,7 +101,7 @@ fishnet_open('Treasurer', 'treasurer', ['donor.css', 'forms.css', 'treasurer.css
             </select>
             <select name="fund" aria-label="Fund">
               <option value="">All funds</option>
-              <?php foreach ($funds as $f): ?><option<?= $f === $fund ? ' selected' : '' ?>><?= h($f) ?></option><?php endforeach; ?>
+              <?php foreach ($funds as $f): ?><option value="<?= h($f) ?>"<?= $f === $fund ? ' selected' : '' ?>><?= h($f) ?></option><?php endforeach; ?>
             </select>
             <input type="hidden" name="years" value="<?= $span ?>">
             <button type="submit" class="btn btn-outline tr-apply">Apply</button>
@@ -113,7 +133,7 @@ fishnet_open('Treasurer', 'treasurer', ['donor.css', 'forms.css', 'treasurer.css
         <div class="tr-head">
           <div>
             <h2 class="tr-title">Donations vs expenses, year over year</h2>
-            <p class="tr-note">Totals for each calendar year</p>
+            <p class="tr-note">Totals for each calendar year<?= $fund !== '' ? ' · ' . h($fund) : ', all funds' ?></p>
           </div>
           <form class="tr-filters" method="get" action="treasurer.php">
             <input type="hidden" name="from" value="<?= h($from) ?>">
@@ -143,5 +163,6 @@ fishnet_open('Treasurer', 'treasurer', ['donor.css', 'forms.css', 'treasurer.css
         <?php endif; ?>
         <div class="legend"><span><i class="d"></i>Donations</span><span><i class="e"></i>Expenses</span></div>
       </section>
+      <?php endif; ?>
 
 <?php fishnet_close(); ?>

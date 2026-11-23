@@ -90,3 +90,17 @@ Rules for saving and showing `donor_contacts` (UF2-130):
   migration replay never brings a deleted contact back.
 - Read contacts by `donor_id`, only on pages gated by `fish_can('donors', 'view')`, and escape every field
   with `h()`.
+
+## Expenses (migration 019, UF2-165)
+
+`expenses` holds money out for the Treasurer page: `expense_date`, `payee`, `category` (free text until the
+add-expense form, UF2-168, fixes the list), optional `campaign_id` (`dbevents.id`, `ON DELETE SET NULL`),
+`amount` (`DECIMAL(12,2)`, `CHECK (amount > 0)`), `notes`, `recorded_by` (`dbpersons.id`) and timestamps.
+
+- The Treasurer page reads it with `database/dbTreasurer.php`. An expense's (and a donation's) fund is its
+  campaign's Fund / designation (`dbevents.fund`), "General Fund" when there is no campaign or no designation.
+  Donations link to campaigns through `donations.eventID`, expenses through `expenses.campaign_id`.
+- Reading needs `fish_can('donations', 'view')`; there is no separate expenses permission area, so every role
+  preset (viewer included) sees expenses, as it sees donations. A per-user override hides both.
+- Writes (UF2-168) must carry `auth_csrf_field()`, check donations view and edit (as
+  `fish_can_record_donations()` does), use prepared statements and set `recorded_by` to the signed-in user.
