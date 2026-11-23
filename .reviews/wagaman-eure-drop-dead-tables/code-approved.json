@@ -1,0 +1,40 @@
+{
+  "mode": "code",
+  "subject": "UF2-157: drop the dead CASA tables",
+  "round": 1,
+  "approved": true,
+  "reviewed_commit": "6011badfcf76d86c5e9c52d6761930c51838eb9a",
+  "tree": "34f2b5ac44d51ba916e07405e347a057dc79c330a137c76437493de03246db78",
+  "auditors": [
+    {
+      "auditor": "security",
+      "approve": true,
+      "finding_count": 0
+    },
+    {
+      "auditor": "data",
+      "approve": true,
+      "finding_count": 0
+    },
+    {
+      "auditor": "correctness",
+      "approve": true,
+      "finding_count": 0
+    },
+    {
+      "auditor": "verification",
+      "approve": true,
+      "finding_count": 2
+    }
+  ],
+  "findings_by_severity": {
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 2
+  },
+  "findings_by_status": {
+    "reported": 2
+  },
+  "previous_rounds": []
+}
