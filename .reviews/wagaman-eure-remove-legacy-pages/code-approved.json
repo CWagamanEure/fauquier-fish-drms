@@ -1,0 +1,40 @@
+{
+  "mode": "code",
+  "subject": "UF2-158: remove old CASA/SPCA pages that FISH does not use (part 1)",
+  "round": 1,
+  "approved": true,
+  "reviewed_commit": "0561ad4c12299bde24fd1c684028cf2cee368827",
+  "tree": "c4ab875288e8e533e5581c9b5713fc5ae6e6bfc070be19666364b0530065feb5",
+  "auditors": [
+    {
+      "auditor": "security",
+      "approve": true,
+      "finding_count": 0
+    },
+    {
+      "auditor": "data",
+      "approve": true,
+      "finding_count": 0
+    },
+    {
+      "auditor": "correctness",
+      "approve": true,
+      "finding_count": 2
+    },
+    {
+      "auditor": "verification",
+      "approve": true,
+      "finding_count": 1
+    }
+  ],
+  "findings_by_severity": {
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 3
+  },
+  "findings_by_status": {
+    "reported": 3
+  },
+  "previous_rounds": []
+}
