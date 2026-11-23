@@ -1,22 +1,6 @@
 <?php
 include_once('dbinfo.php');
 
-//get donations for a specific event id
-function fetch_donations_for_event($id) {
-    $con=connect();
-    $stmt = $con->prepare('SELECT * FROM donations WHERE eventID = ?');
-    $stmt->bind_param('s', $id);
-    if (!$stmt->execute()) {
-        $stmt->close();
-        mysqli_close($con);
-        return null;
-    }
-    $donations = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-    $stmt->close();
-    mysqli_close($con);
-    return $donations;
-}
-
 // ---------- FISH NET donation pages (UF2-42..57, UF2-87) ----------
 // Every statement below is prepared. Cash gifts live in donations, item gifts in non_cash_donations;
 // the list reads both as one set. Donor names come from donor_summary (see CLAUDE.md). "Today" and the

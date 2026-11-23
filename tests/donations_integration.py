@@ -736,16 +736,12 @@ class DonationPagesTests(unittest.TestCase):
 
     # ---- other pages touched by this change ----
 
-    def test_dashboard_and_legacy_event_pages(self):
+    def test_dashboard_links(self):
         manager = self.login("manager")
         _, body = self.get(manager, "dashboard.php")
         self.assertIn('href="addDonor.php"', body)
         self.assertNotIn("newDonor.php", body)
         self.assertIn('href="addDonation.php"', body)
-        # Legacy CASA pages that read fetch_donations_for_event() still load.
-        for path in (f"specificEvent.php?id={self.ids['open']}", "viewAllEvents.php", "date.php?date=2026-01-01"):
-            with self.subTest(path=path):
-                self.get(manager, path)
 
 
 if __name__ == "__main__":

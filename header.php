@@ -230,18 +230,9 @@ date_default_timezone_set('America/New_York');
 
     <?php if (!empty($_SESSION['logged_in'])): ?>
 
-        <a href="index.php">Dashboard</a>
+        <a href="dashboard.php">Dashboard</a>
         <a href="viewResources.php">Documents</a>
         <a href="changePassword.php">Change Password</a>
-
-        <?php if ($_SESSION['access_level'] >= 2): ?>
-        <a href="calendar.php">Calendar</a>
-        <a href="viewAllEvents.php">Event Management</a>
-            <div class="menu-section-title">Tools</div>
-            <a href="searchindex.php">
-                <img src="images/search.svg"> Search Database
-            </a>
-        <?php endif; ?>
 
         <?php if ($_SESSION['access_level'] >= 3): ?>
             <a href="VolunteerRegister.php">
@@ -258,10 +249,6 @@ date_default_timezone_set('America/New_York');
 
 	    <a href="addDonor.php">
                 <img src="images/plus-solid.svg"> Add Donor
-            </a>
-
-	    <a href="donationAddEdit.php">
-                <img src="images/toppng.com-dollar-sign-circle-svg-icon-free-dollar-sign-svg-icon-980x982.png"> Add/Edit Donations
             </a>
 
 

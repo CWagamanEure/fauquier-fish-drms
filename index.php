@@ -245,16 +245,6 @@ require_authentication(1);
                 </button>
             </div>
             <?php endif; ?>
-
-            <div class="content-box">
-                <img src="images/blank-white-background.jpg"/>
-                <div class="small-text">Let’s raise some money!</div>
-                <div class="large-text">Event Management</div>
-                <button class="circle-arrow-button" onclick="window.location.href='viewAllEvents.php'">
-                    <span class="button-text">Go</span>
-                    <div class="circle">&gt;</div>
-                </button>
-            </div>
        </div>
 
         <div style="margin-top: 50px; padding: 0 5%;">
@@ -308,25 +298,7 @@ require_authentication(1);
                 <button class="arrow-button">→</button>
             </div>
 
-
-            <div class="content-box-test" onclick="window.location.href='donationAddEdit.php'">
-                <div class="icon-overlay">
-                    <img src="images/toppng.com-dollar-sign-circle-svg-icon-free-dollar-sign-svg-icon-980x982.png" alt="Icon">
-                </div>
-                <img class="background-image" src="images/blank-white-background.jpg" />
-                <div class="large-text-sub">Add/Edit Donations</div>
-                <button class="arrow-button">→</button>
-            </div>
-
             <?php endif; ?>
-            <div class="content-box-test" onclick="window.location.href='searchindex.php'">
-                <div class="icon-overlay">
-                    <img src="images/magnifying-glass.svg" alt="Icon">
-                </div>
-                <img class="background-image" src="images/blank-white-background.jpg" />
-                <div class="large-text-sub">Search</div>
-                <button class="arrow-button">→</button>
-            </div>
         </div>
     <?php endif; ?>
 
