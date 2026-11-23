@@ -26,7 +26,6 @@ DROP TEMPORARY TABLE demo_donor_ids;
 -- Gifts a developer recorded against a demo campaign keep their row but lose the link
 -- (donations.eventID has a RESTRICT foreign key; the other campaign links are ON DELETE SET NULL).
 UPDATE donations SET eventID = NULL WHERE eventID IN (SELECT id FROM dbevents WHERE description LIKE '[demo]%');
-DELETE FROM associations WHERE eventID IN (SELECT id FROM dbevents WHERE description LIKE '[demo]%');
 DELETE FROM dbevents WHERE description LIKE '[demo]%';
 
 -- 2. Demo staff accounts (username is the natural key, so upsert is safe here).
