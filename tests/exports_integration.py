@@ -22,6 +22,9 @@ HEADER = ["Gift ID", "Date", "Donor ID", "Donor", "Amount", "Fee", "Net", "Payme
 HOURS_HEADER = ["Entry ID", "Date", "Volunteer ID", "Volunteer", "Hours", "Start time", "End time", "Job", "Location",
                 "Campaign", "Verified", "Counts for letter", "Recorded by", "Notes"]
 EMAILS_HEADER = ["Donor ID", "Donor", "Contact person", "Contact title", "Email", "Email updates"]
+DONOR_LIST_HEADER = ["Donor ID", "Donor", "Type", "Email", "Phone", "Street", "City", "State", "ZIP", "Main contact",
+                     "Main contact email", "Main contact phone", "Preferred contact", "Do not contact", "Email updates",
+                     "Mail receipts", "Status", "Last gift", "Donor since"]
 NC_HEADER = ["Gift ID", "Date received", "Donor ID", "Donor", "Item description", "Category", "Quantity (items)",
              "Weight (lbs)", "Estimated value", "Condition", "Given out so far (items)", "Intended use", "Campaign",
              "Receipt sent", "Recorded by", "Notes"]
@@ -59,6 +62,8 @@ switch ($req['action']) {
         $run("DELETE d FROM donations d LEFT JOIN donors o ON o.id = d.donorID LEFT JOIN dbevents e ON e.id = d.eventID
               WHERE $outside AND (o.`last` LIKE ? OR e.name LIKE ?)", 'ss', $p, '@' . $p);
         $run("DELETE FROM dbevents WHERE name LIKE ?", 's', '@' . $p);
+        // Donor list status donors (UF2-136) have recent gifts outside the 1901 dates: removed by their donor's prefix only.
+        $run("DELETE d FROM donations d JOIN donors o ON o.id = d.donorID WHERE o.`last` LIKE ?", 's', $p);
         $run("DELETE FROM donors WHERE `last` LIKE ?", 's', $p);
         $run("DELETE FROM user_permissions WHERE user_id LIKE 'export\\_test\\_%'");
         $run("DELETE FROM dbpersons WHERE id LIKE 'export\\_test\\_%'");
@@ -185,15 +190,36 @@ switch ($req['action']) {
         $contact('org', 'info', ['email' => "info.$m@example.test"]);
         $contact('org', 'blank', ['name' => "Blank $m", 'email' => " \t", 'sort_order' => 1]);
         $contact('org', 'nbsp', ['name' => "Nbsp $m", 'email' => "\u{00A0}\u{00A0}", 'sort_order' => 1]);
-        $contact('org', 'main', ['name' => "Main $m", 'email' => "main.$m@example.test", 'is_primary' => 1, 'sort_order' => 2]);
+        $contact('org', 'main', ['name' => "Main $m", 'email' => "main.$m@example.test", 'phone' => '+1 540 555 0100',
+                                 'is_primary' => 1, 'sort_order' => 2]);
         $person('dnc', ['org_name' => "Dnc $m", 'email' => "dnc.$m@example.test", 'do_not_contact' => 1]);
         $contact('dnc', 'dnc', ['name' => "Dnc contact $m", 'email' => "dnc.contact.$m@example.test"]);
         $person('gone', ['donor_type' => 'foundation', 'org_name' => "Gone $m", 'email' => "gone.$m@example.test", 'is_active' => 0]);
         $contact('gone', 'gone', ['name' => "Gone contact $m", 'email' => "gone.contact.$m@example.test"]);
         $person('fdn', ['donor_type' => 'foundation', 'org_name' => "Fdn $m"]);
-        $contact('fdn', 'fran', ['name' => "Fran $m", 'email' => "fran.$m@example.test"]);
+        $contact('fdn', 'fran', ['name' => "Fran $m", 'email' => "fran.$m@example.test", 'phone' => '540-555-0102',
+                                 'is_primary' => 1]);
         $person('solo', ['donor_type' => 'individual', 'first' => 'Solo']);
-        $contact('solo', 'hidden', ['name' => "Hidden $m", 'email' => "hidden.$m@example.test"]);
+        $contact('solo', 'hidden', ['name' => "Hidden $m", 'email' => "hidden.$m@example.test", 'phone' => '540-555-0103',
+                                    'is_primary' => 1]);
+        // Donor list (UF2-136): one individual per giving status, each with one cash gift dated months away from the
+        // 12/24/36-month edges, relative to PHP's today.
+        $out['status_donors'] = [];
+        $out['status_gifts'] = [];
+        foreach (['active' => ['Active', '-6 months'], 'lybunt' => ['Lybunt', '-18 months'],
+                  'sybunt' => ['Sybunt', '-30 months']] as $key => [$first, $ago]) {
+            $run("INSERT INTO donors (donor_type, `first`, `last`, notes, donor_since) VALUES ('individual', ?, ?, 'export suite', '1900-06-01')",
+                 'ss', $first, $m);
+            $id = (int) $con->insert_id;
+            $out['status_donors'][$key] = $id;
+            $date = date('Y-m-d', strtotime($ago));
+            $gift('status_gift', $date, ['donorID' => $id]);
+            $out['status_gifts'][$key] = $date;
+        }
+        unset($out['status_gift']);
+        $run("UPDATE donors SET email = ?, phone = '540-555-0111', street = '=1 Main St', city = 'Warrenton', state = 'VA',
+              zip = '20186', preferred_contact = 'mail', mail_receipts = 1, email_updates = 1 WHERE id = ?",
+             'si', "active.$m@example.test", $out['status_donors']['active']);
         break;
     case 'teardown':
         // Hours, then non-cash, before dbevents and donors: RESTRICT donor FKs, and SET NULL campaign FKs would
@@ -205,7 +231,15 @@ switch ($req['action']) {
         foreach ($req['email_donors'] ?? [] as $id) {   // UF2-132 donors; their contacts cascade
             $run('DELETE FROM donors WHERE id = ?', 'i', $id);
         }
+        foreach ($req['status_donors'] ?? [] as $id) {   // UF2-136 donors: their gift, then the donor
+            $run('DELETE FROM donations WHERE donorID = ?', 'i', $id);
+            $run('DELETE FROM donors WHERE id = ?', 'i', $id);
+        }
         $run('DELETE FROM donors WHERE id = ?', 'i', $req['donor']);
+        break;
+    case 'active_ids':
+        $out = array_map(function ($r) { return (int) $r['id']; },
+                         $run('SELECT id FROM donor_summary WHERE is_anonymous = 0 AND is_active = 1'));
         break;
     case 'today':
         $out = date('Y-m-d');
@@ -265,7 +299,8 @@ class CashExportTests(unittest.TestCase):
         cls.marker = PREFIX + secrets.token_hex(4)
         cls.ids = fixture("setup", marker=cls.marker, recorder=cls.users["manager"]["id"], multiline=MULTILINE_NOTE)
         cls.addClassCleanup(fixture, "teardown", donor=cls.ids["donor"], campaign=cls.ids["campaign"],
-                            email_donors=list(cls.ids["email_donors"].values()))
+                            email_donors=list(cls.ids["email_donors"].values()),
+                            status_donors=list(cls.ids["status_donors"].values()))
 
     def login(self, role):
         """Signs in as the suite user for role and returns the browser."""
@@ -391,15 +426,15 @@ class CashExportTests(unittest.TestCase):
         """Button states and error messages on dataImports.php."""
         _, _, body = Browser.request(self.login("staff"), "dataImports.php")
         assert_no_php_errors_in(self, body)
-        self.assertEqual(body.count('action="exportData.php"'), 4)
-        self.assertEqual(body.count(">Coming soon</button>"), 4)
+        self.assertEqual(body.count('action="exportData.php"'), 5)
+        self.assertEqual(body.count(">Coming soon</button>"), 3)
         self.assertNotIn(">No access</button>", body)
         self.assertIn('id="export"', body)
         _, _, body = self.login("noexport").request("dataImports.php")
         self.assertEqual(body.count(">No access</button>"), 2)
-        self.assertEqual(body.count(">Export CSV</button>"), 2)
+        self.assertEqual(body.count(">Export CSV</button>"), 3)
         _, _, body = self.login("nodonors").request("dataImports.php")
-        self.assertEqual(body.count(">No access</button>"), 2)
+        self.assertEqual(body.count(">No access</button>"), 3)
         self.assertEqual(body.count(">Export CSV</button>"), 2)
         manager = self.login("manager")
         for code, text in (("dates", "Pick a From date on or before the To date."),
@@ -583,6 +618,80 @@ class CashExportTests(unittest.TestCase):
         self.assertNotIn("text/csv", headers.get("Content-Type", ""))
         manager = self.login("manager")
         status, headers, body = manager.request("exportData.php", {"export": "emails", "csrf_token": "0" * 64})
+        self.assertEqual(status, 403)
+        self.assertNotIn(self.marker, body)
+        self.assertNotIn("text/csv", headers.get("Content-Type", ""))
+
+
+    def donor_list(self, browser):
+        """Requests the donor list export (UF2-136); posted dates are ignored."""
+        return self.export(browser, {"export": "donor-list", "from": "1901-03-01", "to": "1901-03-31", "year": "1901"})
+
+    def test_donor_list_export_file(self):
+        """UF2-136: headers, filename date, every active donor once, order, status, main contact, labels, escaping."""
+        before = fixture("today")
+        status, headers, body = self.donor_list(self.login("manager"))
+        after = fixture("today")
+        self.assertEqual(status, 200, body[:300])
+        self.assertEqual(headers["Content-Type"], "text/csv; charset=utf-8")
+        self.assertIn(headers["Content-Disposition"],
+                      {f'attachment; filename="fish-donor-list-{d}.csv"' for d in (before, after)})
+        self.assertIn("no-store", headers["Cache-Control"])
+        assert_no_php_errors_in(self, body)
+        rows = parse_csv(body)
+        self.assertEqual(rows[0], DONOR_LIST_HEADER)
+        self.assertTrue(all(len(r) == len(DONOR_LIST_HEADER) for r in rows))
+        ids = [int(r[0]) for r in rows[1:]]
+        self.assertEqual(len(ids), len(set(ids)), "a donor appears twice")
+        self.assertEqual(set(ids), set(fixture("active_ids")))   # every active donor, nothing else
+        self.assertNotIn(999, ids)
+        m, donors, st = self.marker, self.ids["email_donors"], self.ids["status_donors"]
+        self.assertNotIn(donors["gone"], ids)
+        # Fixed expected order (by display name; all start with a symbol or a capital so case cannot matter).
+        order = [self.ids["donor"], donors["org"], st["active"], donors["dnc"], donors["fdn"], st["lybunt"],
+                 donors["solo"], st["sybunt"]]
+        self.assertEqual([i for i in ids if i in set(order)], order)
+        by_id = {int(r[0]): r for r in rows[1:]}
+        gifts = self.ids["status_gifts"]
+
+        def row(donor_id, name, kind, *, email="", phone="", street="", city="", state="", zip_="", contact=("", "", ""),
+                pref="", dnc="No", updates="No", receipts="No", status="Inactive", last="", since="1900-06-01"):
+            return [str(donor_id), name, kind, email, phone, street, city, state, zip_, *contact, pref, dnc, updates,
+                    receipts, status, last, since]
+
+        expected = {
+            self.ids["donor"]: row(self.ids["donor"], f"'+Export {m}", "Individual", email=f"  =a.{m}@example.test  ",
+                                   city="Testville", state="VA", updates="Yes", last="1901-04-01"),
+            st["active"]: row(st["active"], f"Active {m}", "Individual", email=f"active.{m}@example.test",
+                              phone="540-555-0111", street="'=1 Main St", city="Warrenton", state="VA", zip_="20186",
+                              pref="Mail", updates="Yes", receipts="Yes", status="Active", last=gifts["active"]),
+            st["lybunt"]: row(st["lybunt"], f"Lybunt {m}", "Individual", status="LYBUNT", last=gifts["lybunt"]),
+            st["sybunt"]: row(st["sybunt"], f"Sybunt {m}", "Individual", status="SYBUNT", last=gifts["sybunt"]),
+            donors["org"]: row(donors["org"], f"'@Org {m}", "Organization", email="   ",
+                               contact=(f"Main {m}", f"main.{m}@example.test", "'+1 540 555 0100")),
+            donors["fdn"]: row(donors["fdn"], f"Fdn {m}", "Foundation",
+                               contact=(f"Fran {m}", f"fran.{m}@example.test", "540-555-0102")),
+            donors["solo"]: row(donors["solo"], f"Solo {m}", "Individual"),   # leftover main contact not shown
+            donors["dnc"]: row(donors["dnc"], f"Dnc {m}", "Organization", email=f"dnc.{m}@example.test", dnc="Yes"),
+        }
+        for donor_id, want in expected.items():
+            with self.subTest(donor=donor_id):
+                self.assertEqual(by_id[donor_id], want)
+
+    def test_donor_list_permissions(self):
+        """Donors view is the rule: noexport (no donations view) and viewer get the file, nodonors gets 403;
+        a bad CSRF token gets 403."""
+        for role in ("noexport", "viewer", "staff"):
+            with self.subTest(role=role):
+                status, _, body = self.donor_list(self.login(role))
+                self.assertEqual(status, 200, body[:300])
+                self.assertIn(f"active.{self.marker}@example.test", body)
+        status, headers, body = self.donor_list(self.login("nodonors"))
+        self.assertEqual(status, 403)
+        self.assertEqual(body, "You do not have access to the donor list export.")
+        self.assertNotIn("text/csv", headers.get("Content-Type", ""))
+        manager = self.login("manager")
+        status, headers, body = manager.request("exportData.php", {"export": "donor-list", "csrf_token": "0" * 64})
         self.assertEqual(status, 403)
         self.assertNotIn(self.marker, body)
         self.assertNotIn("text/csv", headers.get("Content-Type", ""))

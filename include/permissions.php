@@ -72,6 +72,15 @@ function fish_can_export_emails() {
     return fish_can('donors', 'view');
 }
 
+/**
+ * Downloading the donor list CSV (exportData.php, the "Donor list with contact and status" row on dataImports.php):
+ * donors view, as the hours and emails exports and the profile's contact-people section (UF2-136). Status and
+ * last gift date are gift dates only, which donor.php already shows; no amounts.
+ */
+function fish_can_export_donor_list() {
+    return fish_can('donors', 'view');
+}
+
 // Logging or editing volunteer hours (addHours.php, hours.php and the profile's "+ Log hours"): donors view
 // and edit. The users enum has no volunteers area, so donor permissions govern volunteer records.
 function fish_can_log_hours() {

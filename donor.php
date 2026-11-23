@@ -38,7 +38,7 @@ function pageUrl($p) {
 }
 $colors = ['teal', 'navy', 'sage', 'yellow'];
 // Giving status comes from donor_summary.status (migration 011).
-$statusLabels = ['active' => 'Active', 'lybunt' => 'LYBUNT', 'sybunt' => 'SYBUNT', 'inactive' => 'Inactive'];
+$statusLabels = DONOR_STATUS_LABELS;
 $statusTips = ['active' => 'Gave in the last 12 months', 'lybunt' => 'Last gift 12-24 months ago',
                'sybunt' => 'Last gift 24-36 months ago', 'inactive' => 'No dated gift in the last 36 months'];
 

@@ -5,7 +5,7 @@
 // importPreview.php; Recent imports and Needs review read import_batches / import_rows (migration 018).
 // templates/fishnet-import-<type>.xlsx are the templates (their headings must match IMPORT_TYPES).
 //   - each export form posts `export` (+ from/to or year) to exportData.php, which streams a CSV. `cash` (UF2-133),
-//     `noncash` (UF2-134), `hours` (UF2-138) and `emails` (UF2-132) are built; the other rows' buttons say "Coming soon" until their case exists in exportData.php
+//     `noncash` (UF2-134), `hours` (UF2-138), `emails` (UF2-132) and `donor-list` (UF2-136) are built; the other rows' buttons say "Coming soon" until their case exists in exportData.php
 require_once 'include/fishnet-layout.php';
 require_once 'database/dbImports.php';
 
@@ -32,7 +32,8 @@ $exports = [
 
 // Exports that exportData.php can answer, with the permission each needs.
 $exportReady = ['cash' => fish_can_export_donations(), 'noncash' => fish_can_export_donations(),
-                'hours' => fish_can_export_hours(), 'emails' => fish_can_export_emails()];
+                'hours' => fish_can_export_hours(), 'emails' => fish_can_export_emails(),
+                'donor-list' => fish_can_export_donor_list()];
 $exportErrors = [
   'dates'       => 'Pick a From date on or before the To date.',
   'unavailable' => 'That export is not available yet.',
