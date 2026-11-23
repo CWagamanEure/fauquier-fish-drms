@@ -5,7 +5,7 @@
 // importPreview.php; Recent imports and Needs review read import_batches / import_rows (migration 018).
 // templates/fishnet-import-<type>.xlsx are the templates (their headings must match IMPORT_TYPES).
 //   - each export form posts `export` (+ from/to or year) to exportData.php, which streams a CSV. `cash` (UF2-133),
-//     `noncash` (UF2-134) and `hours` (UF2-138) are built; the other rows' buttons say "Coming soon" until their case exists in exportData.php
+//     `noncash` (UF2-134), `hours` (UF2-138) and `emails` (UF2-132) are built; the other rows' buttons say "Coming soon" until their case exists in exportData.php
 require_once 'include/fishnet-layout.php';
 require_once 'database/dbImports.php';
 
@@ -20,7 +20,7 @@ $imports = [
 
 // key => [title, description, filter: false | 'range' | 'year']
 $exports = [
-  'emails'       => ['All emails',                         'Every donor email address, one per row.',                            false],
+  'emails'       => ['All emails',                         'Donor and contact-person emails, one per row. Leaves out Do not contact and deactivated donors.', false],
   'cash'         => ['Cash donations',                     'Every cash gift between two dates.',                                 'range'],
   'noncash'      => ['Non-cash donations',                 'Item gifts between two dates, with quantity and weight.',            'range'],
   'donor-totals' => ['Donors with hours and donations',    'Each donor with their total giving and volunteer hours.',            false],
@@ -32,7 +32,7 @@ $exports = [
 
 // Exports that exportData.php can answer, with the permission each needs.
 $exportReady = ['cash' => fish_can_export_donations(), 'noncash' => fish_can_export_donations(),
-                'hours' => fish_can_export_hours()];
+                'hours' => fish_can_export_hours(), 'emails' => fish_can_export_emails()];
 $exportErrors = [
   'dates'       => 'Pick a From date on or before the To date.',
   'unavailable' => 'That export is not available yet.',

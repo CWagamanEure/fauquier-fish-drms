@@ -1,0 +1,36 @@
+{
+ "mode": "code",
+ "subject": "wagaman-eure-export-emails",
+ "round": 1,
+ "approved": true,
+ "reviewed_commit": "968daa83d29d5d90335cce14df1c4bd2a498bb49",
+ "tree": "7e888518945474c77a967ac6106c190af8d1c21458d5806098f7d9761c8da0bc",
+ "auditors": [
+  {
+   "auditor": "security",
+   "approve": true,
+   "finding_count": 1
+  },
+  {
+   "auditor": "data",
+   "approve": true,
+   "finding_count": 1
+  },
+  {
+   "auditor": "correctness",
+   "approve": true,
+   "finding_count": 1
+  },
+  {
+   "auditor": "verification",
+   "approve": true,
+   "finding_count": 3
+  }
+ ],
+ "findings_by_severity": {
+  "low": 6
+ },
+ "findings_by_status": {
+  "reported": 6
+ }
+}

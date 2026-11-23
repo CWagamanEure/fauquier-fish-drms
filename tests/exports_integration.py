@@ -21,6 +21,7 @@ HEADER = ["Gift ID", "Date", "Donor ID", "Donor", "Amount", "Fee", "Net", "Payme
           "Platform", "Deposit date", "Campaign", "In honor of", "Receipt sent", "Recorded by", "Notes"]
 HOURS_HEADER = ["Entry ID", "Date", "Volunteer ID", "Volunteer", "Hours", "Start time", "End time", "Job", "Location",
                 "Campaign", "Verified", "Counts for letter", "Recorded by", "Notes"]
+EMAILS_HEADER = ["Donor ID", "Donor", "Contact person", "Contact title", "Email", "Email updates"]
 NC_HEADER = ["Gift ID", "Date received", "Donor ID", "Donor", "Item description", "Category", "Quantity (items)",
              "Weight (lbs)", "Estimated value", "Condition", "Given out so far (items)", "Intended use", "Campaign",
              "Receipt sent", "Recorded by", "Notes"]
@@ -156,6 +157,43 @@ switch ($req['action']) {
         $shift('second', '1901-03-01', ['job' => 'Pantry sorting']);
         $shift('anon', '1901-03-10', ['donor_id' => 999]);
         $shift('last', '1901-06-15', ['hours' => '2.00', 'campaign_id' => null]);
+        // Donor emails (UF2-132): the suite donor's own email, plus donors whose `last` is the marker so clean finds
+        // them. Contacts cascade when a donor is deleted; these donors have no gifts or hours.
+        $run("UPDATE donors SET email = ?, email_updates = 1 WHERE id = ?", 'si', "  =a.$m@example.test  ", $donor);
+        $person = function ($key, array $set) use ($run, $con, $m, &$out) {
+            $cols = array_merge(['donor_type' => 'organization', 'first' => null, 'last' => $m, 'notes' => 'export suite',
+                                 'donor_since' => '1900-06-01'], $set);
+            $names = implode(', ', array_map(function ($c) { return "`$c`"; }, array_keys($cols)));
+            $marks = implode(', ', array_fill(0, count($cols), '?'));
+            $run("INSERT INTO donors ($names) VALUES ($marks)", str_repeat('s', count($cols)),
+                 ...array_map(function ($v) { return $v === null ? null : (string) $v; }, array_values($cols)));
+            $out['email_donors'][$key] = (int) $con->insert_id;
+        };
+        $contact = function ($donorKey, $key, array $set) use ($run, $con, &$out) {
+            $cols = array_merge(['donor_id' => $out['email_donors'][$donorKey], 'name' => null, 'title' => null,
+                                 'email' => null, 'is_primary' => 0, 'sort_order' => 0], $set);
+            $names = implode(', ', array_keys($cols));
+            $marks = implode(', ', array_fill(0, count($cols), '?'));
+            $run("INSERT INTO donor_contacts ($names) VALUES ($marks)", str_repeat('s', count($cols)),
+                 ...array_map(function ($v) { return $v === null ? null : (string) $v; }, array_values($cols)));
+            $out['contacts'][$key] = (int) $con->insert_id;
+        };
+        $out['email_donors'] = [];
+        $out['contacts'] = [];
+        $person('org', ['org_name' => "@Org $m", 'email' => "   ", 'email_updates' => 0]);
+        $contact('org', 'lee', ['name' => "-Lee $m", 'title' => 'Director', 'email' => "lee.$m@example.test"]);
+        $contact('org', 'info', ['email' => "info.$m@example.test"]);
+        $contact('org', 'blank', ['name' => "Blank $m", 'email' => " \t", 'sort_order' => 1]);
+        $contact('org', 'nbsp', ['name' => "Nbsp $m", 'email' => "\u{00A0}\u{00A0}", 'sort_order' => 1]);
+        $contact('org', 'main', ['name' => "Main $m", 'email' => "main.$m@example.test", 'is_primary' => 1, 'sort_order' => 2]);
+        $person('dnc', ['org_name' => "Dnc $m", 'email' => "dnc.$m@example.test", 'do_not_contact' => 1]);
+        $contact('dnc', 'dnc', ['name' => "Dnc contact $m", 'email' => "dnc.contact.$m@example.test"]);
+        $person('gone', ['donor_type' => 'foundation', 'org_name' => "Gone $m", 'email' => "gone.$m@example.test", 'is_active' => 0]);
+        $contact('gone', 'gone', ['name' => "Gone contact $m", 'email' => "gone.contact.$m@example.test"]);
+        $person('fdn', ['donor_type' => 'foundation', 'org_name' => "Fdn $m"]);
+        $contact('fdn', 'fran', ['name' => "Fran $m", 'email' => "fran.$m@example.test"]);
+        $person('solo', ['donor_type' => 'individual', 'first' => 'Solo']);
+        $contact('solo', 'hidden', ['name' => "Hidden $m", 'email' => "hidden.$m@example.test"]);
         break;
     case 'teardown':
         // Hours, then non-cash, before dbevents and donors: RESTRICT donor FKs, and SET NULL campaign FKs would
@@ -164,6 +202,9 @@ switch ($req['action']) {
         $run('DELETE FROM non_cash_donations WHERE donor_id = ? OR campaign_id = ?', 'ii', $req['donor'], $req['campaign']);
         $run('DELETE FROM donations WHERE donorID = ? OR eventID = ?', 'ii', $req['donor'], $req['campaign']);
         $run('DELETE FROM dbevents WHERE id = ?', 'i', $req['campaign']);
+        foreach ($req['email_donors'] ?? [] as $id) {   // UF2-132 donors; their contacts cascade
+            $run('DELETE FROM donors WHERE id = ?', 'i', $id);
+        }
         $run('DELETE FROM donors WHERE id = ?', 'i', $req['donor']);
         break;
     case 'today':
@@ -193,8 +234,8 @@ def parse_csv(body):
 
 
 class CashExportTests(unittest.TestCase):
-    """UF2-133 cash, UF2-134 non-cash and UF2-138 volunteer hours exports, against gifts and volunteer hours
-    entries dated in 1901."""
+    """UF2-133 cash, UF2-134 non-cash, UF2-138 volunteer hours and UF2-132 donor emails exports, against gifts and
+    volunteer hours entries dated in 1901 and donors the suite makes."""
 
     @classmethod
     def setUpClass(cls):
@@ -223,7 +264,8 @@ class CashExportTests(unittest.TestCase):
         fixture("permission", user_id=cls.users["nodonors"]["id"], area="donors", can_view=0, can_edit=0, can_delete=0)
         cls.marker = PREFIX + secrets.token_hex(4)
         cls.ids = fixture("setup", marker=cls.marker, recorder=cls.users["manager"]["id"], multiline=MULTILINE_NOTE)
-        cls.addClassCleanup(fixture, "teardown", donor=cls.ids["donor"], campaign=cls.ids["campaign"])
+        cls.addClassCleanup(fixture, "teardown", donor=cls.ids["donor"], campaign=cls.ids["campaign"],
+                            email_donors=list(cls.ids["email_donors"].values()))
 
     def login(self, role):
         """Signs in as the suite user for role and returns the browser."""
@@ -311,7 +353,7 @@ class CashExportTests(unittest.TestCase):
         """Exports that are not built redirect as unavailable, whatever the permission."""
         for role in ("manager", "noexport"):
             browser = self.login(role)
-            for name in ("emails", "junk", ""):
+            for name in ("donor-totals", "junk", ""):
                 with self.subTest(role=role, export=name):
                     status, headers, _ = self.export(browser, {"export": name})
                     self.assertEqual(status, 303)
@@ -349,15 +391,15 @@ class CashExportTests(unittest.TestCase):
         """Button states and error messages on dataImports.php."""
         _, _, body = Browser.request(self.login("staff"), "dataImports.php")
         assert_no_php_errors_in(self, body)
-        self.assertEqual(body.count('action="exportData.php"'), 3)
-        self.assertEqual(body.count(">Coming soon</button>"), 5)
+        self.assertEqual(body.count('action="exportData.php"'), 4)
+        self.assertEqual(body.count(">Coming soon</button>"), 4)
         self.assertNotIn(">No access</button>", body)
         self.assertIn('id="export"', body)
         _, _, body = self.login("noexport").request("dataImports.php")
         self.assertEqual(body.count(">No access</button>"), 2)
-        self.assertEqual(body.count(">Export CSV</button>"), 1)
+        self.assertEqual(body.count(">Export CSV</button>"), 2)
         _, _, body = self.login("nodonors").request("dataImports.php")
-        self.assertEqual(body.count(">No access</button>"), 1)
+        self.assertEqual(body.count(">No access</button>"), 2)
         self.assertEqual(body.count(">Export CSV</button>"), 2)
         manager = self.login("manager")
         for code, text in (("dates", "Pick a From date on or before the To date."),
@@ -488,6 +530,59 @@ class CashExportTests(unittest.TestCase):
         status, headers, body = manager.request("exportData.php")
         self.assertEqual((status, body), (405, ""))
         status, headers, body = manager.request("exportData.php", {"export": "hours", "csrf_token": "0" * 64})
+        self.assertEqual(status, 403)
+        self.assertNotIn(self.marker, body)
+        self.assertNotIn("text/csv", headers.get("Content-Type", ""))
+
+    def emails(self, browser):
+        """Requests the donor emails export (no filter; a posted date is ignored)."""
+        return self.export(browser, {"export": "emails", "from": "junk"})
+
+    def test_emails_export_file(self):
+        """UF2-132: headers, filename date, who is left out, order, trimming, Yes/No and escaping."""
+        before = fixture("today")
+        status, headers, body = self.emails(self.login("manager"))
+        after = fixture("today")
+        self.assertEqual(status, 200, body[:300])
+        self.assertEqual(headers["Content-Type"], "text/csv; charset=utf-8")
+        self.assertIn(headers["Content-Disposition"],
+                      {f'attachment; filename="fish-donor-emails-{d}.csv"' for d in (before, after)})
+        self.assertIn("no-store", headers["Cache-Control"])
+        self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
+        assert_no_php_errors_in(self, body)
+        rows = parse_csv(body)
+        self.assertEqual(rows[0], EMAILS_HEADER)
+        self.assertTrue(all(r[4] != "" for r in rows[1:]), "a row with a blank email")
+        self.assertNotIn("999", {r[0] for r in rows[1:]})
+        m, donors = self.marker, self.ids["email_donors"]
+        suite_ids = [str(self.ids["donor"])] + [str(i) for i in donors.values()]
+        mine = [r for r in rows[1:] if r[0] in suite_ids]
+        self.assertEqual(mine, [
+            [str(self.ids["donor"]), "'+Export " + m, "", "", f"'=a.{m}@example.test", "Yes"],
+            [str(donors["org"]), f"'@Org {m}", f"Main {m}", "", f"main.{m}@example.test", "No"],
+            [str(donors["org"]), f"'@Org {m}", f"'-Lee {m}", "Director", f"lee.{m}@example.test", "No"],
+            [str(donors["org"]), f"'@Org {m}", "", "", f"info.{m}@example.test", "No"],
+            [str(donors["fdn"]), f"Fdn {m}", f"Fran {m}", "", f"fran.{m}@example.test", "No"],
+        ])
+        for text in (f"dnc.{m}", f"dnc.contact.{m}", f"gone.{m}", f"gone.contact.{m}", f"hidden.{m}",
+                     f"Blank {m}", f"Nbsp {m}", f"Solo {m}"):
+            with self.subTest(left_out=text):
+                self.assertNotIn(text, body)
+
+    def test_emails_permissions(self):
+        """Donors view is the rule: noexport (no donations view) and viewer get the file, nodonors gets 403;
+        a bad CSRF token gets 403."""
+        for role in ("noexport", "viewer", "staff"):
+            with self.subTest(role=role):
+                status, _, body = self.emails(self.login(role))
+                self.assertEqual(status, 200, body[:300])
+                self.assertIn(f"lee.{self.marker}@example.test", body)
+        status, headers, body = self.emails(self.login("nodonors"))
+        self.assertEqual(status, 403)
+        self.assertNotIn(self.marker, body)
+        self.assertNotIn("text/csv", headers.get("Content-Type", ""))
+        manager = self.login("manager")
+        status, headers, body = manager.request("exportData.php", {"export": "emails", "csrf_token": "0" * 64})
         self.assertEqual(status, 403)
         self.assertNotIn(self.marker, body)
         self.assertNotIn("text/csv", headers.get("Content-Type", ""))
