@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help dev stop logs status migrate seed-demo db-shell test-auth hooks test-gate test-donors test-users test-donations test-hours test-comms test-campaigns test-outreach test-exports test-deploy test-deploy-docker
+.PHONY: help dev stop logs status migrate seed-demo db-shell test-auth hooks test-gate test-donors test-users test-donations test-hours test-comms test-campaigns test-outreach test-exports test-treasurer test-deploy test-deploy-docker
 
 help:
 	@echo "make dev        Build and start the Docker app and database, then apply migrations"
@@ -18,6 +18,7 @@ help:
 	@echo "make test-campaigns Run the campaign page integration tests (needs make seed-demo)"
 	@echo "make test-outreach Run the outreach integration tests"
 	@echo "make test-exports Run the Data & Imports CSV export integration tests (needs make seed-demo)"
+	@echo "make test-treasurer Run the Treasurer page integration tests (needs make seed-demo)"
 	@echo "make hooks      Point git at .githooks (pre-push review gate); make dev does this too"
 	@echo "make test-gate  Test the pre-push review gate in a temporary repository"
 	@echo "make test-deploy Test the SiteGround deploy script and filter (needs GNU rsync 3; no network)"
@@ -96,3 +97,6 @@ test-outreach:
 
 test-exports:
 	docker compose exec -T web python tests/exports_integration.py
+
+test-treasurer:
+	docker compose exec -T web python tests/treasurer_integration.py

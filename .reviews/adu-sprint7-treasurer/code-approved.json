@@ -1,0 +1,44 @@
+{
+ "mode": "code",
+ "subject": "adu-sprint7-treasurer",
+ "round": 2,
+ "approved": true,
+ "reviewed_commit": "2b3e3885ae508db28c6d7b89ddff785ea0d47285",
+ "tree": "ee0f768758928a23344116fcc5db2895f1b5a9156ea34f7b0136e0a20612d4cd",
+ "runner": "Agent tool (Workflow tool unavailable); prompts from .claude/workflows/review-swarm.js",
+ "auditors": [
+  {
+   "auditor": "security",
+   "approve": true,
+   "finding_count": 0
+  },
+  {
+   "auditor": "data",
+   "approve": true,
+   "finding_count": 0
+  },
+  {
+   "auditor": "correctness",
+   "approve": true,
+   "finding_count": 0
+  },
+  {
+   "auditor": "verification",
+   "approve": true,
+   "finding_count": 1
+  }
+ ],
+ "counts": {
+  "by_severity": {
+   "critical": 0,
+   "high": 0,
+   "medium": 0,
+   "low": 1
+  },
+  "by_status": {
+   "reported": 1,
+   "confirmed": 0,
+   "disputed": 0
+  }
+ }
+}
