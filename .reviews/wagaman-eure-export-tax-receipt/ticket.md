@@ -187,4 +187,4 @@ Round 3: approved, 0 critical, 0 high, 0 medium, 2 low. Handled in the implement
 text above:
 
 - **`gone`'s cash gifts need `eventID` (low):** each passes `'eventID' => $campaign` and its own `$out` key.
-- **Class docstring (low):** updated to name UF2-137 and the widened window.
+- **Docstrings (low):** the module and class docstrings both name UF2-137 and the widened window.
