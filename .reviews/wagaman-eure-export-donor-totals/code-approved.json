@@ -1,0 +1,37 @@
+{
+ "mode": "code",
+ "subject": "wagaman-eure-export-donor-totals",
+ "round": 1,
+ "approved": true,
+ "reviewed_commit": "8434bc2faf35391f460aa796163b3730676a2501",
+ "tree": "3a7706c40fad8fd3509c3f8f82d858ffe1eedce29d2a858a98de6bb16556012f",
+ "auditors": [
+  {
+   "auditor": "security",
+   "approve": true,
+   "finding_count": 1
+  },
+  {
+   "auditor": "data",
+   "approve": true,
+   "finding_count": 0
+  },
+  {
+   "auditor": "correctness",
+   "approve": true,
+   "finding_count": 2
+  },
+  {
+   "auditor": "verification",
+   "approve": true,
+   "finding_count": 1
+  }
+ ],
+ "findings_by_severity": {
+  "low": 4
+ },
+ "findings_by_status": {
+  "reported": 4
+ },
+ "previous_rounds": {}
+}

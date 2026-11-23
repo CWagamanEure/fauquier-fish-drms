@@ -1,7 +1,7 @@
 <?php
 // Data & Imports exports (UF2-132..139): every Export form on dataImports.php posts `export` (+ from/to or
 // year) here, and the answer is a CSV download or a redirect back with a fixed error code. Built so far: `cash`
-// (UF2-133), `noncash` (UF2-134), `hours` (UF2-138), `emails` (UF2-132) and `donor-list` (UF2-136); each later export adds a case with its own permission
+// (UF2-133), `noncash` (UF2-134), `hours` (UF2-138), `emails` (UF2-132), `donor-list` (UF2-136) and `donor-totals` (UF2-135); each later export adds a case with its own permission
 // check and query.
 // Including the layout signs in the visitor and checks the CSRF token on every POST (require_authentication).
 require_once 'include/fishnet-layout.php';
@@ -285,6 +285,42 @@ switch (fish_str($_POST, 'export')) {
                       ['Donor ID', 'Donor', 'Type', 'Email', 'Phone', 'Street', 'City', 'State', 'ZIP',
                        'Main contact', 'Main contact email', 'Main contact phone', 'Preferred contact',
                        'Do not contact', 'Email updates', 'Mail receipts', 'Status', 'Last gift', 'Donor since'],
+                      $rows);
+        $stmt->close();
+        $con->close();
+        exit;
+
+    case 'donor-totals':
+        // Donations view and donors view: amounts are donations data, hours and the donor list are donors data. No
+        // dates: lifetime totals from donor_summary for every active donor (the donor list's rows), zeros included.
+        if (!fish_can_export_donor_totals()) {
+            http_response_code(403);
+            header('Content-Type: text/plain; charset=utf-8');
+            echo 'You do not have access to the donor totals export.';
+            exit;
+        }
+        session_write_close();
+        [$con, $stmt, $result] = export_query(
+            "SELECT s.id, s.display_name, s.donor_type, s.status, s.cash_gift_count, s.lifetime_cash,
+                    s.noncash_gift_count, s.items_donated, s.noncash_value, s.volunteer_shift_count, s.volunteer_hours,
+                    s.first_gift_date, s.last_gift_date
+             FROM donor_summary s
+             WHERE s.is_anonymous = 0 AND s.is_active = 1
+             ORDER BY s.display_name, s.id", 'donor totals');
+        $rows = (function () use ($result) {
+            while ($r = $result->fetch_assoc()) {
+                yield [
+                    $r['id'], $r['display_name'], donor_type_label($r['donor_type']), donor_status_label($r['status']),
+                    $r['cash_gift_count'], $r['lifetime_cash'], $r['noncash_gift_count'], $r['items_donated'],
+                    $r['noncash_value'], $r['volunteer_shift_count'], $r['volunteer_hours'],
+                    $r['first_gift_date'], $r['last_gift_date'],
+                ];
+            }
+        })();
+        fish_csv_send('fish-donor-totals-' . date('Y-m-d') . '.csv',
+                      ['Donor ID', 'Donor', 'Type', 'Status', 'Cash gifts', 'Cash total (gross)', 'Non-cash gifts',
+                       'Items donated', 'Non-cash estimated value', 'Volunteer shifts', 'Volunteer hours',
+                       'First gift', 'Last gift'],
                       $rows);
         $stmt->close();
         $con->close();

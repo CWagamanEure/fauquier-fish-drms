@@ -25,6 +25,9 @@ EMAILS_HEADER = ["Donor ID", "Donor", "Contact person", "Contact title", "Email"
 DONOR_LIST_HEADER = ["Donor ID", "Donor", "Type", "Email", "Phone", "Street", "City", "State", "ZIP", "Main contact",
                      "Main contact email", "Main contact phone", "Preferred contact", "Do not contact", "Email updates",
                      "Mail receipts", "Status", "Last gift", "Donor since"]
+TOTALS_HEADER = ["Donor ID", "Donor", "Type", "Status", "Cash gifts", "Cash total (gross)", "Non-cash gifts",
+                 "Items donated", "Non-cash estimated value", "Volunteer shifts", "Volunteer hours", "First gift",
+                 "Last gift"]
 NC_HEADER = ["Gift ID", "Date received", "Donor ID", "Donor", "Item description", "Category", "Quantity (items)",
              "Weight (lbs)", "Estimated value", "Condition", "Given out so far (items)", "Intended use", "Campaign",
              "Receipt sent", "Recorded by", "Notes"]
@@ -220,6 +223,17 @@ switch ($req['action']) {
         $run("UPDATE donors SET email = ?, phone = '540-555-0111', street = '=1 Main St', city = 'Warrenton', state = 'VA',
               zip = '20186', preferred_contact = 'mail', mail_receipts = 1, email_updates = 1 WHERE id = ?",
              'si', "active.$m@example.test", $out['status_donors']['active']);
+        // Donor totals (UF2-135): an items-only donor and a volunteer-only donor, each with one row on the suite
+        // campaign dated outside the March ranges.
+        $out['totals_donors'] = [];
+        foreach (['items' => 'Items', 'volunteer' => 'Volunteer'] as $key => $first) {
+            $run("INSERT INTO donors (donor_type, `first`, `last`, notes, donor_since) VALUES ('individual', ?, ?, 'export suite', '1900-06-01')",
+                 'ss', $first, $m);
+            $out['totals_donors'][$key] = (int) $con->insert_id;
+        }
+        $item('items', '1901-05-01', ['donor_id' => $out['totals_donors']['items'], 'quantity' => '3.00',
+              'estimated_value' => '15.00']);
+        $shift('volunteer', '1901-07-01', ['donor_id' => $out['totals_donors']['volunteer'], 'hours' => '3.00']);
         break;
     case 'teardown':
         // Hours, then non-cash, before dbevents and donors: RESTRICT donor FKs, and SET NULL campaign FKs would
@@ -233,6 +247,11 @@ switch ($req['action']) {
         }
         foreach ($req['status_donors'] ?? [] as $id) {   // UF2-136 donors: their gift, then the donor
             $run('DELETE FROM donations WHERE donorID = ?', 'i', $id);
+            $run('DELETE FROM donors WHERE id = ?', 'i', $id);
+        }
+        foreach ($req['totals_donors'] ?? [] as $id) {   // UF2-135 donors: their non-cash gift and hours, then the donor
+            $run('DELETE FROM volunteer_hours WHERE donor_id = ?', 'i', $id);
+            $run('DELETE FROM non_cash_donations WHERE donor_id = ?', 'i', $id);
             $run('DELETE FROM donors WHERE id = ?', 'i', $id);
         }
         $run('DELETE FROM donors WHERE id = ?', 'i', $req['donor']);
@@ -268,8 +287,8 @@ def parse_csv(body):
 
 
 class CashExportTests(unittest.TestCase):
-    """UF2-133 cash, UF2-134 non-cash, UF2-138 volunteer hours and UF2-132 donor emails exports, against gifts and
-    volunteer hours entries dated in 1901 and donors the suite makes."""
+    """UF2-133 cash, UF2-134 non-cash, UF2-138 volunteer hours, UF2-132 donor emails, UF2-136 donor list and UF2-135
+    donor totals exports, against gifts and volunteer hours entries dated in 1901 and donors the suite makes."""
 
     @classmethod
     def setUpClass(cls):
@@ -300,7 +319,8 @@ class CashExportTests(unittest.TestCase):
         cls.ids = fixture("setup", marker=cls.marker, recorder=cls.users["manager"]["id"], multiline=MULTILINE_NOTE)
         cls.addClassCleanup(fixture, "teardown", donor=cls.ids["donor"], campaign=cls.ids["campaign"],
                             email_donors=list(cls.ids["email_donors"].values()),
-                            status_donors=list(cls.ids["status_donors"].values()))
+                            status_donors=list(cls.ids["status_donors"].values()),
+                            totals_donors=list(cls.ids["totals_donors"].values()))
 
     def login(self, role):
         """Signs in as the suite user for role and returns the browser."""
@@ -388,7 +408,7 @@ class CashExportTests(unittest.TestCase):
         """Exports that are not built redirect as unavailable, whatever the permission."""
         for role in ("manager", "noexport"):
             browser = self.login(role)
-            for name in ("donor-totals", "junk", ""):
+            for name in ("tax-receipt", "junk", ""):
                 with self.subTest(role=role, export=name):
                     status, headers, _ = self.export(browser, {"export": name})
                     self.assertEqual(status, 303)
@@ -426,15 +446,15 @@ class CashExportTests(unittest.TestCase):
         """Button states and error messages on dataImports.php."""
         _, _, body = Browser.request(self.login("staff"), "dataImports.php")
         assert_no_php_errors_in(self, body)
-        self.assertEqual(body.count('action="exportData.php"'), 5)
-        self.assertEqual(body.count(">Coming soon</button>"), 3)
+        self.assertEqual(body.count('action="exportData.php"'), 6)
+        self.assertEqual(body.count(">Coming soon</button>"), 2)
         self.assertNotIn(">No access</button>", body)
         self.assertIn('id="export"', body)
         _, _, body = self.login("noexport").request("dataImports.php")
-        self.assertEqual(body.count(">No access</button>"), 2)
+        self.assertEqual(body.count(">No access</button>"), 3)
         self.assertEqual(body.count(">Export CSV</button>"), 3)
         _, _, body = self.login("nodonors").request("dataImports.php")
-        self.assertEqual(body.count(">No access</button>"), 3)
+        self.assertEqual(body.count(">No access</button>"), 4)
         self.assertEqual(body.count(">Export CSV</button>"), 2)
         manager = self.login("manager")
         for code, text in (("dates", "Pick a From date on or before the To date."),
@@ -529,7 +549,7 @@ class CashExportTests(unittest.TestCase):
         self.assertEqual(rows[0], HOURS_HEADER)
         hrs = self.ids["hours"]
         suite = [int(r[0]) for r in rows[1:] if int(r[0]) in set(hrs.values())]
-        self.assertEqual(suite, [hrs[k] for k in ("first", "second", "anon", "last")])
+        self.assertEqual(suite, [hrs[k] for k in ("first", "second", "anon", "last", "volunteer")])
         self.assertEqual([r for r in rows[1:] if r[1].startswith("1901-") and int(r[0]) not in set(hrs.values())], [])
         by_id = {int(r[0]): dict(zip(HOURS_HEADER, r)) for r in rows[1:]}
         self.assertEqual(by_id[hrs["first"]], {
@@ -537,6 +557,9 @@ class CashExportTests(unittest.TestCase):
             "Volunteer": "'+Export " + self.marker, "Hours": "4.50", "Start time": "09:00", "End time": "13:30",
             "Job": "'=Driver", "Location": "'+Annex", "Campaign": "'@" + self.marker, "Verified": "Yes",
             "Counts for letter": "Yes", "Recorded by": "Rita R.", "Notes": "'@note"})
+        vol = by_id[hrs["volunteer"]]
+        self.assertEqual((vol["Date"], vol["Volunteer ID"], vol["Volunteer"], vol["Hours"]),
+                         ("1901-07-01", str(self.ids["totals_donors"]["volunteer"]), "Volunteer " + self.marker, "3.00"))
         anon = by_id[hrs["anon"]]
         self.assertEqual((anon["Volunteer ID"], anon["Volunteer"]), ("999", "Anonymous"))
         last = by_id[hrs["last"]]
@@ -622,7 +645,6 @@ class CashExportTests(unittest.TestCase):
         self.assertNotIn(self.marker, body)
         self.assertNotIn("text/csv", headers.get("Content-Type", ""))
 
-
     def donor_list(self, browser):
         """Requests the donor list export (UF2-136); posted dates are ignored."""
         return self.export(browser, {"export": "donor-list", "from": "1901-03-01", "to": "1901-03-31", "year": "1901"})
@@ -648,8 +670,9 @@ class CashExportTests(unittest.TestCase):
         m, donors, st = self.marker, self.ids["email_donors"], self.ids["status_donors"]
         self.assertNotIn(donors["gone"], ids)
         # Fixed expected order (by display name; all start with a symbol or a capital so case cannot matter).
-        order = [self.ids["donor"], donors["org"], st["active"], donors["dnc"], donors["fdn"], st["lybunt"],
-                 donors["solo"], st["sybunt"]]
+        tot = self.ids["totals_donors"]
+        order = [self.ids["donor"], donors["org"], st["active"], donors["dnc"], donors["fdn"], tot["items"],
+                 st["lybunt"], donors["solo"], st["sybunt"], tot["volunteer"]]
         self.assertEqual([i for i in ids if i in set(order)], order)
         by_id = {int(r[0]): r for r in rows[1:]}
         gifts = self.ids["status_gifts"]
@@ -692,6 +715,74 @@ class CashExportTests(unittest.TestCase):
         self.assertNotIn("text/csv", headers.get("Content-Type", ""))
         manager = self.login("manager")
         status, headers, body = manager.request("exportData.php", {"export": "donor-list", "csrf_token": "0" * 64})
+        self.assertEqual(status, 403)
+        self.assertNotIn(self.marker, body)
+        self.assertNotIn("text/csv", headers.get("Content-Type", ""))
+
+    def donor_totals(self, browser):
+        """Requests the donor totals export (UF2-135); posted dates are ignored."""
+        return self.export(browser, {"export": "donor-totals", "from": "1901-03-01", "to": "1901-03-31", "year": "1901"})
+
+    def test_donor_totals_export_file(self):
+        """UF2-135: headers, filename date, every active donor once, order, lifetime totals, labels, escaping."""
+        before = fixture("today")
+        status, headers, body = self.donor_totals(self.login("manager"))
+        after = fixture("today")
+        self.assertEqual(status, 200, body[:300])
+        self.assertEqual(headers["Content-Type"], "text/csv; charset=utf-8")
+        self.assertIn(headers["Content-Disposition"],
+                      {f'attachment; filename="fish-donor-totals-{d}.csv"' for d in (before, after)})
+        self.assertIn("no-store", headers["Cache-Control"])
+        self.assertTrue(body.startswith("\ufeff"))
+        assert_no_php_errors_in(self, body)
+        rows = parse_csv(body)
+        self.assertEqual(rows[0], TOTALS_HEADER)
+        self.assertTrue(all(len(r) == len(TOTALS_HEADER) for r in rows))
+        ids = [int(r[0]) for r in rows[1:]]
+        self.assertEqual(len(ids), len(set(ids)), "a donor appears twice")
+        self.assertEqual(set(ids), set(fixture("active_ids")))   # every active donor, nothing else
+        self.assertNotIn(999, ids)
+        m, donors, st, tot = self.marker, self.ids["email_donors"], self.ids["status_donors"], self.ids["totals_donors"]
+        self.assertNotIn(donors["gone"], ids)
+        order = [self.ids["donor"], donors["org"], st["active"], donors["dnc"], donors["fdn"], tot["items"],
+                 st["lybunt"], donors["solo"], st["sybunt"], tot["volunteer"]]
+        self.assertEqual([i for i in ids if i in set(order)], order)
+        by_id = {int(r[0]): r for r in rows[1:]}
+        gifts = self.ids["status_gifts"]
+        none = ["0", "0.00", "0", "0.00", "0.00", "0", "0.00", "", ""]
+        expected = {
+            # Lifetime, not the posted March range (which would give 182.00 and 5.50); 999's gifts not counted.
+            self.ids["donor"]: [str(self.ids["donor"]), f"'+Export {m}", "Individual", "Inactive",
+                                "8", "232.00", "4", "54.00", "60.00", "3", "7.50", "1901-02-28", "1901-04-01"],
+            st["lybunt"]: [str(st["lybunt"]), f"Lybunt {m}", "Individual", "LYBUNT",
+                           "1", "25.00", "0", "0.00", "0.00", "0", "0.00", gifts["lybunt"], gifts["lybunt"]],
+            tot["items"]: [str(tot["items"]), f"Items {m}", "Individual", "Inactive",
+                           "0", "0.00", "1", "3.00", "15.00", "0", "0.00", "1901-05-01", "1901-05-01"],
+            tot["volunteer"]: [str(tot["volunteer"]), f"Volunteer {m}", "Individual", "Inactive",
+                               "0", "0.00", "0", "0.00", "0.00", "1", "3.00", "", ""],
+            donors["org"]: [str(donors["org"]), f"'@Org {m}", "Organization", "Inactive", *none],
+            donors["fdn"]: [str(donors["fdn"]), f"Fdn {m}", "Foundation", "Inactive", *none],
+        }
+        for donor_id, want in expected.items():
+            with self.subTest(donor=donor_id):
+                self.assertEqual(by_id[donor_id], want)
+
+    def test_donor_totals_permissions(self):
+        """Donations view and donors view: staff, manager and viewer get the file; noexport (no donations view) and
+        nodonors (no donors view) get 403; a bad CSRF token gets 403."""
+        for role in ("staff", "manager", "viewer"):
+            with self.subTest(role=role):
+                status, _, body = self.donor_totals(self.login(role))
+                self.assertEqual(status, 200, body[:300])
+                self.assertIn(f"Items {self.marker}", body)
+        for role in ("noexport", "nodonors"):
+            with self.subTest(role=role):
+                status, headers, body = self.donor_totals(self.login(role))
+                self.assertEqual(status, 403)
+                self.assertEqual(body, "You do not have access to the donor totals export.")
+                self.assertNotIn("text/csv", headers.get("Content-Type", ""))
+        manager = self.login("manager")
+        status, headers, body = manager.request("exportData.php", {"export": "donor-totals", "csrf_token": "0" * 64})
         self.assertEqual(status, 403)
         self.assertNotIn(self.marker, body)
         self.assertNotIn("text/csv", headers.get("Content-Type", ""))
