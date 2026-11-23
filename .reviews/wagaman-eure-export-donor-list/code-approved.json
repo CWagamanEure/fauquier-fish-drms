@@ -1,0 +1,36 @@
+{
+ "mode": "code",
+ "subject": "wagaman-eure-export-donor-list",
+ "round": 1,
+ "approved": true,
+ "reviewed_commit": "50a70535b5d51fbf82a8e0495461bb7697050cd3",
+ "tree": "bd6de3ef6205561bed7ac287f6a8146acb562dd4718beb0061a6563983ac4e03",
+ "auditors": [
+  {
+   "auditor": "security",
+   "approve": true,
+   "finding_count": 0
+  },
+  {
+   "auditor": "data",
+   "approve": true,
+   "finding_count": 0
+  },
+  {
+   "auditor": "correctness",
+   "approve": true,
+   "finding_count": 1
+  },
+  {
+   "auditor": "verification",
+   "approve": true,
+   "finding_count": 3
+  }
+ ],
+ "findings_by_severity": {
+  "low": 4
+ },
+ "findings_by_status": {
+  "reported": 4
+ }
+}
