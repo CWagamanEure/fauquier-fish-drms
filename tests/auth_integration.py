@@ -27,29 +27,25 @@ BASE_URL = "http://127.0.0.1"
 # to temporary accounts owned by this suite.
 PROTECTED_PAGES = """
 dashboard.php dataImports.php itemValues.php treasurer.php reports.php importHandler.php importPreview.php importFix.php donor.php donorProfile.php updateDonor.php
-ReportGeneration.php VolunteerRegister.php addDonationHandler.php addDonor.php
-addEvent.php adminViewingEvents.php calendar.php cancelEvent.php changePassword.php
-completeEvent.php date.php deleteEvent.php
-deleteMultipleEvents.php deletePerson.php deleteResources.php deleteTimes.php
-donationAddEdit.php donorSuccess.php download.php editDonationHandler.php editEvent.php
-editProfile.php editTimes.php emailgen.php eventFailure.php
-eventFailureBadDepartureTime.php eventList.php eventSearch.php eventSignUp.php
-eventSuccess.php eventsOpenForSignUpReview.php export.php fromPendingRejectSignup.php
-import.php index.php leaderboard.php milestonePoints.php processReport.php
-requestFailed.php resetPassword.php resources.php searchindex.php selectVOTM.php
-setTimes.php signupPending.php signupSuccess.php specificEvent.php template.php
-uploadResources.php viewAllEvents.php viewProfile.php viewResources.php
-viewSignUpList.php volunteerManagement.php volunteerReport.php
+ReportGeneration.php VolunteerRegister.php addDonor.php
+changePassword.php
+deleteResources.php
+download.php
+emailgen.php
+export.php
+import.php index.php
+resetPassword.php resources.php
+uploadResources.php viewProfile.php viewResources.php
 addCampaign.php campaign.php campaigns.php addDonation.php donations.php viewDonation.php
 addHours.php hours.php
 communications.php addCommunication.php viewCommunication.php
 exportData.php
-newDonor.php addUser.php editUser.php manageUsers.php userPassword.php
+addUser.php editUser.php manageUsers.php userPassword.php
 python/ImportHandler.php python/ExportHandler.php reportGeneration/formHandler.php
 reportGeneration/reports/delHandler.php ai-email-gen/index.php
 """.split()
 PROTECTED_APIS = """
-search_donors.php search_multi_criteria.php getVolunteers.php send_email.php
+send_email.php
 toggleLock.php ai-email-gen/send_email.php donorLookup.php
 """.split()
 # Entry points that deliberately have no login guard. Every other PHP file in the
@@ -58,13 +54,14 @@ toggleLock.php ai-email-gen/send_email.php donorLookup.php
 KNOWN_UNGUARDED = """
 login.php logout.php
 insertAdmin.php
-header.php footer.php infoBox.php
-deleteLocation.php deleteService.php eventApproved.php profileEditForm.php
-registrationForm.php viewVolunteerProfile.php
+header.php footer.php
+registrationForm.php
 """.split()
 # login.php/logout.php: the login flow itself. insertAdmin.php: CLI bootstrap, 404 over HTTP
-# (tested below). header/footer/infoBox: HTML fragments included by legacy pages.
-# The last six are legacy pages with no guard; deciding guard-vs-delete is a separate ticket.
+# (tested below). header/footer: HTML fragments included by legacy pages.
+# registrationForm.php: legacy fragment with no guard, kept with VolunteerRegister.php (see UF2-158 follow-ups).
+# Old-app nav targets deleted by UF2-158; index.php (with header.php) must no longer link them.
+REMOVED_NAV = ("viewAllEvents.php", "calendar.php", "searchindex.php", "donationAddEdit.php")
 # Directories scanned for entry points. include/, database/, tests/ and sql/ hold no entry points.
 ENTRY_POINT_GLOBS = ("*.php", "python/*.php", "reportGeneration/**/*.php", "ai-email-gen/*.php")
 GUARD_MARKER = re.compile(r"fishnet-layout\.php|require_authentication\(")
@@ -425,8 +422,8 @@ class AuthenticationTests(unittest.TestCase):
 
     def test_posts_without_form_token_are_rejected(self):
         self.assertEqual(self.login()[0], 303)
-        for path in ("addEvent.php", "uploadResources.php", "deleteEvent.php", "VolunteerRegister.php",
-                     "deletePerson.php", "reportGeneration/formHandler.php", "python/ExportHandler.php"):
+        for path in ("uploadResources.php", "VolunteerRegister.php", "addCampaign.php", "addDonation.php",
+                     "reportGeneration/formHandler.php", "python/ExportHandler.php"):
             with self.subTest(path=path):
                 status, _, body = self.browser.request(path, {"id": "1", "export": "donor"})
                 self.assertEqual(status, 403)
@@ -437,8 +434,8 @@ class AuthenticationTests(unittest.TestCase):
         self.assertEqual((status, response_headers["Content-Type"]), (403, "application/json"))
         headers["X-CSRF-Token"] = self.browser.token("emailgen.php")
         self.assertNotEqual(self.browser.request("send_email.php", data=b"[]", headers=headers)[0], 403)
-        # GET-driven deletes are gone: an event delete without POST is refused even with a session.
-        self.assertEqual(self.browser.request("deleteEvent.php?id=1")[0], 403)
+        # GET-driven deletes are gone: a document delete without POST is refused even with a session.
+        self.assertEqual(self.browser.request("deleteResources.php?file=x")[0], 403)
 
     def test_registration_to_login_and_standard_user_navigation(self):
         self.assertEqual(self.login()[0], 303)
@@ -470,12 +467,13 @@ class AuthenticationTests(unittest.TestCase):
                 self.assertEqual(status, 200)
                 self.assertIn("Temporary Registration", dashboard)
                 self.assert_no_php_errors(dashboard)
-                for broken_page in ("editProfile.php", "viewProfile.php", "volunteerReport.php",
+                for broken_page in ("editProfile.php", "volunteerReport.php",
                                     "inbox.php", "volunteerViewGroup.php", "viewDiscussions.php",
                                     "selectVOTM.php", "leaderboard.php"):
                     self.assertNotIn(broken_page, dashboard)
                 links = set(re.findall(r'href="([^"?#]+\.php)"', dashboard))
-                self.assertEqual(links, {"index.php", "viewResources.php", "changePassword.php"})
+                # The side-menu Dashboard goes to FISH's dashboard.php; the logo still goes to index.php (UF2-158).
+                self.assertEqual(links, {"index.php", "dashboard.php", "viewResources.php", "changePassword.php"})
                 for path in links:
                     status, _, body = new_user.request(path)
                     self.assertEqual(status, 200, path)
@@ -594,22 +592,25 @@ class AuthenticationTests(unittest.TestCase):
         self.assertIn(self.users[1]["name"], body)
         self.assertNotIn("Add Users", body)
         self.assert_no_php_errors(body)
-        for path in ("VolunteerRegister.php", "donationAddEdit.php", "addEvent.php",
-                     "addDonationHandler.php", "python/ExportHandler.php"):
+        # No token on these POSTs: they show refusal, not which check refused. The GET checks below show the role gate.
+        for path in ("VolunteerRegister.php", "python/ExportHandler.php"):
             with self.subTest(path=path):
                 self.assertEqual(self.browser.request(path, method="POST")[0], 403)
-        self.assertEqual(self.browser.request("search_donors.php")[0], 403)
+        self.assertEqual(self.browser.request("resources.php")[0], 403)
+        self.assertEqual(self.browser.request("toggleLock.php")[0], 403)   # level-2 JSON API
 
     def test_manager_is_not_promoted_to_super_admin(self):
         self.assertEqual(self.login(2)[0], 303)
         status, _, dashboard = self.browser.request("index.php")
         self.assertEqual(status, 200)
-        self.assertIn("searchindex.php", dashboard)
         self.assert_no_php_errors(dashboard)
-        self.assertEqual(self.browser.request("searchindex.php")[0], 200)
-        self.assertEqual(self.browser.request("search_donors.php")[0], 200)
+        for removed in REMOVED_NAV:
+            self.assertNotIn(removed, dashboard)
+        self.assertEqual(self.browser.request("resources.php")[0], 200)
+        # toggleLock.php accepts GET only because it is inert (nothing reads the session key it flips).
+        self.assertNotEqual(self.browser.request("toggleLock.php")[0], 403)
         for path in ("VolunteerRegister.php", "import.php", "export.php",
-                     "ReportGeneration.php", "emailgen.php", "donationAddEdit.php"):
+                     "ReportGeneration.php", "emailgen.php"):
             with self.subTest(path=path):
                 self.assertNotIn(path, dashboard)
                 self.assertEqual(self.browser.request(path)[0], 403)
@@ -618,8 +619,9 @@ class AuthenticationTests(unittest.TestCase):
     def test_super_admin_can_open_protected_pages(self):
         self.assertEqual(self.login()[0], 303)
         dashboard = self.browser.request("index.php")[2]
-        for path in ("index.php", "VolunteerRegister.php", "searchindex.php",
-                     "donationAddEdit.php", "import.php", "export.php", "ReportGeneration.php"):
+        for removed in REMOVED_NAV:
+            self.assertNotIn(removed, dashboard)
+        for path in ("index.php", "VolunteerRegister.php", "import.php", "export.php", "ReportGeneration.php"):
             with self.subTest(path=path):
                 status, _, body = self.browser.request(path)
                 self.assertEqual(status, 200)
@@ -673,6 +675,20 @@ class AuthenticationTests(unittest.TestCase):
             self.assertEqual(self.browser.request(download)[0], 404)
         self.assertEqual(self.browser.request("download.php?type=resources&file[]=test")[0], 404)
 
+    def test_legacy_profile_page_loads_without_removed_links(self):
+        """UF2-158: viewProfile.php (the FISH avatar target) renders and links only to pages that still exist."""
+        for level, path in ((1, "viewProfile.php"), (3, "viewProfile.php"),
+                            (3, "viewProfile.php?id=" + urllib.parse.quote(self.users[1]["id"]))):
+            with self.subTest(level=level, path=path):
+                browser = Browser()
+                self.assertEqual(self.login(level, browser)[0], 303)
+                status, _, body = browser.request(path)
+                self.assertEqual(status, 200)
+                self.assert_no_php_errors(body)
+                for removed in ("editProfile.php", "volunteerReport.php", "milestonePoints.php"):
+                    self.assertNotIn(removed, body)
+                self.assertIn("dashboard.php", body)
+
     def test_logout_requires_token_then_invalidates_session(self):
         self.assertEqual(self.login()[0], 303)
         old_cookie = self.browser.cookie_header()
@@ -689,9 +705,9 @@ class AuthenticationTests(unittest.TestCase):
         self.assertEqual(self.browser.request("index.php")[0], 303)
         self.assertIn("You have been logged out.", self.browser.request(headers["Location"])[2])
         replay = Browser()
-        for path in ("index.php", "donationAddEdit.php", "python/ExportHandler.php"):
+        for path in ("index.php", "python/ExportHandler.php"):
             self.assertEqual(replay.request(path, headers={"Cookie": old_cookie})[0], 303)
-        self.assertEqual(replay.request("search_donors.php", headers={"Cookie": old_cookie})[0], 401)
+        self.assertEqual(replay.request("donorLookup.php", headers={"Cookie": old_cookie})[0], 401)
 
 
 if __name__ == "__main__":
