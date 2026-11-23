@@ -1,0 +1,50 @@
+{
+ "mode": "ticket",
+ "subject": "wagaman-eure-export-tax-receipt",
+ "round": 3,
+ "approved": true,
+ "auditors": [
+  {
+   "auditor": "security",
+   "approve": true,
+   "finding_count": 0
+  },
+  {
+   "auditor": "data",
+   "approve": true,
+   "finding_count": 1
+  },
+  {
+   "auditor": "correctness",
+   "approve": true,
+   "finding_count": 1
+  },
+  {
+   "auditor": "verification",
+   "approve": true,
+   "finding_count": 0
+  }
+ ],
+ "findings_by_severity": {
+  "low": 2
+ },
+ "findings_by_status": {
+  "reported": 2
+ },
+ "previous_rounds": {
+  "1": {
+   "approved": true,
+   "critical": 0,
+   "high": 0,
+   "medium": 4,
+   "low": 8
+  },
+  "2": {
+   "approved": true,
+   "critical": 0,
+   "high": 0,
+   "medium": 2,
+   "low": 5
+  }
+ }
+}
