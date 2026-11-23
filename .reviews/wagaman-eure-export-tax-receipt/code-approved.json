@@ -1,0 +1,37 @@
+{
+ "mode": "code",
+ "subject": "wagaman-eure-export-tax-receipt",
+ "round": 1,
+ "approved": true,
+ "reviewed_commit": "e57f833",
+ "tree": "e4473186b33315e4f63675ad1d491f200162bd55bac149da1d708158b97d5a6f",
+ "auditors": [
+  {
+   "auditor": "security",
+   "approve": true,
+   "finding_count": 0
+  },
+  {
+   "auditor": "data",
+   "approve": true,
+   "finding_count": 0
+  },
+  {
+   "auditor": "correctness",
+   "approve": true,
+   "finding_count": 2
+  },
+  {
+   "auditor": "verification",
+   "approve": true,
+   "finding_count": 3
+  }
+ ],
+ "findings_by_severity": {
+  "low": 5
+ },
+ "findings_by_status": {
+  "reported": 5
+ },
+ "previous_rounds": {}
+}
