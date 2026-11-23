@@ -5,7 +5,7 @@
 // importPreview.php; Recent imports and Needs review read import_batches / import_rows (migration 018).
 // templates/fishnet-import-<type>.xlsx are the templates (their headings must match IMPORT_TYPES).
 //   - each export form posts `export` (+ from/to or year) to exportData.php, which streams a CSV. `cash` (UF2-133),
-//     `noncash` (UF2-134), `hours` (UF2-138), `emails` (UF2-132), `donor-list` (UF2-136) and `donor-totals` (UF2-135) are built; the other rows' buttons say "Coming soon" until their case exists in exportData.php
+//     `noncash` (UF2-134), `hours` (UF2-138), `emails` (UF2-132), `donor-list` (UF2-136), `donor-totals` (UF2-135) and `tax-receipt` (UF2-137) are built; the other rows' buttons say "Coming soon" until their case exists in exportData.php
 require_once 'include/fishnet-layout.php';
 require_once 'database/dbImports.php';
 
@@ -25,7 +25,7 @@ $exports = [
   'noncash'      => ['Non-cash donations',                 'Item gifts between two dates, with quantity and weight.',            'range'],
   'donor-totals' => ['Donors with hours and donations',    'Each donor with their total giving and volunteer hours.',            false],
   'donor-list'   => ['Donor list with contact and status', 'Contact info and giving status (Active, LYBUNT, SYBUNT, Inactive).', false],
-  'tax-receipt'  => ['Donor tax receipts',                 'One row per donor: their total giving for the chosen year.',        'year'],
+  'tax-receipt'  => ['Donor tax receipts',                 'One row per donor who gave that year: cash total and items given, with mailing address. Includes deactivated and Do not contact donors, flagged.', 'year'],
   'hours'        => ['All volunteer hours',                'Every volunteer hours entry.',                                       false],
   'lapsed'       => ['LYBUNT and SYBUNT contact list',     'Contact info for donors who gave before but not this year.',        false],
 ];
@@ -34,11 +34,13 @@ $exports = [
 $exportReady = ['cash' => fish_can_export_donations(), 'noncash' => fish_can_export_donations(),
                 'hours' => fish_can_export_hours(), 'emails' => fish_can_export_emails(),
                 'donor-list' => fish_can_export_donor_list(),
-                'donor-totals' => fish_can_export_donor_totals()];
+                'donor-totals' => fish_can_export_donor_totals(),
+                'tax-receipt' => fish_can_export_tax_receipts()];
 $exportErrors = [
   'dates'       => 'Pick a From date on or before the To date.',
   'unavailable' => 'That export is not available yet.',
   'failed'      => 'The export could not be made. Try again.',
+  'year'        => 'Pick a tax year.',
 ];
 $exportError = $exportErrors[fish_str($_GET, 'export_error')] ?? null;
 
