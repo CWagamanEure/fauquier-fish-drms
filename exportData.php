@@ -1,11 +1,12 @@
 <?php
 // Data & Imports exports (UF2-132..139): every Export form on dataImports.php posts `export` (+ from/to or
 // year) here, and the answer is a CSV download or a redirect back with a fixed error code. Built so far: `cash`
-// (UF2-133), `noncash` (UF2-134), `hours` (UF2-138) and `emails` (UF2-132); each later export adds a case with its own permission
+// (UF2-133), `noncash` (UF2-134), `hours` (UF2-138), `emails` (UF2-132) and `donor-list` (UF2-136); each later export adds a case with its own permission
 // check and query.
 // Including the layout signs in the visitor and checks the CSRF token on every POST (require_authentication).
 require_once 'include/fishnet-layout.php';
 require_once 'include/csvExport.php';
+require_once 'database/dbDonors.php';   // donor_type_label(), donor_pref_label(), donor_status_label()
 ini_set('display_errors', '0');   // nothing but the file or a redirect may reach the browser
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -241,6 +242,49 @@ switch (fish_str($_POST, 'export')) {
         })();
         fish_csv_send('fish-donor-emails-' . date('Y-m-d') . '.csv',
                       ['Donor ID', 'Donor', 'Contact person', 'Contact title', 'Email', 'Email updates'],
+                      $rows);
+        $stmt->close();
+        $con->close();
+        exit;
+
+    case 'donor-list':
+        // Donors view, as the hours and emails exports. No dates: one row per active donor (donor.php's "All"
+        // list), Do not contact donors included with a Yes / No column (decided 2026-11-23). The main contact is
+        // joined only for organizations and foundations, the types whose profile shows contacts.
+        if (!fish_can_export_donor_list()) {
+            http_response_code(403);
+            header('Content-Type: text/plain; charset=utf-8');
+            echo 'You do not have access to the donor list export.';
+            exit;
+        }
+        session_write_close();
+        [$con, $stmt, $result] = export_query(
+            "SELECT s.id, s.display_name, s.donor_type, s.email, s.phone, s.street, s.city, s.state, s.zip,
+                    c.name AS contact_name, c.email AS contact_email, c.phone AS contact_phone,
+                    s.preferred_contact, s.do_not_contact, s.email_updates, s.mail_receipts, s.status,
+                    s.last_gift_date, s.donor_since_date
+             FROM donor_summary s
+             LEFT JOIN donor_contacts c ON c.donor_id = s.id AND c.is_primary = 1
+                                       AND s.donor_type IN ('organization', 'foundation')
+             WHERE s.is_anonymous = 0 AND s.is_active = 1
+             ORDER BY s.display_name, s.id", 'donor list');
+        $yesNo = fn($v) => (int) $v === 1 ? 'Yes' : 'No';
+        $rows = (function () use ($result, $yesNo) {
+            while ($r = $result->fetch_assoc()) {
+                yield [
+                    $r['id'], $r['display_name'], donor_type_label($r['donor_type']),
+                    $r['email'], $r['phone'], $r['street'], $r['city'], $r['state'], $r['zip'],
+                    $r['contact_name'], $r['contact_email'], $r['contact_phone'],
+                    donor_pref_label($r['preferred_contact']),
+                    $yesNo($r['do_not_contact']), $yesNo($r['email_updates']), $yesNo($r['mail_receipts']),
+                    donor_status_label($r['status']), $r['last_gift_date'], $r['donor_since_date'],
+                ];
+            }
+        })();
+        fish_csv_send('fish-donor-list-' . date('Y-m-d') . '.csv',
+                      ['Donor ID', 'Donor', 'Type', 'Email', 'Phone', 'Street', 'City', 'State', 'ZIP',
+                       'Main contact', 'Main contact email', 'Main contact phone', 'Preferred contact',
+                       'Do not contact', 'Email updates', 'Mail receipts', 'Status', 'Last gift', 'Donor since'],
                       $rows);
         $stmt->close();
         $con->close();

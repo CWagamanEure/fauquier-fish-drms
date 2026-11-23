@@ -42,6 +42,13 @@ function donor_pref_label($enum) {
     return DONOR_PREFERRED_LABELS[$enum] ?? '';
 }
 
+// Giving status labels for donor_summary.status (migration 011); unknown values show as Inactive, as on donor.php.
+const DONOR_STATUS_LABELS = ['active' => 'Active', 'lybunt' => 'LYBUNT', 'sybunt' => 'SYBUNT', 'inactive' => 'Inactive'];
+
+function donor_status_label($enum) {
+    return DONOR_STATUS_LABELS[$enum] ?? 'Inactive';
+}
+
 function donor_phone_digits($phone) {
     return preg_replace('/\D/', '', (string) $phone);
 }

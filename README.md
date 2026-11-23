@@ -111,7 +111,7 @@ original session is still authenticated when processing finishes (the Data & Imp
 `importHandler.php`, keeps its session open while it saves a file's rows, at most 2000, so a sign-out
 waits for it). Stored report files, legacy exports, uploaded documents and outreach photos (download.php?type=outreach&id=, communications view) are served through download.php; the Data & Imports CSV exports are generated
 and streamed by `exportData.php` and follow each export's own permission (the cash and non-cash exports follow
-donations view, the volunteer hours and donor emails exports follow donors view, so a `viewer` can download the email list; the emails export leaves out Do not contact and deactivated donors and shows Email updates as a column without filtering on it; the 'Data imports' permission area governs imports only); direct file URLs are denied by Apache
+donations view, the volunteer hours, donor emails and donor list exports follow donors view, so a `viewer` can download the email list and the donor list (contact details, giving status and last gift date, no amounts); the emails export leaves out Do not contact and deactivated donors and shows Email updates as a column without filtering on it; the 'Data imports' permission area governs imports only); direct file URLs are denied by Apache
 (`docker/apache.conf` and the `.htaccess` files, which must be preserved on other hosts).
 Rebuild the web image with `make dev` after pulling this change. Existing sessions must log
 in again.
@@ -167,7 +167,7 @@ contacted and campaign lists,
 saving (including "Someone else" and the follow-up rules), validation, the profile's Communications tab and
 the permission gates, on donors, campaigns and users it creates and removes itself. `make test-exports` (after
 `make seed-demo`) runs `tests/exports_integration.py`: the cash (UF2-133) and non-cash (UF2-134) donations
-CSVs, the volunteer hours CSV (UF2-138) and the donor emails CSV (UF2-132) from Data & Imports: date ranges, columns,
+CSVs, the volunteer hours CSV (UF2-138) and the donor emails CSV (UF2-132) and the donor list CSV (UF2-136) from Data & Imports: date ranges, columns,
 formula escaping, error redirects, the emails export's opt-out rules and permission gates, on gifts and hours entries
 dated in 1901 and donors that it creates and removes itself. Run them only against a local development database.
 `make test-outreach` runs `tests/outreach_integration.py` (outreach posts: channels with one link each, posted-by, active campaigns, photo upload, replace and remove with its private download, the list's search, filters, sorting and date range, updating results, and delete).
