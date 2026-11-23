@@ -1,5 +1,6 @@
 """Data & Imports CSV exports against the real tables. Run via `make test-exports` (needs `make seed-demo` first).
-The suite creates and removes its own donors, campaign, gifts and users. Its gifts are dated in 1901, where no
+The suite creates and removes its own donors, campaign, gifts and users. Its gifts are dated in 1901 (and on
+1900-12-31 for the tax receipt year's edge, UF2-137); setup checks 1900-12-31..1902-12-31 and 1900-01-01..02, where no
 seed or legacy row can be, so the files it downloads hold only rows it made (plus nothing else in that range,
 which setup asserts)."""
 
@@ -25,6 +26,9 @@ EMAILS_HEADER = ["Donor ID", "Donor", "Contact person", "Contact title", "Email"
 DONOR_LIST_HEADER = ["Donor ID", "Donor", "Type", "Email", "Phone", "Street", "City", "State", "ZIP", "Main contact",
                      "Main contact email", "Main contact phone", "Preferred contact", "Do not contact", "Email updates",
                      "Mail receipts", "Status", "Last gift", "Donor since"]
+TAX_HEADER = ["Donor ID", "Donor", "Type", "Main contact", "Main contact email", "Email", "Street", "City", "State",
+              "ZIP", "Mail receipts", "Do not contact", "Active", "Cash gifts", "Cash total (gross)",
+              "Gifts with no amount", "Non-cash gifts", "Non-cash items"]
 TOTALS_HEADER = ["Donor ID", "Donor", "Type", "Status", "Cash gifts", "Cash total (gross)", "Non-cash gifts",
                  "Items donated", "Non-cash estimated value", "Volunteer shifts", "Volunteer hours", "First gift",
                  "Last gift"]
@@ -48,9 +52,9 @@ $run = function ($sql, $types = '', ...$values) use ($con) {
     $stmt->close();
     return $rows;
 };
-$outside = "(d.donation_date BETWEEN '1901-01-01' AND '1901-12-31' OR d.donation_date BETWEEN '1900-01-01' AND '1900-01-02')";
-$outsideVh = "(v.activity_date BETWEEN '1901-01-01' AND '1901-12-31' OR v.activity_date BETWEEN '1900-01-01' AND '1900-01-02')";
-$outsideNc = "(n.date_received BETWEEN '1901-01-01' AND '1901-12-31' OR n.date_received BETWEEN '1900-01-01' AND '1900-01-02')";
+$outside = "(d.donation_date BETWEEN '1900-12-31' AND '1902-12-31' OR d.donation_date BETWEEN '1900-01-01' AND '1900-01-02')";
+$outsideVh = "(v.activity_date BETWEEN '1900-12-31' AND '1902-12-31' OR v.activity_date BETWEEN '1900-01-01' AND '1900-01-02')";
+$outsideNc = "(n.date_received BETWEEN '1900-12-31' AND '1902-12-31' OR n.date_received BETWEEN '1900-01-01' AND '1900-01-02')";
 switch ($req['action']) {
     case 'clean':
         // Leftovers of an earlier run that stopped before its cleanup: rows tied to the suite's fixed prefix.
@@ -197,8 +201,17 @@ switch ($req['action']) {
                                  'is_primary' => 1, 'sort_order' => 2]);
         $person('dnc', ['org_name' => "Dnc $m", 'email' => "dnc.$m@example.test", 'do_not_contact' => 1]);
         $contact('dnc', 'dnc', ['name' => "Dnc contact $m", 'email' => "dnc.contact.$m@example.test"]);
-        $person('gone', ['donor_type' => 'foundation', 'org_name' => "Gone $m", 'email' => "gone.$m@example.test", 'is_active' => 0]);
-        $contact('gone', 'gone', ['name' => "Gone contact $m", 'email' => "gone.contact.$m@example.test"]);
+        $person('gone', ['donor_type' => 'foundation', 'org_name' => "Gone $m", 'email' => "gone.$m@example.test", 'is_active' => 0,
+                         'mail_receipts' => 1]);
+        $contact('gone', 'gone', ['name' => "Gone contact $m", 'email' => "gone.contact.$m@example.test", 'is_primary' => 1]);
+        // Tax receipts (UF2-137): gone (deactivated, Do not contact stays 0 so the emails test still proves its
+        // is_active filter) gives on both edges of 1901 and the day before it, on the suite campaign so teardown
+        // removes the gifts; outside the March ranges the other tests use.
+        $goneId = $out['email_donors']['gone'];
+        $gift('gone_first', '1901-01-01', ['donorID' => $goneId, 'eventID' => $campaign]);
+        $gift('gone_noamount', '1901-12-31', ['donorID' => $goneId, 'eventID' => $campaign, 'amount' => null]);
+        $gift('gone_outside', '1900-12-31', ['donorID' => $goneId, 'eventID' => $campaign]);
+        $item('gone', '1901-12-31', ['donor_id' => $goneId, 'item_description' => 'Coats', 'quantity' => '2.50']);
         $person('fdn', ['donor_type' => 'foundation', 'org_name' => "Fdn $m"]);
         $contact('fdn', 'fran', ['name' => "Fran $m", 'email' => "fran.$m@example.test", 'phone' => '540-555-0102',
                                  'is_primary' => 1]);
@@ -233,6 +246,8 @@ switch ($req['action']) {
         }
         $item('items', '1901-05-01', ['donor_id' => $out['totals_donors']['items'], 'quantity' => '3.00',
               'estimated_value' => '15.00']);
+        // Tax receipts (UF2-137): the items-only donor (no email) carries Mail receipts and Do not contact = Yes.
+        $run('UPDATE donors SET mail_receipts = 1, do_not_contact = 1 WHERE id = ?', 'i', $out['totals_donors']['items']);
         $shift('volunteer', '1901-07-01', ['donor_id' => $out['totals_donors']['volunteer'], 'hours' => '3.00']);
         break;
     case 'teardown':
@@ -288,7 +303,8 @@ def parse_csv(body):
 
 class CashExportTests(unittest.TestCase):
     """UF2-133 cash, UF2-134 non-cash, UF2-138 volunteer hours, UF2-132 donor emails, UF2-136 donor list and UF2-135
-    donor totals exports, against gifts and volunteer hours entries dated in 1901 and donors the suite makes."""
+    donor totals and UF2-137 tax receipt exports, against gifts and volunteer hours entries dated in 1901 (one on
+    1900-12-31; setup checks 1900-12-31..1902-12-31 is otherwise empty) and donors the suite makes."""
 
     @classmethod
     def setUpClass(cls):
@@ -297,13 +313,13 @@ class CashExportTests(unittest.TestCase):
         if state["demo"] == 0:
             raise AssertionError("run make seed-demo before make test-exports")
         if state["left_hours"] != 0:
-            raise AssertionError("volunteer hours dated in 1901 or on 1900-01-01..02 exist that this suite did not make; "
+            raise AssertionError("volunteer hours dated 1900-12-31..1902-12-31 or on 1900-01-01..02 exist that this suite did not make; "
                                  "the suite needs those dates empty")
         if state["left_noncash"] != 0:
-            raise AssertionError("non-cash gifts received in 1901 or on 1900-01-01..02 exist that this suite did not "
+            raise AssertionError("non-cash gifts received 1900-12-31..1902-12-31 or on 1900-01-01..02 exist that this suite did not "
                                  "make; the suite needs those dates empty")
         if state["left"] != 0:
-            raise AssertionError("cash donations dated in 1901 or on 1900-01-01..02 exist that this suite did not make; "
+            raise AssertionError("cash donations dated 1900-12-31..1902-12-31 or on 1900-01-01..02 exist that this suite did not make; "
                                  "the suite needs those dates empty")
         cls.users = {role: {"id": f"export_test_{role}_{secrets.token_hex(4)}", "name": f"Export test {role}",
                             "first": "Rita", "last": "Recorder" if role == "manager" else role.capitalize(),
@@ -408,7 +424,7 @@ class CashExportTests(unittest.TestCase):
         """Exports that are not built redirect as unavailable, whatever the permission."""
         for role in ("manager", "noexport"):
             browser = self.login(role)
-            for name in ("tax-receipt", "junk", ""):
+            for name in ("lapsed", "junk", ""):
                 with self.subTest(role=role, export=name):
                     status, headers, _ = self.export(browser, {"export": name})
                     self.assertEqual(status, 303)
@@ -446,20 +462,21 @@ class CashExportTests(unittest.TestCase):
         """Button states and error messages on dataImports.php."""
         _, _, body = Browser.request(self.login("staff"), "dataImports.php")
         assert_no_php_errors_in(self, body)
-        self.assertEqual(body.count('action="exportData.php"'), 6)
-        self.assertEqual(body.count(">Coming soon</button>"), 2)
+        self.assertEqual(body.count('action="exportData.php"'), 7)
+        self.assertEqual(body.count(">Coming soon</button>"), 1)
         self.assertNotIn(">No access</button>", body)
         self.assertIn('id="export"', body)
         _, _, body = self.login("noexport").request("dataImports.php")
-        self.assertEqual(body.count(">No access</button>"), 3)
+        self.assertEqual(body.count(">No access</button>"), 4)
         self.assertEqual(body.count(">Export CSV</button>"), 3)
         _, _, body = self.login("nodonors").request("dataImports.php")
-        self.assertEqual(body.count(">No access</button>"), 4)
+        self.assertEqual(body.count(">No access</button>"), 5)
         self.assertEqual(body.count(">Export CSV</button>"), 2)
         manager = self.login("manager")
         for code, text in (("dates", "Pick a From date on or before the To date."),
                            ("unavailable", "That export is not available yet."),
-                           ("failed", "The export could not be made. Try again.")):
+                           ("failed", "The export could not be made. Try again."),
+                           ("year", "Pick a tax year.")):
             with self.subTest(code=code):
                 _, _, body = manager.request("dataImports.php?export_error=" + code)
                 self.assertIn(text, body)
@@ -783,6 +800,84 @@ class CashExportTests(unittest.TestCase):
                 self.assertNotIn("text/csv", headers.get("Content-Type", ""))
         manager = self.login("manager")
         status, headers, body = manager.request("exportData.php", {"export": "donor-totals", "csrf_token": "0" * 64})
+        self.assertEqual(status, 403)
+        self.assertNotIn(self.marker, body)
+        self.assertNotIn("text/csv", headers.get("Content-Type", ""))
+
+    def tax_receipts(self, browser, year="1901"):
+        """Requests the tax receipt export (UF2-137); posted from / to are ignored."""
+        return self.export(browser, {"export": "tax-receipt", "year": year, "from": "1901-03-01", "to": "1901-03-31"})
+
+    def test_tax_receipt_export_file(self):
+        """UF2-137: headers, filename, who gets a row, year edges, totals, NULL amounts, items, labels, escaping."""
+        status, headers, body = self.tax_receipts(self.login("manager"))
+        self.assertEqual(status, 200, body[:300])
+        self.assertEqual(headers["Content-Type"], "text/csv; charset=utf-8")
+        self.assertEqual(headers["Content-Disposition"], 'attachment; filename="fish-tax-receipts-1901.csv"')
+        self.assertIn("no-store", headers["Cache-Control"])
+        assert_no_php_errors_in(self, body)
+        rows = parse_csv(body)
+        self.assertEqual(rows[0], TAX_HEADER)
+        self.assertTrue(all(len(r) == len(TAX_HEADER) for r in rows))
+        ids = [int(r[0]) for r in rows[1:]]
+        self.assertEqual(len(ids), len(set(ids)), "a donor appears twice")
+        self.assertNotIn(999, ids)
+        m, donors, tot = self.marker, self.ids["email_donors"], self.ids["totals_donors"]
+        # 1900-12-31 is outside the range the guard keeps empty, so the whole file is the suite's rows.
+        self.assertEqual(ids, [self.ids["donor"], donors["gone"], tot["items"]])
+        self.assertNotIn(tot["volunteer"], ids)
+        by_id = {int(r[0]): r for r in rows[1:]}
+        expected = {
+            # 8 cash gifts (one 0.00), 999's gifts not counted; posted March dates ignored.
+            self.ids["donor"]: [str(self.ids["donor"]), f"'+Export {m}", "Individual", "", "", f"  =a.{m}@example.test  ",
+                                "", "Testville", "VA", "", "No", "No", "Yes", "8", "232.00", "0", "4",
+                                "Canned beans (10); -Canned beans (24); Canned beans (10); Canned beans (10)"],
+            # 1901-01-01 counts, 1900-12-31 does not, the NULL amount on 1901-12-31 only in its own column.
+            donors["gone"]: [str(donors["gone"]), f"Gone {m}", "Foundation", f"Gone contact {m}",
+                             f"gone.contact.{m}@example.test", f"gone.{m}@example.test", "", "", "", "",
+                             "Yes", "No", "No", "1", "25.00", "1", "1", "Coats (2.5)"],
+            tot["items"]: [str(tot["items"]), f"Items {m}", "Individual", "", "", "", "", "", "", "",
+                           "Yes", "Yes", "Yes", "0", "0.00", "0", "1", "Canned beans (3)"],
+        }
+        for donor_id, want in expected.items():
+            with self.subTest(donor=donor_id):
+                self.assertEqual(by_id[donor_id], want)
+
+    def test_tax_receipt_empty_year_and_bad_years(self):
+        """1902 has no gifts (guarded): header only. Bad years redirect with `year` and no file."""
+        manager = self.login("manager")
+        status, headers, body = self.tax_receipts(manager, "1902")
+        self.assertEqual(status, 200, body[:300])
+        self.assertEqual(parse_csv(body), [TAX_HEADER])
+        next_year = str(int(fixture("today")[:4]) + 1)
+        for fields in ({"export": "tax-receipt"}, {"export": "tax-receipt", "year": ""},
+                       {"export": "tax-receipt", "year": "19o1"}, {"export": "tax-receipt", "year": "1899"},
+                       {"export": "tax-receipt", "year": next_year}, {"export": "tax-receipt", "year": "1901-01"},
+                       [("export", "tax-receipt"), ("year[]", "1901")]):
+            with self.subTest(fields=fields):
+                status, headers, body = self.export(manager, fields)
+                self.assertEqual(status, 303)
+                self.assertEqual(headers["Location"], "dataImports.php?export_error=year#export")
+                self.assertNotIn("text/csv", headers.get("Content-Type", ""))
+
+    def test_tax_receipt_permissions(self):
+        """Donations view and donors view: staff, manager and viewer get the file; noexport and nodonors get 403
+        (before the year is checked); a bad CSRF token gets 403."""
+        for role in ("staff", "manager", "viewer"):
+            with self.subTest(role=role):
+                status, _, body = self.tax_receipts(self.login(role))
+                self.assertEqual(status, 200, body[:300])
+                self.assertIn(f"Items {self.marker}", body)
+        for role in ("noexport", "nodonors"):
+            for year in ("1901", "junk"):
+                with self.subTest(role=role, year=year):
+                    status, headers, body = self.tax_receipts(self.login(role), year)
+                    self.assertEqual(status, 403)
+                    self.assertEqual(body, "You do not have access to the tax receipt export.")
+                    self.assertNotIn("text/csv", headers.get("Content-Type", ""))
+        manager = self.login("manager")
+        status, headers, body = manager.request("exportData.php", {"export": "tax-receipt", "year": "1901",
+                                                                    "csrf_token": "0" * 64})
         self.assertEqual(status, 403)
         self.assertNotIn(self.marker, body)
         self.assertNotIn("text/csv", headers.get("Content-Type", ""))

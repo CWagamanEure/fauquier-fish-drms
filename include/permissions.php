@@ -90,6 +90,15 @@ function fish_can_export_donor_totals() {
     return fish_can('donations', 'view') && fish_can('donors', 'view');
 }
 
+/**
+ * Downloading the donor tax receipts CSV (exportData.php, the "Donor tax receipts" row on dataImports.php): donations
+ * view for the year's amounts and items, and donors view for the addresses and contacts, as the donor totals export
+ * (UF2-137).
+ */
+function fish_can_export_tax_receipts() {
+    return fish_can('donations', 'view') && fish_can('donors', 'view');
+}
+
 // Logging or editing volunteer hours (addHours.php, hours.php and the profile's "+ Log hours"): donors view
 // and edit. The users enum has no volunteers area, so donor permissions govern volunteer records.
 function fish_can_log_hours() {

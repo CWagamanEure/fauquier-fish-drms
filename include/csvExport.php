@@ -54,3 +54,14 @@ function fish_export_dates($from, $to) {
     }
     return [$from, $to];
 }
+
+/**
+ * [$from, $to] for a tax year ('YYYY-01-01', 'YYYY-12-31') when $year is exactly four digits between 1900 and PHP's
+ * current year, else null. Callers read the value with fish_str(), so a non-string (`year[]`) arrives here as ''.
+ */
+function fish_export_year($year) {
+    if (!is_string($year) || !preg_match('/^\d{4}\z/', $year) || (int) $year < 1900 || (int) $year > (int) date('Y')) {
+        return null;
+    }
+    return [$year . '-01-01', $year . '-12-31'];
+}

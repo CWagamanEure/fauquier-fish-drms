@@ -1,7 +1,7 @@
 <?php
 // Data & Imports exports (UF2-132..139): every Export form on dataImports.php posts `export` (+ from/to or
 // year) here, and the answer is a CSV download or a redirect back with a fixed error code. Built so far: `cash`
-// (UF2-133), `noncash` (UF2-134), `hours` (UF2-138), `emails` (UF2-132), `donor-list` (UF2-136) and `donor-totals` (UF2-135); each later export adds a case with its own permission
+// (UF2-133), `noncash` (UF2-134), `hours` (UF2-138), `emails` (UF2-132), `donor-list` (UF2-136), `donor-totals` (UF2-135) and `tax-receipt` (UF2-137); each later export adds a case with its own permission
 // check and query.
 // Including the layout signs in the visitor and checks the CSRF token on every POST (require_authentication).
 require_once 'include/fishnet-layout.php';
@@ -321,6 +321,81 @@ switch (fish_str($_POST, 'export')) {
                       ['Donor ID', 'Donor', 'Type', 'Status', 'Cash gifts', 'Cash total (gross)', 'Non-cash gifts',
                        'Items donated', 'Non-cash estimated value', 'Volunteer shifts', 'Volunteer hours',
                        'First gift', 'Last gift'],
+                      $rows);
+        $stmt->close();
+        $con->close();
+        exit;
+
+    case 'tax-receipt':
+        // Donations view and donors view, as donor totals. One row per donor (deactivated and Do not contact included,
+        // flagged; not 999) with a cash gift dated in the year or an item gift received in it. Cash is aggregated
+        // before the item join, so one result row per item gift never inflates the totals; the generator folds a
+        // donor's consecutive rows into one CSV row (no GROUP_CONCAT length limit). NULL amounts count only in
+        // "Gifts with no amount" (decided by the author, 2026-11-23).
+        if (!fish_can_export_tax_receipts()) {
+            http_response_code(403);
+            header('Content-Type: text/plain; charset=utf-8');
+            echo 'You do not have access to the tax receipt export.';
+            exit;
+        }
+        $year = fish_str($_POST, 'year');
+        $range = fish_export_year($year);
+        if ($range === null) {
+            export_back('year');
+        }
+        session_write_close();
+        [$con, $stmt, $result] = export_query(
+            "SELECT s.id, s.display_name, s.donor_type, k.name AS contact_name, k.email AS contact_email, s.email,
+                    s.street, s.city, s.state, s.zip, s.mail_receipts, s.do_not_contact, s.is_active,
+                    COALESCE(c.n, 0) AS cash_n, COALESCE(c.total, 0.00) AS cash_total,
+                    COALESCE(c.no_amount, 0) AS no_amount, n.id AS item_id, n.item_description, n.quantity
+             FROM donor_summary s
+             LEFT JOIN donor_contacts k ON k.donor_id = s.id AND k.is_primary = 1
+                                       AND s.donor_type IN ('organization', 'foundation')
+             LEFT JOIN (SELECT donorID, COUNT(amount) AS n, COALESCE(SUM(amount), 0.00) AS total,
+                               SUM(amount IS NULL) AS no_amount
+                        FROM donations WHERE donation_date BETWEEN ? AND ? GROUP BY donorID) c ON c.donorID = s.id
+             LEFT JOIN non_cash_donations n ON n.donor_id = s.id AND n.date_received BETWEEN ? AND ?
+             WHERE s.is_anonymous = 0 AND (c.donorID IS NOT NULL OR n.id IS NOT NULL)
+             ORDER BY s.display_name, s.id, n.date_received, n.id",
+            'tax receipt', [$range[0], $range[1], $range[0], $range[1]]);
+        $yesNo = fn($v) => (int) $v === 1 ? 'Yes' : 'No';
+        // 10.00 -> 10, 2.50 -> 2.5 (quantity is DECIMAL(10,2), so there is always a point).
+        $qty = fn($q) => rtrim(rtrim((string) $q, '0'), '.');
+        $rows = (function () use ($result, $yesNo, $qty) {
+            $row = null;
+            $items = [];
+            $finish = function () use (&$row, &$items) {
+                $row[] = count($items);
+                $row[] = implode('; ', $items);
+                return $row;
+            };
+            while ($r = $result->fetch_assoc()) {
+                if ($row === null || $row[0] !== $r['id']) {
+                    if ($row !== null) {
+                        yield $finish();
+                    }
+                    $row = [
+                        $r['id'], $r['display_name'], donor_type_label($r['donor_type']),
+                        $r['contact_name'], $r['contact_email'], $r['email'],
+                        $r['street'], $r['city'], $r['state'], $r['zip'],
+                        $yesNo($r['mail_receipts']), $yesNo($r['do_not_contact']), $yesNo($r['is_active']),
+                        $r['cash_n'], $r['cash_total'], $r['no_amount'],
+                    ];
+                    $items = [];
+                }
+                if ($r['item_id'] !== null) {
+                    $items[] = $r['item_description'] . ' (' . $qty($r['quantity']) . ')';
+                }
+            }
+            if ($row !== null) {
+                yield $finish();
+            }
+        })();
+        fish_csv_send('fish-tax-receipts-' . $year . '.csv',
+                      ['Donor ID', 'Donor', 'Type', 'Main contact', 'Main contact email', 'Email', 'Street', 'City',
+                       'State', 'ZIP', 'Mail receipts', 'Do not contact', 'Active', 'Cash gifts', 'Cash total (gross)',
+                       'Gifts with no amount', 'Non-cash gifts', 'Non-cash items'],
                       $rows);
         $stmt->close();
         $con->close();
