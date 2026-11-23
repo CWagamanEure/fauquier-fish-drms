@@ -1,7 +1,8 @@
 -- Migration 019: expenses (money out) for the Treasurer page (UF2-165).
 -- One row per payment FISH makes. The Treasurer page reads it next to `donations`; the add-expense form
 -- (UF2-168) writes it. The fund an expense is charged to comes from its campaign's "Fund / designation"
--- (dbevents.fund, migration 009); an expense with no campaign is "General Fund".
+-- (dbevents.fund, migration 009); an expense with no campaign is "General Fund". The campaign key is
+-- RESTRICT, like donations.eventID, so deleting a campaign never silently moves past expenses to General Fund.
 -- MariaDB 10.4+ (CREATE TABLE IF NOT EXISTS, CHECK). Additive and safe to re-run.
 SET NAMES utf8mb4;
 
@@ -21,6 +22,6 @@ CREATE TABLE IF NOT EXISTS expenses (
   KEY idx_expenses_campaign    (campaign_id),
   KEY idx_expenses_recorded_by (recorded_by),
   CONSTRAINT chk_expenses_amount_positive CHECK (amount > 0),
-  CONSTRAINT fk_expenses_campaign    FOREIGN KEY (campaign_id) REFERENCES dbevents (id)  ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT fk_expenses_campaign    FOREIGN KEY (campaign_id) REFERENCES dbevents (id)  ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT fk_expenses_recorded_by FOREIGN KEY (recorded_by) REFERENCES dbpersons (id) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

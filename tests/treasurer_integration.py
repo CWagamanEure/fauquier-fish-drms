@@ -3,7 +3,7 @@ Net / Entries cards, the fund and show filters and the year chart, against the r
 `make test-treasurer` (needs `make seed-demo` first, like the other page suites).
 
 The suite creates and removes its own donors, campaigns, donations, expenses and users. Explicit-range checks use
-March 1901, where nothing else has rows; checks on the default month and the year chart insert rows dated today
+March 1902, which no other suite uses (exports uses 1901) and setUpClass checks is empty; checks on the default month and the year chart insert rows dated today
 and assert on the change, or filter on the suite's own fund, so demo rows are never asserted on."""
 
 import html
@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from auth_integration import Browser, ROOT, assert_no_php_errors_in  # noqa: E402
 
 XSS = "<img src=x onerror=alert(1)>"
-RANGE = "from=1901-03-01&to=1901-03-31"
+RANGE = "from=1902-03-01&to=1902-03-31"
 
 FIXTURES_PHP = r"""
 require 'database/dbTreasurer.php';
@@ -69,26 +69,26 @@ switch ($req['action']) {
         $m = $req['marker'];
         $donor = function ($first, $last) use ($run, $con) {
             $run("INSERT INTO donors (donor_type, `first`, `last`, city, state, notes, donor_since, is_active)
-                  VALUES ('individual', ?, ?, 'Testville', 'VA', 'treasurer suite', '1901-01-01', 1)", 'ss', $first, $last);
+                  VALUES ('individual', ?, ?, 'Testville', 'VA', 'treasurer suite', '1902-01-01', 1)", 'ss', $first, $last);
             return (int) $con->insert_id;
         };
         $campaign = function ($name, $fund) use ($run, $con) {
             $run("INSERT INTO dbevents (name, goalAmount, startDate, endDate, description, completed, fund)
-                  VALUES (?, 1000, '1901-01-01', '1901-12-31', 'treasurer suite', '0', ?)", 'ss', $name, $fund);
+                  VALUES (?, 1000, '1902-01-01', '1902-12-31', 'treasurer suite', '0', ?)", 'ss', $name, $fund);
             return (int) $con->insert_id;
         };
         $out = ['main' => $donor('Tres', $m), 'xss' => $donor($req['xss'], $m)];
         $out['funded'] = $campaign('Funded drive ' . $m, $req['fund']);
         $out['plain'] = $campaign('Plain drive ' . $m, null);   // no designation: General Fund
-        // March 1901: three donations and two expenses count; the rest are outside the range or have no amount.
-        $gift($out['main'], $out['funded'], '100.00', '1901-03-05', 'cash');
-        $gift($out['xss'], null, '50.25', '1901-03-10', 'check', '77');
-        $gift(999, $out['plain'], '5.00', '1901-03-15', 'online');
-        $gift($out['main'], $out['funded'], null, '1901-03-20', 'cash');
-        $gift($out['main'], $out['funded'], '999.00', '1901-04-01', 'cash');
-        $expense($req['xss'], $out['funded'], '300.00', '1901-03-12', 'food_supplies');
-        $expense('Power Co ' . $m, null, '20.00', '1901-03-20', 'utilities');
-        $expense('Too early ' . $m, null, '7.00', '1901-02-28', 'other');
+        // March 1902: three donations and two expenses count; the rest are outside the range or have no amount.
+        $gift($out['main'], $out['funded'], '100.00', '1902-03-05', 'cash');
+        $gift($out['xss'], null, '50.25', '1902-03-10', 'check', '77');
+        $gift(999, $out['plain'], '5.00', '1902-03-15', 'online');
+        $gift($out['main'], $out['funded'], null, '1902-03-20', 'cash');
+        $gift($out['main'], $out['funded'], '999.00', '1902-04-01', 'cash');
+        $expense($req['xss'], $out['funded'], '300.00', '1902-03-12', 'food_supplies');
+        $expense('Power Co ' . $m, null, '20.00', '1902-03-20', 'utilities');
+        $expense('Too early ' . $m, null, '7.00', '1902-02-28', 'other');
         break;
     case 'today_rows':
         $today = date('Y-m-d');
@@ -115,6 +115,10 @@ switch ($req['action']) {
         break;
     case 'tiles':
         $out = donations_tiles();
+        break;
+    case 'window_check':
+        $out = (int) $run("SELECT (SELECT COUNT(*) FROM donations WHERE donation_date BETWEEN '1902-01-01' AND '1902-12-31')
+                                + (SELECT COUNT(*) FROM expenses WHERE expense_date BETWEEN '1902-01-01' AND '1902-12-31') AS n")[0]['n'];
         break;
     case 'seed_check':
         $out = ['demo' => (int) $run("SELECT COUNT(*) AS n FROM donors WHERE notes LIKE '[demo]%'")[0]['n']];
@@ -166,6 +170,9 @@ class TreasurerTests(unittest.TestCase):
     def setUpClass(cls):
         if fixture("seed_check")["demo"] == 0:
             raise AssertionError("run make seed-demo before make test-treasurer")
+        if fixture("window_check"):
+            raise AssertionError("donations or expenses dated in 1902 exist that this suite did not make; "
+                                 "remove them (a previous run was interrupted?) before make test-treasurer")
         prefix = "treas_test_" + secrets.token_hex(6)
         cls.users = {role: {"id": f"{prefix}_{role}", "name": f"Treasurer test {role}", "first": "Treas",
                             "last": role.capitalize(), "password": "Trs9!" + secrets.token_hex(8), "role": "staff",
@@ -222,8 +229,12 @@ class TreasurerTests(unittest.TestCase):
         self.assertNotIn("999.00", body)
         self.assertNotIn("Too early", body)
         self.assertEqual(len(log_rows(body)), 2)   # the NULL-amount gift on Mar 20 is not a row
-        body = self.page(self.login(), "from=1901-04-01&to=1901-04-01&fund=" + self.fund.replace(" ", "+"))
+        body = self.page(self.login(), "from=1902-04-01&to=1902-04-01&fund=" + self.fund.replace(" ", "+"))
         self.assertEqual([r["amount"] for r in log_rows(body)], [999.00])
+
+    def test_log_dates_carry_the_year_across_years(self):
+        body = self.page(self.login(), "from=1902-03-01&to=1903-01-31&fund=" + self.fund.replace(" ", "+"))
+        self.assertEqual([r["date"] for r in log_rows(body)], ["Apr 1, 1902", "Mar 12, 1902", "Mar 5, 1902"])
 
     # ---- UF2-164..167: the cards ----
 
@@ -258,11 +269,11 @@ class TreasurerTests(unittest.TestCase):
         self.assertEqual(options[0], "General Fund")
         self.assertIn(self.fund, options)
         default = cards(self.page(staff))
-        for bad in ("from=1901-02-30&to=1901-03-31", "from=1901-03-01&to=1901-13-01", "from=0000-00-00&to=1901-03-31"):
+        for bad in ("from=1902-02-30&to=1902-03-31", "from=1902-03-01&to=1902-13-01", "from=0000-00-00&to=1902-03-31"):
             with self.subTest(bad=bad):
                 body = self.page(staff, bad)
                 self.assertNotIn("Feb 30", body)
-                self.assertNotIn("Mar 31, 1901", body)   # the default month, not a half-valid range
+                self.assertNotIn("Mar 31, 1902", body)   # the default month, not a half-valid range
                 self.assertEqual(cards(body), default)
 
     def test_default_month_and_year_chart_move_by_the_new_rows(self):

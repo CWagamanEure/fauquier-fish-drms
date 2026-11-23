@@ -48,6 +48,8 @@ $net = round($in - $out, 2);
 $entries = $totals['donations'] + $totals['expenses'];
 $money = fn(float $n) => '$' . number_format($n, 2);
 $rangeLabel = date('M j', strtotime($from)) . ' – ' . date('M j, Y', strtotime($to));
+// Log dates carry the year when the range spans more than one, so "Jan 5" is never ambiguous.
+$logDateFormat = substr($from, 0, 4) === substr($to, 0, 4) ? 'M j' : 'M j, Y';
 
 // chart scale: the tallest bar fills 100%
 $max = 0.0;
@@ -113,7 +115,7 @@ fishnet_open('Treasurer', 'treasurer', ['donor.css', 'forms.css', 'treasurer.css
             <tbody>
               <?php foreach ($log as $r): $isIn = $r['kind'] === 'donation'; ?>
               <tr>
-                <td><?= h(date('M j', strtotime($r['date']))) ?></td>
+                <td><?= h(date($logDateFormat, strtotime($r['date']))) ?></td>
                 <td><span class="kind <?= $isIn ? 'k-in' : 'k-out' ?>"><?= $isIn ? 'Donation' : 'Expense' ?></span></td>
                 <td><?= h($r['who']) ?></td>
                 <td><?= h($r['detail']) ?></td>

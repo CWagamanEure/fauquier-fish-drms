@@ -13,7 +13,7 @@ const TREASURER_GENERAL_FUND = 'General Fund';
 const TREASURER_SHOW = ['all', 'donations', 'expenses'];
 const TREASURER_SPANS = [3, 5];
 // The fund label of a row joined to its campaign as `e` (bound, never interpolated from input).
-const TREASURER_FUND_SQL = "COALESCE(NULLIF(TRIM(e.fund), ''), 'General Fund')";
+const TREASURER_FUND_SQL = "COALESCE(NULLIF(TRIM(e.fund), ''), '" . TREASURER_GENERAL_FUND . "')";
 
 // A real calendar date 'YYYY-MM-DD' between 1900 and 2100 (strtotime() would roll 2026-02-30 over).
 function treasurer_valid_date($s) {
@@ -61,19 +61,21 @@ function treasurer_query($sql, $types, array $values) {
     return $rows;
 }
 
-// Every fund label that has at least one donation or expense, General Fund first, then A–Z.
+// Every fund label that has at least one donation or expense, General Fund first, then A–Z. Labels that differ
+// only in case are one fund (the SQL comparison is case-insensitive), so only the first spelling is listed.
 function treasurer_funds() {
     $fundExpr = TREASURER_FUND_SQL;
     $rows = treasurer_query("SELECT $fundExpr AS fund FROM donations d LEFT JOIN dbevents e ON e.id = d.eventID
                                WHERE d.amount IS NOT NULL AND d.donation_date IS NOT NULL
                              UNION
                              SELECT $fundExpr FROM expenses x LEFT JOIN dbevents e ON e.id = x.campaign_id", '', []);
-    $funds = [];
+    $funds = [mb_strtolower(TREASURER_GENERAL_FUND) => TREASURER_GENERAL_FUND];
     foreach ($rows as $r) {
         $f = (string) $r['fund'];
-        if ($f !== TREASURER_GENERAL_FUND) { $funds[$f] = true; }
+        $funds[mb_strtolower($f)] ??= $f;
     }
-    $funds = array_keys($funds);
+    unset($funds[mb_strtolower(TREASURER_GENERAL_FUND)]);
+    $funds = array_values($funds);
     usort($funds, 'strcasecmp');
     array_unshift($funds, TREASURER_GENERAL_FUND);
     return $funds;

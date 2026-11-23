@@ -171,7 +171,7 @@ CSVs and the volunteer hours CSV (UF2-138) from Data & Imports: date ranges, col
 redirects and permission gates, on gifts and hours entries dated in 1901 that it creates and removes itself. `make test-treasurer` (after
 `make seed-demo`) runs `tests/treasurer_integration.py`: the Treasurer log of cash donations and expenses, the
 Money in / Money out / Net / Entries cards, the fund and show filters, date fallback, the year chart and the
-permission gate, on donors, campaigns, gifts and expenses dated in 1901 (or today, asserted as a change) that it
+permission gate, on donors, campaigns, gifts and expenses dated in 1902 (or today, asserted as a change) that it
 creates and removes itself. Run them only against a local development database.
 `make test-outreach` runs `tests/outreach_integration.py` (outreach posts: channels with one link each, posted-by, active campaigns, photo upload, replace and remove with its private download, the list's search, filters, sorting and date range, updating results, and delete).
 
